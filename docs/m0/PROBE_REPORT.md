@@ -117,6 +117,24 @@ QbProbe на C# сохраняется как диагностический и�
 
 Первичные источники версии 2026.10.0: [onboarding views](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/onboarding/views.py), [onboarding setup](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/onboarding/__init__.py), [login flow](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/auth/login_flow.py), [token/current_user](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/auth/__init__.py), [HTTP WS](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/http/websocket_api.py), [HTTP store/defaults/revert](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/http/config.py), [entity registry](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/config/entity_registry.py), [Lovelace WS](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/lovelace/websocket.py), [input_boolean](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/input_boolean/__init__.py). `ha-runtime` повторяет сценарий дважды в Ubuntu CI; результат конкретного запуска фиксируется в PR.
 
+## Исправления жизненного цикла HA после PR #7
+
+11 октября 2026 года: locked restore, Release build без предупреждений и все **264 unit/fixture-теста** прошли на локальном Windows-стенде с SDK 10.0.401. ProfileCheck подтвердил 9 сервисов, 19 fingerprints и 118 шагов, а также содержимое checkout hh-homelab v1.3.0. Это инвентаризация источника, не готовность установщика.
+
+Расширенный HaDockerProbe прошёл дважды на свежих локальных HA Container 2026.10.0 / Docker Linux Engine 29.8.2 с собственными временными ресурсами. Помимо прежних проверок owner, registry, dashboard, HTTP protection и restart подтверждены:
+
+- после отказа проверки имени владельца уже выданный refresh token отозван; metadata API показывает только активную сессию основного клиента;
+- второй авторизованный клиент не принимает и не подтверждает идентичный активный pending HTTP trial; исходный клиент с собственным намерением configure может проверить и подтвердить его после reconnect;
+- штатный async cleanup второго клиента не оставляет лишнего refresh token;
+- успешный ответ `/auth/revoke` намеренно потерян: сообщается неизвестный результат, затем явный повтор cleanup получает нормальный пустой 200;
+- после перезапуска и новой авторизации metadata показывает одну сессию wizard, сохранённые owner/registry/dashboard/HTTP policy подтверждены; cleanup ресурсов прошёл.
+
+24 новых регрессионных проверки включают реальные короткие deadlines на ожидающем fake socket, отличие от отмены caller, отсутствие повторной записи, чужой идентичный trial, повторную авторизацию/reconnect, отзыв при ошибке owner/config/token validation, потерю ответа и отказ cleanup с сохранением приватного токена для явного повтора. API клиента изменён с IDisposable на IAsyncDisposable; все имеющиеся потребители переведены на `await using`.
+
+Источник контракта отзыва и metadata: [auth 2026.10.0](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/auth/__init__.py). Используется современный `/auth/revoke`, а не устаревший `action=revoke` на `/auth/token`. Пустой 200 также возвращается для уже отозванного токена; проба дополнительно проверяет число сессий через API metadata.
+
+Намерение HTTP configure пока хранится в памяти одного клиента, не переносится в новый процесс. Журнал M3, аварийное завершение, потерянный ответ выдачи неизвестного токена, config flows и полный профиль остаются открытыми. Реальные DSM/устройства и Avalonia UI этим инкрементом не проверены. Результаты CI следует проверять по конкретному PR, локальная проба не заменяет Linux CI.
+
 ## Исходники и версии
 
 [Image evidence](image-evidence.json) содержит публичные OCI digests и metadata загруженных образов, без container environment и credentials. Digests наблюдены при pull на этом стенде, не являются новой закреплённой политикой deploy и требуют проверки архитектуры NAS до использования.

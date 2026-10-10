@@ -20,17 +20,27 @@ try
     bench = await OwnedDockerBench.ConnectAsync(token); await bench.StartHomeAssistantAsync(image, token);
     var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
     using var http = Client(bench.Endpoint, loseOwner: true);
-    using var ha = new HomeAssistantContractClient(http, () => new ProbeSocket());
+    await using var ha = new HomeAssistantContractClient(http, () => new ProbeSocket());
     await Unknown(() => ha.BootstrapOwnerAsync("M0 owner", "wizard_m0", password, token), "ha.owner.result-unknown");
     if (await ha.BootstrapOwnerAsync("M0 owner", "wizard_m0", password, token)) throw new InvalidOperationException("bench.ha.owner.recreated");
     var owner = ha.OwnerId;
+    if (await ha.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
     Console.WriteLine("ha: owner response loss reconciled through normal login; onboarding complete; owner/admin/version verified");
     using (var wrongHttp = Client(bench.Endpoint))
-    using (var wrong = new HomeAssistantContractClient(wrongHttp))
+    await using (var wrong = new HomeAssistantContractClient(wrongHttp))
     {
         try { await wrong.LoginOwnerAsync("M0 owner", "wizard_m0", "synthetic-wrong-password", token); throw new InvalidOperationException("bench.ha.wrong-password.accepted"); }
         catch (MediaContractException e) when (e.Code == "ha.login.rejected-or-interaction-required") { }
     }
+    using (var rejectedHttp = Client(bench.Endpoint))
+    await using (var rejected = new HomeAssistantContractClient(rejectedHttp))
+    {
+        try { await rejected.LoginOwnerAsync("foreign owner", "wizard_m0", password, token); throw new InvalidOperationException("bench.ha.foreign-owner.accepted"); }
+        catch (MediaContractException e) when (e.Code == "ha.owner.identity-mismatch") { }
+        if (rejected.SessionCleanupFailure is not null || await ha.GetProbeSessionCountAsync(token) != 1)
+            throw new InvalidOperationException("bench.ha.rejected-session.orphaned");
+    }
+    Console.WriteLine("ha: post-token owner rejection revoked its session; no orphan client refresh tokens");
     // A real storage helper is fixture data, not a fabricated replacement for a missing DSM sensor.
     var helper = await ha.CreateProbeHelperAsync(token);
     var observed = (await ha.GetEntitiesAsync(token)).Single(e => e.Platform == "input_boolean" && e.UniqueId == helper);
@@ -52,6 +62,17 @@ try
     ProbeSocket.LoseNext = "http/config/configure";
     await Unknown(async () => { await ha.StageHttpProtectionAsync(token); return true; }, "ha.ws.result-unknown");
     await ReconnectUntilTrialAsync(ha, token);
+    using (var otherHttp = Client(bench.Endpoint))
+    await using (var other = new HomeAssistantContractClient(otherHttp))
+    {
+        await other.LoginOwnerAsync("M0 owner", "wizard_m0", password, token);
+        try { await other.StageHttpProtectionAsync(token); throw new InvalidOperationException("bench.ha.foreign-trial.adopted"); }
+        catch (MediaContractException e) when (e.Code == "ha.http.pending-conflict") { }
+        try { await other.ConfirmHttpProtectionAsync(token); throw new InvalidOperationException("bench.ha.foreign-trial.promoted"); }
+        catch (MediaContractException e) when (e.Code == "ha.http.intent-required") { }
+    }
+    if (await ha.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
+    Console.WriteLine("ha: separate client rejected an identical pending HTTP trial; issuing client retains reconciliation intent");
     ProbeSocket.LoseNext = "http/config/promote";
     await Unknown(() => ha.ConfirmHttpProtectionAsync(token), "ha.ws.result-unknown"); await ha.ReconnectAsync(token);
     if (await ha.ConfirmHttpProtectionAsync(token) || await ha.StageHttpProtectionAsync(token) != HomeAssistantHttpStage.Unchanged)
@@ -60,13 +81,19 @@ try
     Console.WriteLine("ha: HTTP pending trial restarted, reconnected, verified and promoted; configure/promote response loss reconciled; check_config valid");
     ProbeSocket.ForbidWrites = true;
     await VerifyAsync(ha, observed, renamed, dashboard, token);
+    ProbeHttp.LoseNextRevoke = true;
+    await Unknown(async () => { await ha.RevokeSessionAsync(token); return true; }, "ha.session.revoke.result-unknown");
+    if (ha.SessionCleanupFailure != "ha.session.revoke.result-unknown") throw new InvalidOperationException("bench.ha.revoke.failure-hidden");
+    await ha.DisposeAsync(); // Explicit retry of idempotent revocation; empty 200 for already revoked token is valid.
+    Console.WriteLine("ha: lost revocation response reported; explicit cleanup retry confirmed; no synchronous disposal");
     await bench.RestartHomeAssistantAsync(token);
     // Dynamic Docker port may change; login with the same password in a new context.
     using var restartedHttp = Client(bench.Endpoint, forbidConfiguration: true);
-    using var restarted = new HomeAssistantContractClient(restartedHttp, () => new ProbeSocket());
+    await using var restarted = new HomeAssistantContractClient(restartedHttp, () => new ProbeSocket());
     if (await restarted.BootstrapOwnerAsync("M0 owner", "wizard_m0", password, token) || restarted.OwnerId != owner)
         throw new InvalidOperationException("bench.ha.owner.persistence.failed");
     await restarted.WaitUntilRunningAsync(token);
+    if (await restarted.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
     await VerifyAsync(restarted, observed, renamed, dashboard, token);
     Console.WriteLine("restart: same owner, registry identity, dashboard and stable HTTP policy; configuration writes blocked; no storage edits");
     exit = 0;
@@ -118,7 +145,7 @@ internal sealed class ProbeSocket : IHomeAssistantSocket
     public async Task SendAsync(JsonObject message, CancellationToken token)
     {
         current = message["type"]!.GetValue<string>();
-        if (ForbidWrites && current is not ("auth" or "auth/current_user" or "get_config" or "config/entity_registry/list" or "lovelace/dashboards/list" or "lovelace/config" or "http/config"))
+        if (ForbidWrites && current is not ("auth" or "auth/current_user" or "auth/refresh_tokens" or "get_config" or "config/entity_registry/list" or "lovelace/dashboards/list" or "lovelace/config" or "http/config"))
             throw new InvalidOperationException("bench.ha.configuration-write.forbidden");
         await inner.SendAsync(message, token);
     }
@@ -133,15 +160,18 @@ internal sealed class ProbeSocket : IHomeAssistantSocket
 }
 internal sealed class ProbeHttp(HttpMessageHandler inner, bool loseOwner, bool forbidConfiguration) : DelegatingHandler(inner)
 {
+    public static bool LoseNextRevoke { get; set; }
     private bool lost;
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {
         var path = request.RequestUri!.AbsolutePath;
-        if (forbidConfiguration && request.Method != HttpMethod.Get && path is not ("/auth/login_flow" or "/auth/token" or "/api/config/core/check_config") && !path.StartsWith("/auth/login_flow/", StringComparison.Ordinal))
+        if (forbidConfiguration && request.Method != HttpMethod.Get && path is not ("/auth/login_flow" or "/auth/token" or "/auth/revoke" or "/api/config/core/check_config") && !path.StartsWith("/auth/login_flow/", StringComparison.Ordinal))
             throw new InvalidOperationException("bench.ha.configuration-write.forbidden");
         var response = await base.SendAsync(request, token);
         if (loseOwner && !lost && path == "/api/onboarding/users" && response.IsSuccessStatusCode)
         { lost = true; response.Dispose(); throw new HttpRequestException("synthetic-response-loss"); }
+        if (LoseNextRevoke && path == "/auth/revoke" && response.IsSuccessStatusCode)
+        { LoseNextRevoke = false; response.Dispose(); throw new HttpRequestException("synthetic-response-loss"); }
         return response;
     }
 }

@@ -44,16 +44,26 @@ internal sealed class HomeAssistantSocket : IHomeAssistantSocket
 }
 
 /// <summary>One request at a time; no subscriptions, retries or generic public command API.</summary>
-internal sealed class HomeAssistantConnection(IHomeAssistantSocket socket) : IDisposable
+internal sealed class HomeAssistantConnection : IDisposable
 {
+    private readonly IHomeAssistantSocket socket;
+    private readonly TimeSpan requestTimeout;
     private int sequence;
     private bool ready;
     private readonly SemaphoreSlim gate = new(1, 1);
 
+    internal HomeAssistantConnection(IHomeAssistantSocket socket) : this(socket, TimeSpan.FromSeconds(30)) { }
+    internal HomeAssistantConnection(IHomeAssistantSocket socket, TimeSpan requestTimeout)
+    {
+        ArgumentNullException.ThrowIfNull(socket);
+        if (requestTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(requestTimeout));
+        this.socket = socket; this.requestTimeout = requestTimeout;
+    }
+
     internal async Task AuthenticateAsync(Uri endpoint, string secret, CancellationToken token)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        deadline.CancelAfter(requestTimeout);
         try
         {
             await socket.ConnectAsync(endpoint, deadline.Token);
@@ -67,6 +77,8 @@ internal sealed class HomeAssistantConnection(IHomeAssistantSocket socket) : IDi
             ready = true;
         }
         catch (MediaContractException) { Dispose(); throw; }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        { Dispose(); throw new MediaContractException("ha.ws.authentication-failed"); }
         catch (OperationCanceledException) { Dispose(); throw; }
         catch (Exception e) when (e is WebSocketException or HttpRequestException or JsonException)
         { Dispose(); throw new MediaContractException("ha.ws.authentication-failed"); }
@@ -76,7 +88,7 @@ internal sealed class HomeAssistantConnection(IHomeAssistantSocket socket) : IDi
     {
         await gate.WaitAsync(token);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
+        deadline.CancelAfter(requestTimeout);
         try
         {
             if (!ready) throw new MediaContractException("ha.ws.session.required");
@@ -102,6 +114,8 @@ internal sealed class HomeAssistantConnection(IHomeAssistantSocket socket) : IDi
         }
         catch (MediaContractException e) when (e.Code is "ha.ws.response-invalid" or "ha.ws.message-invalid" or "ha.ws.message-too-large" or "media.response-invalid")
         { Dispose(); throw new MediaContractException(write ? "ha.ws.result-unknown" : "ha.ws.response-invalid"); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        { Dispose(); throw new MediaContractException(write ? "ha.ws.result-unknown" : "ha.ws.transport-failed"); }
         catch (OperationCanceledException) { Dispose(); throw; }
         catch (Exception e) when (e is WebSocketException or HttpRequestException or JsonException)
         { Dispose(); throw new MediaContractException(write ? "ha.ws.result-unknown" : "ha.ws.transport-failed"); }

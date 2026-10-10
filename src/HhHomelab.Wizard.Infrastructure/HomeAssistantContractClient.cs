@@ -11,7 +11,7 @@ namespace HhHomelab.Wizard.Infrastructure;
 /// <summary>M0 contracts for an owned HA Container 2026.10.0. Dedicated HTTP transport,
 /// redirects disabled, no default authentication, no concurrent operations. Tokens stay private.
 /// Resource ownership and durable intent must be supplied by the future installer.</summary>
-public sealed class HomeAssistantContractClient : IDisposable
+public sealed class HomeAssistantContractClient : IAsyncDisposable
 {
     private const string ClientId = "http://hh-homelab-wizard.local/";
     private static readonly string[] Steps = ["user", "core_config", "analytics", "integration"];
@@ -24,7 +24,11 @@ public sealed class HomeAssistantContractClient : IDisposable
     private int generation;
     private int? stagedGeneration;
     private JsonObject? httpIntent;
+    private bool disposed;
     public string? OwnerId { get; private set; }
+    /// <summary>Safe diagnostic if cleanup after a failed authorization could not confirm revocation.
+    /// The original failure is preserved; DisposeAsync retries cleanup and reports failure.</summary>
+    public string? SessionCleanupFailure { get; private set; }
 
     public HomeAssistantContractClient(HttpClient http) : this(http, () => new HomeAssistantSocket()) { }
     internal HomeAssistantContractClient(HttpClient http, Func<IHomeAssistantSocket> socketFactory)
@@ -48,6 +52,8 @@ public sealed class HomeAssistantContractClient : IDisposable
             if (Text(hello, "type") != "auth_required") throw new MediaContractException("ha.ws.authentication-context.invalid");
             if (Text(hello, "ha_version") != "2026.10.0") throw new MediaContractException("ha.version.unsupported");
         }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        { throw new MediaContractException("ha.ws.version-unavailable"); }
         catch (Exception e) when (e is System.Net.WebSockets.WebSocketException or HttpRequestException or JsonException)
         { throw new MediaContractException("ha.ws.version-unavailable"); }
     }
@@ -67,51 +73,61 @@ public sealed class HomeAssistantContractClient : IDisposable
 
     public async Task<bool> BootstrapOwnerAsync(string name, string username, string password, CancellationToken token)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         Credentials(username, password);
         if (string.IsNullOrWhiteSpace(name) || name.Any(char.IsControl)) throw new ArgumentException("ha.owner.name.invalid");
-        RetireSession(clearCredentials: true);
-        await VerifyVersionAsync(token);
-        var state = await OnboardingAsync(token);
-        var created = !state["user"];
-        if (created)
+        await RevokeSessionAsync(token);
+        try
         {
-            var result = Object(await HttpAsync(HttpMethod.Post, "api/onboarding/users", new()
-            { ["name"] = name, ["username"] = username, ["password"] = password, ["client_id"] = ClientId, ["language"] = "ru" }, false, "ha.owner", token));
-            await ExchangeCodeAsync(Text(result, "auth_code"), token);
-            ownerName = name;
-            try { await ConnectOwnerAsync(token); }
-            catch { RetireSession(clearCredentials: true); throw; }
-        }
-        else await LoginOwnerAsync(name, username, password, token);
-        state = await OnboardingAsync(token);
-        foreach (var step in Steps.Where(s => s != "user"))
-        {
-            if (state[step]) continue;
-            await HttpAsync(HttpMethod.Post, "api/onboarding/" + step, step == "integration" ?
-                new() { ["client_id"] = ClientId, ["redirect_uri"] = ClientId } : new(), true, "ha.onboarding-step", token);
+            await VerifyVersionAsync(token);
+            var state = await OnboardingAsync(token);
+            var created = !state["user"];
+            if (created)
+            {
+                var result = Object(await HttpAsync(HttpMethod.Post, "api/onboarding/users", new()
+                { ["name"] = name, ["username"] = username, ["password"] = password, ["client_id"] = ClientId, ["language"] = "ru" }, false, "ha.owner", token));
+                await ExchangeCodeAsync(Text(result, "auth_code"), token);
+                ownerName = name;
+                await ConnectOwnerAsync(token);
+            }
+            else await LoginOwnerCoreAsync(name, username, password, token);
             state = await OnboardingAsync(token);
-            if (!state[step]) throw new MediaContractException("ha.onboarding.not-applied");
+            foreach (var step in Steps.Where(s => s != "user"))
+            {
+                if (state[step]) continue;
+                await HttpAsync(HttpMethod.Post, "api/onboarding/" + step, step == "integration" ?
+                    new() { ["client_id"] = ClientId, ["redirect_uri"] = ClientId } : new(), true, "ha.onboarding-step", token);
+                state = await OnboardingAsync(token);
+                if (!state[step]) throw new MediaContractException("ha.onboarding.not-applied");
+            }
+            if (state.Values.Any(done => !done)) throw new MediaContractException("ha.onboarding.not-applied");
+            return created;
         }
-        if (state.Values.Any(done => !done)) throw new MediaContractException("ha.onboarding.not-applied");
-        return created;
+        catch { await CleanupAfterFailureAsync(); throw; }
     }
 
     public async Task LoginOwnerAsync(string name, string username, string password, CancellationToken token)
     {
-        Credentials(username, password); RetireSession(clearCredentials: true);
+        ObjectDisposedException.ThrowIf(disposed, this);
+        Credentials(username, password); await RevokeSessionAsync(token);
         try
         {
-            await VerifyVersionAsync(token);
-            var flow = Object(await HttpAsync(HttpMethod.Post, "auth/login_flow", new()
-            { ["client_id"] = ClientId, ["redirect_uri"] = ClientId, ["handler"] = new JsonArray("homeassistant", (JsonNode?)null) }, false, "ha.login", token));
-            if (Text(flow, "type") != "form" || Text(flow, "step_id") != "init") throw new MediaContractException("ha.login.interaction-required");
-            var result = Object(await HttpAsync(HttpMethod.Post, "auth/login_flow/" + Uri.EscapeDataString(Text(flow, "flow_id")), new()
-            { ["client_id"] = ClientId, ["username"] = username, ["password"] = password }, false, "ha.login", token));
-            if (Text(result, "type") != "create_entry") throw new MediaContractException("ha.login.rejected-or-interaction-required");
-            await ExchangeCodeAsync(Text(result, "result"), token); ownerName = name;
-            await ConnectOwnerAsync(token);
+            await LoginOwnerCoreAsync(name, username, password, token);
         }
-        catch { RetireSession(clearCredentials: true); throw; }
+        catch { await CleanupAfterFailureAsync(); throw; }
+    }
+
+    private async Task LoginOwnerCoreAsync(string name, string username, string password, CancellationToken token)
+    {
+        await VerifyVersionAsync(token);
+        var flow = Object(await HttpAsync(HttpMethod.Post, "auth/login_flow", new()
+        { ["client_id"] = ClientId, ["redirect_uri"] = ClientId, ["handler"] = new JsonArray("homeassistant", (JsonNode?)null) }, false, "ha.login", token));
+        if (Text(flow, "type") != "form" || Text(flow, "step_id") != "init") throw new MediaContractException("ha.login.interaction-required");
+        var result = Object(await HttpAsync(HttpMethod.Post, "auth/login_flow/" + Uri.EscapeDataString(Text(flow, "flow_id")), new()
+        { ["client_id"] = ClientId, ["username"] = username, ["password"] = password }, false, "ha.login", token));
+        if (Text(result, "type") != "create_entry") throw new MediaContractException("ha.login.rejected-or-interaction-required");
+        await ExchangeCodeAsync(Text(result, "result"), token); ownerName = name;
+        await ConnectOwnerAsync(token);
     }
 
     private async Task ExchangeCodeAsync(string code, CancellationToken token) =>
@@ -121,30 +137,34 @@ public sealed class HomeAssistantContractClient : IDisposable
     {
         using var form = new FormUrlEncodedContent(fields);
         var result = Object(await HttpContentAsync(HttpMethod.Post, "auth/token", form, false, "ha.token", token));
-        if (Text(result, "token_type") != "Bearer") throw new MediaContractException("ha.token.response-invalid");
-        var secret = Text(result, "access_token");
-        if (string.IsNullOrWhiteSpace(secret) || secret.Any(char.IsControl)) throw new MediaContractException("ha.token.response-invalid");
-        accessToken = secret;
+        // Capture an issued refresh token before validating other fields, so rejection can revoke it.
         if (initial)
         {
             var refresh = Text(result, "refresh_token");
             if (string.IsNullOrWhiteSpace(refresh) || refresh.Any(char.IsControl)) throw new MediaContractException("ha.token.response-invalid");
             refreshToken = refresh;
         }
+        if (Text(result, "token_type") != "Bearer") throw new MediaContractException("ha.token.response-invalid");
+        var secret = Text(result, "access_token");
+        if (string.IsNullOrWhiteSpace(secret) || secret.Any(char.IsControl)) throw new MediaContractException("ha.token.response-invalid");
+        accessToken = secret;
     }
 
     /// <summary>Explicit reconnect, using an in-memory refresh token. Never retries a configuration write.</summary>
     public async Task ReconnectAsync(CancellationToken token)
     {
+        ObjectDisposedException.ThrowIf(disposed, this);
         if (refreshToken is null || ownerName is null) throw new MediaContractException("ha.session.required");
-        RetireSession(clearCredentials: false);
+        RetireConnection();
         try
         {
             await VerifyVersionAsync(token);
             await GrantAsync(new() { ["grant_type"] = "refresh_token", ["client_id"] = ClientId, ["refresh_token"] = refreshToken }, initial: false, token);
             await ConnectOwnerAsync(token);
         }
-        catch { RetireSession(clearCredentials: false); throw; }
+        catch (MediaContractException e) when (e.Code is "ha.owner.identity-mismatch" or "ha.config.unsupported" or "ha.version.unsupported")
+        { await CleanupAfterFailureAsync(); throw; }
+        catch { RetireConnection(); throw; } // Retain refresh token for an explicit retry after transient reconnect failure.
     }
     private async Task ConnectOwnerAsync(CancellationToken token)
     {
@@ -177,6 +197,11 @@ public sealed class HomeAssistantContractClient : IDisposable
         var created = Object(await CommandAsync("input_boolean/create", new() { ["name"] = "HH homelab M0 fixture", ["initial"] = false }, true, token));
         return Text(created, "id");
     }
+
+    // Friend developer tool only: count metadata of this client ID, never expose raw token values.
+    internal async Task<int> GetProbeSessionCountAsync(CancellationToken token) =>
+        Array(await CommandAsync("auth/refresh_tokens", null, false, token)).Select(Object)
+            .Count(item => NullableText(item, "client_id") == ClientId);
 
     public async Task<bool> EnsureEntityIdAsync(HomeAssistantEntity identity, string target, CancellationToken token)
     {
@@ -242,8 +267,8 @@ public sealed class HomeAssistantContractClient : IDisposable
         var desired = DesiredHttp(state);
         if (state["pending"] is JsonObject pending)
         {
-            if (!SameHttp(pending, httpIntent ?? desired) || pending["error"] is not null) throw new MediaContractException("ha.http.pending-conflict");
-            httpIntent ??= desired;
+            if (httpIntent is null || stagedGeneration is null || !SameHttp(pending, httpIntent) || pending["error"] is not null)
+                throw new MediaContractException("ha.http.pending-conflict");
             return HomeAssistantHttpStage.AwaitingVerification;
         }
         var baseline = state["stable"] as JsonObject ?? Object(state["default"]);
@@ -273,6 +298,7 @@ public sealed class HomeAssistantContractClient : IDisposable
         var state = Object(await CommandAsync("http/config", null, false, token));
         var desired = httpIntent ?? DesiredHttp(state);
         if (state["pending"] is null && state["stable"] is JsonObject stable && SameHttp(stable, desired) && stable["error"] is null && Text(state, "active_config_type") == "stable") return false;
+        if (httpIntent is null || stagedGeneration is null) throw new MediaContractException("ha.http.intent-required");
         if (state["pending"] is not JsonObject pending || !SameHttp(pending, desired) || pending["error"] is not null ||
             Text(state, "active_config_type") != "pending" || state["revert_at"] is null) throw new MediaContractException("ha.http.trial-not-active");
         await CommandAsync("http/config/promote", null, true, token);
@@ -331,14 +357,50 @@ public sealed class HomeAssistantContractClient : IDisposable
             await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
             return await JsonNode.ParseAsync(stream, cancellationToken: deadline.Token);
         }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        { throw new MediaContractException(code + (method == HttpMethod.Get ? ".transport-failed" : ".result-unknown")); }
         catch (HttpRequestException) { throw new MediaContractException(code + (method == HttpMethod.Get ? ".transport-failed" : ".result-unknown")); }
         catch (JsonException) { throw new MediaContractException(code + (method == HttpMethod.Get ? ".response-invalid" : ".result-unknown")); }
     }
     private static string? NullableText(JsonObject obj, string key) => obj[key] is null ? null : Text(obj, key);
-    private void RetireSession(bool clearCredentials)
+    private void RetireConnection()
     {
         connection?.Dispose(); connection = null; accessToken = null;
-        if (clearCredentials) { refreshToken = null; ownerName = null; }
     }
-    public void Dispose() => RetireSession(clearCredentials: true);
+
+    /// <summary>Revoke only this client's issued refresh token via the HA 2026.10.0 revocation endpoint.
+    /// Empty 200 is valid. On failure retain the private token for explicit cleanup retry; never delete other sessions.</summary>
+    public async Task RevokeSessionAsync(CancellationToken token)
+    {
+        RetireConnection();
+        if (refreshToken is null) { ownerName = null; SessionCleanupFailure = null; return; }
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(10));
+        using var request = new HttpRequestMessage(HttpMethod.Post, "auth/revoke")
+        { Content = new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = refreshToken }) };
+        try
+        {
+            using var response = await http.SendAsync(request, deadline.Token);
+            if (response.StatusCode != HttpStatusCode.OK) throw new MediaContractException("ha.session.revoke.http-error", response.StatusCode);
+            refreshToken = null; ownerName = null; SessionCleanupFailure = null;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        { SessionCleanupFailure = "ha.session.revoke.result-unknown"; throw; }
+        catch (Exception e) when (e is OperationCanceledException or HttpRequestException)
+        { SessionCleanupFailure = "ha.session.revoke.result-unknown"; throw new MediaContractException(SessionCleanupFailure); }
+        catch (MediaContractException e) { SessionCleanupFailure = e.Code; throw; }
+    }
+
+    private async Task CleanupAfterFailureAsync()
+    {
+        try { await RevokeSessionAsync(CancellationToken.None); }
+        catch (MediaContractException) { } // Preserve original failure; safe cleanup diagnostic and token remain for retry.
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (disposed) return;
+        await RevokeSessionAsync(CancellationToken.None);
+        disposed = true;
+    }
 }

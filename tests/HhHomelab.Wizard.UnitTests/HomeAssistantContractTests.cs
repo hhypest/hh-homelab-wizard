@@ -16,14 +16,14 @@ public sealed class HomeAssistantContractTests
     [Fact]
     public async Task LostOwnerResponseUsesNormalLoginAndNeverCreatesSecondOwner()
     {
-        using var f = new Fixture { LoseOwner = true }; using var h = f.Http(); using var ha = f.Client(h);
+        using var f = new Fixture { LoseOwner = true }; using var h = f.Http(); await using var ha = f.Client(h);
         var e = await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha)); Assert.Equal("ha.owner.result-unknown", e.Code);
         Assert.False(await Bootstrap(ha)); Assert.False(await Bootstrap(ha)); Assert.Equal(1, f.OwnerWrites); Assert.Equal(3, f.StepWrites);
     }
     [Fact]
     public async Task FailedLoginRetiresSessionAndCannotRename()
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.LoginOwnerAsync("M0 owner", "wizard", "wrong-password", Token)); Assert.Equal("ha.login.rejected-or-interaction-required", e.Code);
         e = await Assert.ThrowsAsync<MediaContractException>(() => ha.EnsureEntityIdAsync(Identity, "input_boolean.target", Token)); Assert.Equal("ha.session.required", e.Code); Assert.Equal(0, f.RegistryWrites);
     }
@@ -33,14 +33,14 @@ public sealed class HomeAssistantContractTests
     [InlineData("integration")]
     public async Task LostOnboardingStepIsObservedAndNotPostedAgain(string step)
     {
-        using var f = new Fixture { LoseStep = step }; using var h = f.Http(); using var ha = f.Client(h);
+        using var f = new Fixture { LoseStep = step }; using var h = f.Http(); await using var ha = f.Client(h);
         var e = await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha)); Assert.Equal("ha.onboarding-step.result-unknown", e.Code);
         Assert.False(await Bootstrap(ha)); Assert.Equal(1, f.OwnerWrites); Assert.Equal(3, f.StepWrites);
     }
     [Fact]
     public async Task CompletedOnboardingWithoutViewsUsesNormalLogin()
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha); f.ViewsAbsent = true;
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha); f.ViewsAbsent = true;
         Assert.False(await Bootstrap(ha)); Assert.Equal(1, f.OwnerWrites); Assert.Equal(3, f.StepWrites);
     }
     [Theory]
@@ -49,7 +49,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("../hh-homelab")]
     public async Task InvalidDashboardPathNeverCallsServer(string path)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h);
         await Assert.ThrowsAsync<ArgumentException>(() => ha.EnsureDashboardAsync(Dashboard with { UrlPath = path }, Token)); Assert.Equal(0, f.HttpWrites); Assert.Equal(0, f.DashboardCreates);
     }
     [Theory]
@@ -58,7 +58,7 @@ public sealed class HomeAssistantContractTests
     public async Task UntrustedGreetingBlocksOwnerAndCredentialPosts(string failure)
     {
         using var f = new Fixture { Version = failure == "version" ? "2026.11.0" : "2026.10.0", Preauthenticated = failure == "preauthenticated" };
-        using var h = f.Http(); using var ha = f.Client(h);
+        using var h = f.Http(); await using var ha = f.Client(h);
         await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha)); Assert.Equal(0, f.HttpWrites);
     }
     [Theory]
@@ -68,14 +68,14 @@ public sealed class HomeAssistantContractTests
     [InlineData("safe_mode")]
     public async Task WrongOwnerOrSafeModeCannotEstablishSession(string failure)
     {
-        using var f = new Fixture { IdentityFailure = failure }; using var h = f.Http(); using var ha = f.Client(h);
+        using var f = new Fixture { IdentityFailure = failure }; using var h = f.Http(); await using var ha = f.Client(h);
         await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha));
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.EnsureDashboardAsync(Dashboard, Token)); Assert.Equal("ha.session.required", e.Code);
     }
     [Fact]
     public async Task ChangedOwnerOnReconnectIsRejectedBeforeMutation()
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha); f.OwnerId = "foreign-owner";
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha); f.OwnerId = "foreign-owner";
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.ReconnectAsync(Token)); Assert.Equal("ha.owner.identity-mismatch", e.Code);
         e = await Assert.ThrowsAsync<MediaContractException>(() => ha.EnsureEntityIdAsync(Identity, "input_boolean.target", Token)); Assert.Equal("ha.session.required", e.Code);
     }
@@ -84,9 +84,10 @@ public sealed class HomeAssistantContractTests
     [InlineData("cancel")]
     public async Task UnknownRenameIsObservedByIdentityAndNeverRepeated(string mode)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
-        f.LoseCommand = "config/entity_registry/update"; f.CancelLoss = mode == "cancel";
-        if (f.CancelLoss) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ha.EnsureEntityIdAsync(Identity, "input_boolean.target", Token));
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        f.LoseCommand = "config/entity_registry/update"; f.CancelLoss = mode == "cancel"; f.CallerToCancel = cancel;
+        if (f.CancelLoss) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ha.EnsureEntityIdAsync(Identity, "input_boolean.target", cancel.Token));
         else { var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.EnsureEntityIdAsync(Identity, "input_boolean.target", Token)); Assert.Equal("ha.ws.result-unknown", e.Code); }
         await ha.ReconnectAsync(Token); Assert.False(await ha.EnsureEntityIdAsync(Identity, "input_boolean.target", Token)); Assert.Equal(1, f.RegistryWrites);
     }
@@ -100,7 +101,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("collision")]
     public async Task RegistryIdentityConflictNeverRenames(string field)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         if (field == "collision") f.Entities.Add(Entity("other", "input_boolean.target")); else f.Entities[0]![field] = "foreign";
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.EnsureEntityIdAsync(Identity, "input_boolean.target", Token)); Assert.Equal("ha.entity.conflict", e.Code); Assert.Equal(0, f.RegistryWrites);
     }
@@ -109,7 +110,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("input_boolean.Bad name")]
     public async Task InvalidOrCrossDomainRenameNeverReadsServer(string target)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h);
         await Assert.ThrowsAsync<ArgumentException>(() => ha.EnsureEntityIdAsync(Identity, target, Token)); Assert.Equal(0, f.HttpWrites);
     }
     [Theory]
@@ -117,7 +118,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("lovelace/config/save")]
     public async Task LostDashboardWriteIsReconciledWithoutDuplicateOrOverwrite(string type)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha); f.LoseCommand = type;
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha); f.LoseCommand = type;
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.EnsureDashboardAsync(Dashboard, Token)); Assert.Equal("ha.ws.result-unknown", e.Code);
         await ha.ReconnectAsync(Token); await ha.EnsureDashboardAsync(Dashboard, Token); Assert.False(await ha.EnsureDashboardAsync(Dashboard, Token)); Assert.Equal(1, f.DashboardCreates); Assert.Equal(1, f.DashboardSaves);
     }
@@ -128,7 +129,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("entity")]
     public async Task DashboardConflictsArePreserved(string field)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha); await ha.EnsureDashboardAsync(Dashboard, Token);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha); await ha.EnsureDashboardAsync(Dashboard, Token);
         if (field == "config") f.DashboardConfig = new JsonObject { ["secret"] = "synthetic-sensitive" };
         else if (field == "entity") f.Entities[0]!["disabled_by"] = "user";
         else f.Dashboards[0]![field] = "foreign";
@@ -137,7 +138,7 @@ public sealed class HomeAssistantContractTests
     [Fact]
     public async Task HttpTrialNeedsReconnectAndRunningPendingBeforePromotion()
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         Assert.Equal(HomeAssistantHttpStage.RestartRequired, await ha.StageHttpProtectionAsync(Token));
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.ConfirmHttpProtectionAsync(Token)); Assert.Equal("ha.http.reconnect-required", e.Code);
         await ha.ReconnectAsync(Token); f.Running = false;
@@ -149,7 +150,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("http/config/promote")]
     public async Task HttpUnknownResultIsObservedWithoutAnotherWrite(string type)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         if (type.EndsWith("promote", StringComparison.Ordinal)) { await ha.StageHttpProtectionAsync(Token); await ha.ReconnectAsync(Token); }
         f.LoseCommand = type;
         await Assert.ThrowsAsync<MediaContractException>(async () => { if (type.EndsWith("configure", StringComparison.Ordinal)) await ha.StageHttpProtectionAsync(Token); else await ha.ConfirmHttpProtectionAsync(Token); });
@@ -163,7 +164,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("reverted")]
     public async Task FailedOrForeignHttpTrialIsNeverPromoted(string reason)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha); await ha.StageHttpProtectionAsync(Token); await ha.ReconnectAsync(Token);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha); await ha.StageHttpProtectionAsync(Token); await ha.ReconnectAsync(Token);
         if (reason == "failed") f.Pending!["error"] = "apply_failed";
         if (reason == "foreign") f.Pending!["cors_allowed_origins"] = new JsonArray("http://foreign.local");
         if (reason == "reverted") f.Active = "default";
@@ -172,7 +173,7 @@ public sealed class HomeAssistantContractTests
     [Fact]
     public async Task StartingHaCannotStageHttpRestart()
     {
-        using var f = new Fixture { Running = false }; using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
+        using var f = new Fixture { Running = false }; using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.StageHttpProtectionAsync(Token)); Assert.Equal("ha.ws.not-running", e.Code); Assert.Equal(0, f.Configures);
     }
     [Theory]
@@ -181,7 +182,7 @@ public sealed class HomeAssistantContractTests
     [InlineData("ssl")]
     public async Task ForeignHttpBaselineCannotBeOverwritten(string reason)
     {
-        using var f = new Fixture(); using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         if (reason == "port") f.Default["server_port"] = 8888;
         if (reason == "proxy") f.Default["use_x_forwarded_for"] = true;
         if (reason == "ssl") f.Default["ssl_key"] = "/config/foreign-key";
@@ -190,8 +191,126 @@ public sealed class HomeAssistantContractTests
     [Fact]
     public async Task CheckConfigDoesNotExposeErrorOrWarningText()
     {
-        using var f = new Fixture { BadConfig = true }; using var h = f.Http(); using var ha = f.Client(h); await Bootstrap(ha);
+        using var f = new Fixture { BadConfig = true }; using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.CheckConfigurationAsync(Token)); Assert.Equal("ha.check-config.invalid-or-warning", e.Code); Assert.DoesNotContain("synthetic-sensitive", e.ToString());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IdenticalPendingTrialFromAnotherClientIsNeverAdopted(bool stage)
+    {
+        using var f = new Fixture(); using var h = f.Http(); await using var first = f.Client(h); await Bootstrap(first);
+        await first.StageHttpProtectionAsync(Token);
+        using var h2 = f.Http(); await using var second = f.Client(h2); await Bootstrap(second);
+        var e = await Assert.ThrowsAsync<MediaContractException>(async () =>
+        { if (stage) await second.StageHttpProtectionAsync(Token); else await second.ConfirmHttpProtectionAsync(Token); });
+        Assert.Equal(stage ? "ha.http.pending-conflict" : "ha.http.intent-required", e.Code);
+        Assert.Equal(1, f.Configures); Assert.Equal(0, f.Promotes);
+        await first.ReconnectAsync(Token); Assert.True(await first.ConfirmHttpProtectionAsync(Token));
+    }
+
+    [Fact]
+    public async Task AsyncDisposeRevokesOnlyIssuedTokenAndIsIdempotent()
+    {
+        using var f = new Fixture(); f.ActiveRefresh.Add("foreign-refresh"); using var h = f.Http(); await using var ha = f.Client(h);
+        await Bootstrap(ha); Assert.Equal(2, f.ActiveRefresh.Count);
+        await ha.DisposeAsync(); await ha.DisposeAsync();
+        Assert.Equal(1, f.Revokes); Assert.Equal(["foreign-refresh"], f.ActiveRefresh);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => Bootstrap(ha));
+    }
+
+    [Fact]
+    public async Task RepeatedLoginRevokesPreviousSessionButReconnectReusesToken()
+    {
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h);
+        await Bootstrap(ha); await ha.ReconnectAsync(Token); Assert.Equal(0, f.Revokes); Assert.Single(f.ActiveRefresh);
+        await Bootstrap(ha); Assert.Equal(1, f.Revokes); Assert.Single(f.ActiveRefresh);
+        await ha.DisposeAsync(); Assert.Equal(2, f.Revokes); Assert.Empty(f.ActiveRefresh);
+    }
+
+    [Theory]
+    [InlineData("owner")]
+    [InlineData("admin")]
+    [InlineData("name")]
+    [InlineData("safe_mode")]
+    public async Task ValidationFailureRevokesNewlyIssuedToken(string failure)
+    {
+        using var f = new Fixture { IdentityFailure = failure }; using var h = f.Http(); await using var ha = f.Client(h);
+        await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha));
+        Assert.Equal(1, f.Revokes); Assert.Empty(f.ActiveRefresh); Assert.Null(ha.SessionCleanupFailure);
+    }
+
+    [Theory]
+    [InlineData("transport")]
+    [InlineData("lost-response")]
+    [InlineData("status")]
+    public async Task FailedRevocationRetainsTokenForExplicitRetryAndBlocksNewLogin(string failure)
+    {
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
+        f.RevokeFailure = failure;
+        var e = await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha));
+        Assert.Equal(failure == "status" ? "ha.session.revoke.http-error" : "ha.session.revoke.result-unknown", e.Code);
+        Assert.Equal(e.Code, ha.SessionCleanupFailure); Assert.Equal(1, f.Grants);
+        Assert.DoesNotContain("synthetic-sensitive", e.ToString());
+        f.RevokeFailure = null; await ha.RevokeSessionAsync(Token); Assert.Null(ha.SessionCleanupFailure); Assert.Empty(f.ActiveRefresh);
+        await Bootstrap(ha); Assert.Equal(2, f.Grants); Assert.Single(f.ActiveRefresh);
+    }
+
+    [Fact]
+    public async Task CleanupFailurePreservesOriginalValidationErrorAndCanBeRetried()
+    {
+        using var f = new Fixture { IdentityFailure = "owner", RevokeFailure = "transport" }; using var h = f.Http(); await using var ha = f.Client(h);
+        var e = await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha));
+        Assert.Equal("ha.owner.identity-mismatch", e.Code); Assert.Equal("ha.session.revoke.result-unknown", ha.SessionCleanupFailure);
+        Assert.Single(f.ActiveRefresh); f.RevokeFailure = null; await ha.DisposeAsync(); Assert.Empty(f.ActiveRefresh);
+    }
+
+    [Fact]
+    public async Task ReconnectIdentityFailureRevokesExistingToken()
+    {
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
+        f.OwnerId = "foreign-owner"; await Assert.ThrowsAsync<MediaContractException>(() => ha.ReconnectAsync(Token));
+        Assert.Equal(1, f.Revokes); Assert.Empty(f.ActiveRefresh);
+    }
+
+    [Fact]
+    public async Task FailedDisposeReportsCleanupAndCanBeExplicitlyRetried()
+    {
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
+        f.RevokeFailure = "transport";
+        var e = await Assert.ThrowsAsync<MediaContractException>(async () => await ha.DisposeAsync());
+        Assert.Equal("ha.session.revoke.result-unknown", e.Code); Assert.Single(f.ActiveRefresh);
+        f.RevokeFailure = null; await ha.DisposeAsync(); Assert.Empty(f.ActiveRefresh); Assert.Null(ha.SessionCleanupFailure);
+    }
+
+    [Fact]
+    public async Task TransientReconnectFailureRetainsTokenForExplicitReconnect()
+    {
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
+        f.LoseCommand = "auth/current_user";
+        var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.ReconnectAsync(Token));
+        Assert.Equal("ha.ws.transport-failed", e.Code); Assert.Equal(0, f.Revokes); Assert.Single(f.ActiveRefresh);
+        await ha.ReconnectAsync(Token); Assert.Equal(1, f.Grants); Assert.Single(f.ActiveRefresh);
+    }
+
+    [Fact]
+    public async Task TokenValidationFailureRevokesCapturedRefreshToken()
+    {
+        using var f = new Fixture { InvalidTokenType = true }; using var h = f.Http(); await using var ha = f.Client(h);
+        var e = await Assert.ThrowsAsync<MediaContractException>(() => Bootstrap(ha));
+        Assert.Equal("ha.token.response-invalid", e.Code); Assert.Equal(1, f.Revokes); Assert.Empty(f.ActiveRefresh);
+    }
+
+    [Theory]
+    [InlineData("/api/onboarding", "ha.onboarding.transport-failed")]
+    [InlineData("/api/config/core/check_config", "ha.check-config.result-unknown")]
+    public async Task HttpTransportTimeoutDoesNotMasqueradeAsCallerCancellation(string path, string code)
+    {
+        using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
+        f.TimeoutPath = path;
+        var e = await Assert.ThrowsAsync<MediaContractException>(() => path == "/api/onboarding" ? Bootstrap(ha) : ha.CheckConfigurationAsync(Token));
+        Assert.Equal(code, e.Code); Assert.False(Token.IsCancellationRequested);
     }
 
     private static JsonObject Entity(string id = "registry1", string entity = "input_boolean.fixture") => new()
@@ -209,6 +328,12 @@ public sealed class HomeAssistantContractTests
         public bool BadConfig { get; init; }
         public string? LoseCommand { get; set; }
         public bool CancelLoss { get; set; }
+        public CancellationTokenSource? CallerToCancel { get; set; }
+        public string? RevokeFailure { get; set; }
+        public string? TimeoutPath { get; set; }
+        public bool InvalidTokenType { get; init; }
+        public int Grants, Revokes;
+        public HashSet<string> ActiveRefresh { get; } = [];
         public bool Running { get; set; } = true;
         public int OwnerWrites, StepWrites, HttpWrites, RegistryWrites, DashboardCreates, DashboardSaves, Configures, Promotes;
         public JsonArray Entities { get; } = new(Entity());
@@ -224,7 +349,8 @@ public sealed class HomeAssistantContractTests
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             var path = request.RequestUri!.AbsolutePath;
-            var body = request.Content is not null && path != "/auth/token" ? JsonNode.Parse(await request.Content.ReadAsStringAsync(token)) as JsonObject : null;
+            if (path == TimeoutPath) throw new OperationCanceledException("synthetic-sensitive");
+            var body = request.Content is not null && path is not ("/auth/token" or "/auth/revoke") ? JsonNode.Parse(await request.Content.ReadAsStringAsync(token)) as JsonObject : null;
             if (request.Method != HttpMethod.Get) HttpWrites++;
             JsonNode? result = new JsonObject();
             if (path == "/api/onboarding" && ViewsAbsent) return new(HttpStatusCode.NotFound) { Content = new StringContent("synthetic-sensitive") };
@@ -234,7 +360,32 @@ public sealed class HomeAssistantContractTests
             else if (path.StartsWith("/api/onboarding/", StringComparison.Ordinal)) { StepWrites++; var step = path.Split('/')[^1]; done.Add(step); if (step == LoseStep) throw new HttpRequestException("synthetic-sensitive"); }
             else if (path == "/auth/login_flow") result = new JsonObject { ["type"] = "form", ["step_id"] = "init", ["flow_id"] = "fixture-flow" };
             else if (path == "/auth/login_flow/fixture-flow") result = body?["password"]?.GetValue<string>() == "synthetic-password" ? new JsonObject { ["type"] = "create_entry", ["result"] = "synthetic-code" } : new JsonObject { ["type"] = "form", ["errors"] = new JsonObject { ["base"] = "invalid_auth" } };
-            else if (path == "/auth/token") result = new JsonObject { ["access_token"] = "synthetic-access", ["refresh_token"] = "synthetic-refresh", ["token_type"] = "Bearer" };
+            else if (path == "/auth/token")
+            {
+                var form = await request.Content!.ReadAsStringAsync(token);
+                if (form.Contains("grant_type=refresh_token", StringComparison.Ordinal))
+                {
+                    var value = Uri.UnescapeDataString(form.Split('&').Single(s => s.StartsWith("refresh_token=", StringComparison.Ordinal))[14..]);
+                    if (!ActiveRefresh.Contains(value)) return new(HttpStatusCode.BadRequest);
+                    result = new JsonObject { ["access_token"] = "synthetic-access", ["token_type"] = "Bearer" };
+                }
+                else
+                {
+                    var value = "synthetic-refresh-" + ++Grants; ActiveRefresh.Add(value);
+                    result = new JsonObject { ["access_token"] = "synthetic-access", ["refresh_token"] = value, ["token_type"] = InvalidTokenType ? "Basic" : "Bearer" };
+                }
+            }
+            else if (path == "/auth/revoke")
+            {
+                Revokes++;
+                Assert.Null(request.Headers.Authorization);
+                if (RevokeFailure == "transport") throw new HttpRequestException("synthetic-sensitive");
+                if (RevokeFailure == "status") return new(HttpStatusCode.ServiceUnavailable) { Content = new StringContent("synthetic-sensitive") };
+                var form = await request.Content!.ReadAsStringAsync(token);
+                Assert.StartsWith("token=", form); ActiveRefresh.Remove(Uri.UnescapeDataString(form[6..]));
+                if (RevokeFailure == "lost-response") throw new HttpRequestException("synthetic-sensitive");
+                return new(HttpStatusCode.OK) { Content = new StringContent("") };
+            }
             else if (path == "/api/config/core/check_config") result = new JsonObject { ["result"] = BadConfig ? "invalid" : "valid", ["errors"] = BadConfig ? "synthetic-sensitive" : null, ["warnings"] = null };
             else throw new InvalidOperationException("Unexpected fixture HTTP route");
             return new(HttpStatusCode.OK) { Content = new StringContent(result!.ToJsonString()) };
@@ -271,7 +422,7 @@ public sealed class HomeAssistantContractTests
             public Task<JsonObject> ReceiveAsync(CancellationToken token)
             {
                 var next = answers.Dequeue();
-                if (current is not null && current == f.LoseCommand) { f.LoseCommand = null; if (f.CancelLoss) throw new OperationCanceledException(); throw new HttpRequestException("synthetic-sensitive"); }
+                if (current is not null && current == f.LoseCommand) { f.LoseCommand = null; if (f.CancelLoss) { f.CallerToCancel!.Cancel(); throw new OperationCanceledException(token); } throw new HttpRequestException("synthetic-sensitive"); }
                 return Task.FromResult(next);
             }
             public void Dispose() { }

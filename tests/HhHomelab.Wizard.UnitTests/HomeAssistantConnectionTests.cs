@@ -54,6 +54,47 @@ public sealed class HomeAssistantConnectionTests
         var e = await Assert.ThrowsAsync<MediaContractException>(() => connection.CommandAsync("command", null, true, Token)); Assert.Equal("ha.ws.command-rejected", e.Code); Assert.DoesNotContain("synthetic-sensitive", e.ToString());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task AuthenticationDeadlineIsDistinctFromCallerCancellation(bool callerCancels)
+    {
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        var socket = new Socket { BlockConnect = true };
+        using var connection = new HomeAssistantConnection(socket, callerCancels ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(50));
+        if (callerCancels) caller.CancelAfter(TimeSpan.FromMilliseconds(50));
+        if (callerCancels) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connection.AuthenticateAsync(Endpoint, "synthetic-sensitive", caller.Token));
+        else
+        {
+            var e = await Assert.ThrowsAsync<MediaContractException>(() => connection.AuthenticateAsync(Endpoint, "synthetic-sensitive", caller.Token));
+            Assert.Equal("ha.ws.authentication-failed", e.Code); Assert.False(caller.IsCancellationRequested);
+        }
+        Assert.Equal(0, socket.Sends); Assert.True(socket.Disposed);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task CommandDeadlineClassifiesUnknownWriteAndCallerCancellation(bool write, bool callerCancels)
+    {
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        var socket = new Socket { BlockCommandResponse = true };
+        using var connection = new HomeAssistantConnection(socket, callerCancels ? TimeSpan.FromSeconds(10) : TimeSpan.FromMilliseconds(50));
+        await connection.AuthenticateAsync(Endpoint, "synthetic-access", Token);
+        if (callerCancels) caller.CancelAfter(TimeSpan.FromMilliseconds(50));
+        if (callerCancels) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => connection.CommandAsync("command", null, write, caller.Token));
+        else
+        {
+            var e = await Assert.ThrowsAsync<MediaContractException>(() => connection.CommandAsync("command", null, write, caller.Token));
+            Assert.Equal(write ? "ha.ws.result-unknown" : "ha.ws.transport-failed", e.Code); Assert.False(caller.IsCancellationRequested);
+        }
+        Assert.Equal(2, socket.Sends); Assert.True(socket.Disposed);
+        var retired = await Assert.ThrowsAsync<MediaContractException>(() => connection.CommandAsync("command", null, true, Token));
+        Assert.Equal("ha.ws.session.required", retired.Code); Assert.Equal(2, socket.Sends);
+    }
+
     private sealed class Socket : IHomeAssistantSocket
     {
         public JsonObject Greeting { get; init; } = new() { ["type"] = "auth_required", ["ha_version"] = "2026.10.0" };
@@ -62,10 +103,13 @@ public sealed class HomeAssistantConnectionTests
         public bool WrongId { get; init; }
         public bool Malformed { get; init; }
         public bool RejectCommand { get; init; }
+        public bool BlockConnect { get; init; }
+        public bool BlockCommandResponse { get; init; }
         public int Sends { get; private set; }
         public bool Disposed { get; private set; }
         private readonly Queue<JsonObject> responses = new();
-        public Task ConnectAsync(Uri endpoint, CancellationToken token) { responses.Enqueue(Greeting); return Task.CompletedTask; }
+        public async Task ConnectAsync(Uri endpoint, CancellationToken token)
+        { if (BlockConnect) await Task.Delay(Timeout.InfiniteTimeSpan, token); responses.Enqueue(Greeting); }
         public Task SendAsync(JsonObject message, CancellationToken token)
         {
             Sends++;
@@ -78,8 +122,11 @@ public sealed class HomeAssistantConnectionTests
             }
             return Task.CompletedTask;
         }
-        public Task<JsonObject> ReceiveAsync(CancellationToken token)
-        { if (Malformed && Sends > 1) throw new JsonException("synthetic-sensitive"); return Task.FromResult(responses.Dequeue()); }
+        public async Task<JsonObject> ReceiveAsync(CancellationToken token)
+        {
+            if (BlockCommandResponse && Sends > 1) await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            if (Malformed && Sends > 1) throw new JsonException("synthetic-sensitive"); return responses.Dequeue();
+        }
         public void Dispose() => Disposed = true;
     }
 }
