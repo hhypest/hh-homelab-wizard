@@ -89,6 +89,34 @@ QbProbe на C# сохраняется как диагностический и�
 
 Первичные источники: [Jellyfin library controller](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Api/Controllers/LibraryStructureController.cs), [user controller](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Api/Controllers/UserController.cs), [Seerr auth](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/auth.ts), [Jellyfin settings и initialize](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/settings/index.ts), [Radarr settings/Test](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/settings/radarr.ts), [Sonarr settings/Test](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/settings/sonarr.ts). Наличие API в source отличено от перечисленных выше runtime-результатов. Новый job `media-runtime` выполняет две свежие пробы на Ubuntu; итог конкретного CI run фиксируется в PR.
 
+## Home Assistant: владелец, HTTP, реестр и панель
+
+Следующий инкремент проверен на **HA Container 2026.10.0** (`ghcr.io/home-assistant/home-assistant:2026.10.0`) профиля hh-homelab v1.3.0. Добавлены HomeAssistantContractClient, ограниченный WebSocket transport и HaDockerProbe без новых NuGet-зависимостей. Три полные локальные пробы на свежих config volumes в Windows/Docker Desktop Linux Engine 29.8.2 завершились exit 0 и cleanup; последняя включает сравнение всего ожидаемого HTTP config, а не только protection-полей. Сборка Release без предупреждений, **240 unit/fixture-тестов**, 53 новых для HA.
+
+Подтверждено runtime:
+
+- версия в WS greeting до передачи credentials; создание первого owner, token exchange, обычный login при повторе, owner/admin/name и отсутствие safe mode;
+- завершение четырёх шагов onboarding с проверкой флагов; после restart endpoint onboarding отсутствует, повтор использует обычный login;
+- отказ неверного пароля в отдельном клиенте; токены и auth codes не выводятся;
+- создание настоящего storage input_boolean через API как fixture, чтение registry identity и переименование только той же записи;
+- повтор renamed entity без update, отказ при чужом unique ID;
+- отдельный storage dashboard, API create/save/readback с явной ссылкой на зарегистрированный включённый helper, повтор без create/save;
+- HTTP IP ban, threshold=5, X-Forwarded-For=false, trusted_proxies=[]: pending → штатный restart → refresh/reconnect → прежний owner, RUNNING и active pending → promote → stable readback;
+- шесть потерянных успешных ответов после записи owner, registry update, dashboard create, config save, HTTP configure и promote; дальнейшее наблюдение без повторной записи;
+- check_config минимального YAML без ошибок/предупреждений;
+- после stop/start того же контейнера: прежние пароль/owner ID, registry identity/renamed ID, dashboard config и stable HTTP protection, с блокировкой конфигурационных записей транспортом;
+- cleanup двух собственных контейнеров (seed/HA), config volume и сети, без host mounts/socket/устройств и без правок .storage.
+
+Первый подготовительный запуск подтвердил owner/registry/dashboard, но остановился после HTTP configure: тестовый запуск напрямую через Python обошёл штатный `/init`, HA завершил контейнер с кодом 100, и reconnect истёк. Исправлено: YAML создаётся отдельным собственным seed, основной контейнер запускает обычный `/init` образа. Второй запуск остановился с `not_running`: открытый HTTP/WS не означает завершённого startup. Добавлены наблюдение RUNNING до configure и ожидание RUNNING после reconnect. Оба неуспешных запуска очищены и не учитываются как успешные полные пробы.
+
+Состояния failed/reverted/foreign pending, невозможность promote на прежнем соединении, чужой owner/admin/name/safe mode, коллизии registry ID/unique ID/platform/config entry/device/disabled state, несоответствие WS command ID, malformed JSON и повтор шагов onboarding после потери ответа покрыты fixtures. Сравнивается весь ожидаемый HTTP config без server metadata: другое значение CORS также блокирует promote. Автоматический пятиминутный откат HTTP и достижение лимита IP ban на реальном сервере не испытывались. API success без readback не считается результатом; cancellation не объявляется rollback.
+
+На этой версии source default HTTP config задаёт ip_ban_enabled=true и threshold=-1; один enabled-флаг не подтверждает выбранный threshold=5. Проба явно устанавливает и проверяет оба параметра. Это уточнение контракта закреплённой версии, не изменение исходного hh-homelab и не испытание рабочей DSM.
+
+Это минимальный HA fixture, не полный configuration.yaml/packages/dashboard hh-homelab. Onboarding core самого HA может создавать штатные интеграции и выполнять внешние запросы; сеть обычная bridge, не air gap. Облачные аккаунты не привязывались. Config flows Synology/LG/GX1/Jellyfin, доставка Monitor Docker, полный рендер с исключёнными облачными модулями, disabled-сенсоры, управление устройствами, визуальная панель и прикладные автоматизации не проверены. Сохранение simple entities card не доказывает отображление всего dashboard. Журнал/маркер владения/движок и Avalonia UI ещё не реализованы; профиль сохраняет NotImplemented.
+
+Первичные источники версии 2026.10.0: [onboarding views](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/onboarding/views.py), [onboarding setup](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/onboarding/__init__.py), [login flow](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/auth/login_flow.py), [token/current_user](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/auth/__init__.py), [HTTP WS](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/http/websocket_api.py), [HTTP store/defaults/revert](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/http/config.py), [entity registry](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/config/entity_registry.py), [Lovelace WS](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/lovelace/websocket.py), [input_boolean](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/input_boolean/__init__.py). `ha-runtime` повторяет сценарий дважды в Ubuntu CI; результат конкретного запуска фиксируется в PR.
+
 ## Исходники и версии
 
 [Image evidence](image-evidence.json) содержит публичные OCI digests и metadata загруженных образов, без container environment и credentials. Digests наблюдены при pull на этом стенде, не являются новой закреплённой политикой deploy и требуют проверки архитектуры NAS до использования.
@@ -96,7 +124,7 @@ QbProbe на C# сохраняется как диагностический и�
 Основные проверенные источники:
 
 - [HA onboarding](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/onboarding/views.py), [config entries](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/config/config_entries.py), [entity registry](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/config/entity_registry.py).
-- [HA HTTP WS](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/http/websocket_api.py): предусмотрены `http/config`, `http/config/configure`, `http/config/promote`; настройка может инициировать restart и требует подтверждения pending config. Пока это source evidence, без runtime-проверки WS.
+- [HA HTTP WS](https://github.com/home-assistant/core/blob/2026.10.0/homeassistant/components/http/websocket_api.py): `http/config`, `http/config/configure`, `http/config/promote` и штатный restart/pending trial подтверждены HaDockerProbe в описанном выше объёме. Полный сетевой профиль и автоматический rollback таймера не проверены.
 - [Jellyfin Startup v12.2](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Api/Controllers/StartupController.cs); runtime OpenAPI доступен по `/api-docs/openapi.json`. Нельзя угадывать версию приложения по упаковочному tag; 12.2.0 получена из runtime API.
 - [Seerr auth v3.5.0](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/auth.ts), [settings](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/settings/index.ts).
 - [Sonarr OpenAPI](https://github.com/Sonarr/Sonarr/blob/v4.0.20.3014/src/Sonarr.Api.V3/openapi.json), [Radarr OpenAPI](https://github.com/Radarr/Radarr/blob/v6.4.4.10685/src/Radarr.Api.V3/openapi.json), [Prowlarr applications](https://github.com/Prowlarr/Prowlarr/blob/v2.6.5.5623/src/Prowlarr.Api.V1/Applications/ApplicationController.cs).
@@ -108,6 +136,6 @@ QbProbe на C# сохраняется как диагностический и�
 
 В указанном порядке проверьте onboarding HA и token exchange; status/schema Arr; startup Jellyfin и авторизацию; auth/jellyfin Seerr с hostname Jellyfin внутри общей сети. Синтетические пользователи и пароли создаются заново. После потери ответа сначала наблюдайте состояние: повторный запуск всего списка на уже созданном владельце не является корректным resume.
 
-Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма qBittorrent, Arr, Jellyfin и Seerr; следующий инкремент — HA. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime` и `media-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
+Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма Media и минимальной конфигурации HA; следующий инкремент — оставшиеся HA config flows/компоненты/рендер/автоматизации. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime`, `media-runtime` и `ha-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

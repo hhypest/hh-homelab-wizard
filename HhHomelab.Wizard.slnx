@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/HhHomelab.Wizard.ArrDockerProbe/HhHomelab.Wizard.ArrDockerProbe.csproj" />
+    <Project Path="tools/HhHomelab.Wizard.HaDockerProbe/HhHomelab.Wizard.HaDockerProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.MediaDockerProbe/HhHomelab.Wizard.MediaDockerProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.ProbeSupport/HhHomelab.Wizard.ProbeSupport.csproj" />
     <Project Path="tools/HhHomelab.Wizard.ProfileCheck/HhHomelab.Wizard.ProfileCheck.csproj" />
