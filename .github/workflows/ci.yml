@@ -50,3 +50,31 @@ jobs:
           for attempt in 1 2; do
             dotnet run --project tools/HhHomelab.Wizard.QbDockerProbe --no-build --configuration Release -- profiles/hh-homelab/1.3.0/research-profile.json
           done
+
+  arr-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+      - name: Restore locked probe dependencies
+        run: dotnet restore tools/HhHomelab.Wizard.ArrDockerProbe --locked-mode
+      - name: Build probe
+        run: dotnet build tools/HhHomelab.Wizard.ArrDockerProbe --no-restore --configuration Release
+      - name: Pull pinned research images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479
+          docker pull lscr.io/linuxserver/radarr:6.4.4.10685-ls319
+          docker pull lscr.io/linuxserver/sonarr:4.0.20.3014-ls326
+          docker pull lscr.io/linuxserver/prowlarr:2.6.5.5623-ls163
+      - name: Verify Arr bootstrap twice on fresh configurations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            dotnet run --project tools/HhHomelab.Wizard.ArrDockerProbe --no-build --configuration Release -- profiles/hh-homelab/1.3.0/research-profile.json
+          done

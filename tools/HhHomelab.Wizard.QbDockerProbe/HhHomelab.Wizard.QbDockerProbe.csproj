@@ -2,5 +2,6 @@
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/HhHomelab.Wizard.Infrastructure/HhHomelab.Wizard.Infrastructure.csproj" />
+    <ProjectReference Include="../HhHomelab.Wizard.ProbeSupport/HhHomelab.Wizard.ProbeSupport.csproj" />
   </ItemGroup>
 </Project>
