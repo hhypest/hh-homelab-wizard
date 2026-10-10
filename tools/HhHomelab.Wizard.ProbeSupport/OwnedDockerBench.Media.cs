@@ -23,7 +23,7 @@ public sealed partial class OwnedDockerBench
 
     public async Task StartMediaServiceAsync(string id, string image, int port, CancellationToken token)
     {
-        if (id is not ("qbittorrent" or "radarr" or "sonarr" or "prowlarr") || services.ContainsKey(id) || port is < 1 or > 65535)
+        if (id is not ("qbittorrent" or "radarr" or "sonarr" or "prowlarr" or "jellyfin" or "seerr") || services.ContainsKey(id) || port is < 1 or > 65535)
             throw new InvalidOperationException("bench.service.invalid");
         if (resources.Count != 0 && services.Count == 0) throw new InvalidOperationException("bench.mode.conflict");
         _ = await RunAsync(["image", "inspect", image, "--format", "{{.Id}}"], token);
@@ -45,10 +45,11 @@ public sealed partial class OwnedDockerBench
         var args = new List<string> { "create", "--name", container, "--label", Label + "=" + session,
             "--network", Network, "--network-alias", id, "--publish", $"127.0.0.1:{(id == "qbittorrent" ? port.ToString(System.Globalization.CultureInfo.InvariantCulture) : "")}:{port}",
             "--env", "PUID=1000", "--env", "PGID=1000",
-            "--mount", $"type=volume,source={volume},target=/config",
-            "--mount", $"type=volume,source={DataVolume},target=/data",
+            "--mount", $"type=volume,source={volume},target={(id == "seerr" ? "/app/config" : "/config")}",
+            "--mount", $"type=volume,source={DataVolume},target={(id == "jellyfin" ? "/data/media,volume-subpath=media,readonly" : "/data")}",
             "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1" };
         if (id == "qbittorrent") args.AddRange(["--env", "WEBUI_PORT=" + port]);
+        if (id == "jellyfin") args.AddRange(["--tmpfs", "/cache:rw,uid=1000,gid=1000,mode=0755"]);
         args.Add(image);
         _ = await RunAsync(args, token);
         _ = await RunAsync(["start", container], token);
@@ -66,7 +67,7 @@ public sealed partial class OwnedDockerBench
 
     public async Task PrepareMediaFoldersAsync(CancellationToken token)
     {
-        var container = services["qbittorrent"].Container;
+        var container = services.TryGetValue("qbittorrent", out var qb) ? qb.Container : services["radarr"].Container;
         await VerifyOwnershipAsync("container", container, token);
         await VerifyOwnershipAsync("volume", DataVolume, token);
         // Fixed paths in our fresh named volume only. Never a recursive permission change.
@@ -117,7 +118,8 @@ public sealed partial class OwnedDockerBench
             deadline.Token.ThrowIfCancellationRequested();
             try
             {
-                using var request = new HttpRequestMessage(HttpMethod.Get, id == "qbittorrent" ? "api/v2/app/version" : "ping");
+                var path = id switch { "qbittorrent" => "api/v2/app/version", "jellyfin" => "System/Info/Public", "seerr" => "api/v1/status", _ => "ping" };
+                using var request = new HttpRequestMessage(HttpMethod.Get, path);
                 request.Headers.Referrer = http.BaseAddress;
                 using var reply = await http.SendAsync(request, deadline.Token);
                 if (reply.StatusCode == (id == "qbittorrent" ? HttpStatusCode.Forbidden : HttpStatusCode.OK)) return;
