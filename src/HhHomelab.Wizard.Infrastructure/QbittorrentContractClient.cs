@@ -3,9 +3,10 @@ using System.Net;
 namespace HhHomelab.Wizard.Infrastructure;
 
 /// <summary>Minimal M0 API probe. Credentials belong to the caller and are never journalled.</summary>
-public sealed class QbittorrentContractClient
+public sealed partial class QbittorrentContractClient
 {
     private readonly HttpClient client;
+    private bool authenticated;
 
     /// <param name="client">Exclusively owned client with a fresh CookieContainer and redirects disabled.
     /// Do not authenticate this client concurrently or change the server's bypass policy during a probe.</param>
@@ -53,6 +54,7 @@ public sealed class QbittorrentContractClient
             throw new QbittorrentContractException(code, response.StatusCode);
         }
         _ = await GetVersionAsync(cancellationToken); // Prove the authenticated follow-up, including cookie handling.
+        authenticated = true;
     }
 
     public async Task<string> GetVersionAsync(CancellationToken cancellationToken = default)
