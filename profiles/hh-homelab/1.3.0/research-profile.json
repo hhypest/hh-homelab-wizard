@@ -1,0 +1,1111 @@
+{
+  "schemaVersion": 1,
+  "id": "hh-homelab-1.3.0-research",
+  "source": {
+    "repository": "https://github.com/hhypest/hh-homelab",
+    "tag": "v1.3.0",
+    "commit": "b05047b081f3543520582315002e359ef1d93e59",
+    "hashMode": "utf8-lf"
+  },
+  "artifacts": [
+    {
+      "path": "docs/index.html",
+      "sha256": "64fc30af5b09a07c79b5f1e988069a0a583441f3b5557000ae37f51bd3a56851"
+    },
+    {
+      "path": "docs/media-stack.html",
+      "sha256": "065881dc8d3349fceaa0702131f083a507ae89d45bc2c464c422838306ba15d4"
+    },
+    {
+      "path": "homeassistant/.env.example",
+      "sha256": "bef205595ad0a415abd7e455d12b716685071ae8e938efaf6e4015a0b84027fa"
+    },
+    {
+      "path": "homeassistant/compose.yaml",
+      "sha256": "12aee46c21cbf1b5e0f4e0d9843b062fe3f1196c1a0e1a38713cc34d76cdd018"
+    },
+    {
+      "path": "homeassistant/config/automations.yaml",
+      "sha256": "ea9adb8837282e424d8cc4a1fc7dc0d57bbb16ce96b29117e2014c56d2a46165"
+    },
+    {
+      "path": "homeassistant/config/bin/docker_state.py",
+      "sha256": "8e902510d5f32e1a703c5c552a8af092ea70b22dcd085c7ead57e5f13b3a7dba"
+    },
+    {
+      "path": "homeassistant/config/bin/http_check.py",
+      "sha256": "25df5a1d3af56d074c26c055320234987f2bb1e056dab28ee3d22f97a79af6df"
+    },
+    {
+      "path": "homeassistant/config/configuration.yaml",
+      "sha256": "14c0621f9e0c99241c236c1f95b6e153b6cc927d94897b78190e4017272faca4"
+    },
+    {
+      "path": "homeassistant/config/packages/alice.yaml",
+      "sha256": "d4a38af979cc2f08611da3bf70d218dd2fea494ffa5e8f5c71033ce889b67bce"
+    },
+    {
+      "path": "homeassistant/config/packages/docker.yaml",
+      "sha256": "d984dff27f307b33d8f85c41150a6af56767e4a223169f33b56b0848ea027ca8"
+    },
+    {
+      "path": "homeassistant/config/packages/media_tv.yaml",
+      "sha256": "325b947fa1f625e93275c73235f719228a83e2893ed3cf5a3f73e5f58152c62d"
+    },
+    {
+      "path": "homeassistant/config/packages/monitoring.yaml",
+      "sha256": "2849e775f8662f9a274ffa184955c704a1b34aba62246a4a9809f861a78da871"
+    },
+    {
+      "path": "homeassistant/config/packages/pachca.yaml",
+      "sha256": "5f3d3675144be661de94e670e988c3d77a077cf981dc37f2796c18c96421ad2c"
+    },
+    {
+      "path": "homeassistant/config/scenes.yaml",
+      "sha256": "b2382eb6670c77816f4ae9ee2fcd621384245b6caa9d01fdd1c43d890322b438"
+    },
+    {
+      "path": "homeassistant/config/scripts.yaml",
+      "sha256": "4b874a4c51c1ddcd22273639a44500300b9a8b487fdf60b2cd95bf6d39083be0"
+    },
+    {
+      "path": "homeassistant/config/secrets.yaml.example",
+      "sha256": "963be8bc04ef8e758bde2cabe80517462ba7944a7630a867c2b26b6d00bef4e9"
+    },
+    {
+      "path": "homeassistant/dashboard-infrastructure.yaml",
+      "sha256": "5ff0f92b31b45e797382228bd28bf4f9f3839c3d11ac7699a5298b6f47f6e5ae"
+    },
+    {
+      "path": "media/.env.example",
+      "sha256": "baa86b97298b6d297ad3c7088c57a940eee22094bb62d9b0f82633a11d480e8a"
+    },
+    {
+      "path": "media/compose.yaml",
+      "sha256": "a07918982051b11f4064b91026325bdb12e372ccc02e7991c0075a089c7ffde8"
+    }
+  ],
+  "services": [
+    {
+      "id": "qbittorrent",
+      "image": "lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479",
+      "dockerMods": [
+        "ghcr.io/vuetorrent/vuetorrent-lsio-mod:2.36.1"
+      ],
+      "apiFamily": "qBittorrent v2",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "prowlarr",
+      "image": "lscr.io/linuxserver/prowlarr:2.6.5.5623-ls163",
+      "dockerMods": [],
+      "apiFamily": "Prowlarr v1",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "radarr",
+      "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls319",
+      "dockerMods": [],
+      "apiFamily": "Radarr v3",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "sonarr",
+      "image": "lscr.io/linuxserver/sonarr:4.0.20.3014-ls326",
+      "dockerMods": [],
+      "apiFamily": "Sonarr v3",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "flaresolverr",
+      "image": "ghcr.io/flaresolverr/flaresolverr:v3.5.2",
+      "dockerMods": [],
+      "apiFamily": "FlareSolverr v1",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "jellyfin",
+      "image": "lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53",
+      "dockerMods": [],
+      "apiFamily": "Jellyfin HTTP",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "seerr",
+      "image": "ghcr.io/seerr-team/seerr:v3.5.0",
+      "dockerMods": [],
+      "apiFamily": "Seerr v1",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "homeassistant",
+      "image": "ghcr.io/home-assistant/home-assistant:2026.10.0",
+      "dockerMods": [],
+      "apiFamily": "HA REST / WebSocket",
+      "evidence": "RuntimePartial"
+    },
+    {
+      "id": "dockerproxy",
+      "image": "ghcr.io/tecnativa/docker-socket-proxy:v0.5.0",
+      "dockerMods": [],
+      "apiFamily": "Docker HTTP read-only",
+      "evidence": "RuntimePartial"
+    }
+  ],
+  "components": [
+    {
+      "id": "monitor_docker",
+      "repository": "https://github.com/ualex73/monitor_docker",
+      "tag": "1.20",
+      "commit": "78abdc40d96871be44bd965202de59fe2e5b10d3",
+      "manifestVersion": "1.20b3",
+      "license": "Apache-2.0"
+    }
+  ],
+  "coverage": [
+    {
+      "id": "media.1.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Создать структуру",
+      "mode": "Automatic",
+      "operation": "filesystem",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.1.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Понять, почему монтирование именно такое",
+      "mode": "Guidance",
+      "operation": "filesystem.explain",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.1.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Убедиться, что хардлинки работают",
+      "mode": "Automatic",
+      "operation": "filesystem",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.2.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Склонировать репозиторий",
+      "mode": "Automatic",
+      "operation": "media.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.2.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Заполнить .env",
+      "mode": "Automatic",
+      "operation": "media.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.2.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Создать каталоги состояния",
+      "mode": "Automatic",
+      "operation": "media.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.2.4",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Поднять стек",
+      "mode": "Automatic",
+      "operation": "media.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.2.5",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Проверить, что тома смонтированы верно",
+      "mode": "Automatic",
+      "operation": "media.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.3.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Найти временный пароль и сменить его",
+      "mode": "Interactive",
+      "operation": "qb.bootstrap",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.3.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Включить VueTorrent",
+      "mode": "Automatic",
+      "operation": "qb.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.3.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Задать пути загрузок",
+      "mode": "Automatic",
+      "operation": "qb.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.3.4",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Создать категории movies и tv",
+      "mode": "Automatic",
+      "operation": "qb.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.3.5",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Ограничить число соединений и скорость",
+      "mode": "Interactive",
+      "operation": "qb.limits",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.3.6",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Настроить раздачу",
+      "mode": "Interactive",
+      "operation": "qb.seeding",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.4.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Проверить, что отвечает",
+      "mode": "Automatic",
+      "operation": "flare.verify",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.4.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Решить, нужен ли он вообще",
+      "mode": "Interactive",
+      "operation": "flare.selection",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.4.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Знать, что красная кнопка Test врёт",
+      "mode": "Guidance",
+      "operation": "flare.test-caveat",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.5.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Включить аутентификацию",
+      "mode": "Automatic",
+      "operation": "prowlarr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.5.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Добавить индексаторы",
+      "mode": "Interactive",
+      "operation": "indexers.select",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.5.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Подложить своё определение индексатора",
+      "mode": "Optional",
+      "operation": "indexers.custom-definition",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.5.4",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Привязать FlareSolverr",
+      "mode": "Automatic",
+      "operation": "prowlarr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.5.5",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Связать с Radarr",
+      "mode": "Automatic",
+      "operation": "prowlarr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.5.6",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Убедиться, что индексаторы доехали",
+      "mode": "Automatic",
+      "operation": "prowlarr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Аутентификация и корневая папка",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Включить хардлинки",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Профиль качества под ваш телевизор",
+      "mode": "Interactive",
+      "operation": "radarr.quality",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.4",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Подключить qBittorrent",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.5",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Уведомления в Пачку",
+      "mode": "Optional",
+      "operation": "notifications.radarr",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.6",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Добавить первый фильм",
+      "mode": "Interactive",
+      "operation": "media.test-film",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.7",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Sonarr: вход, корень библиотеки и хардлинки",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.8",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Sonarr: качество, имена и отслеживание",
+      "mode": "Interactive",
+      "operation": "sonarr.quality",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.9",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Sonarr: подключить qBittorrent",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.10",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Prowlarr: синхронизировать индексаторы с Sonarr",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.11",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Sonarr: уведомления в Пачку",
+      "mode": "Optional",
+      "operation": "notifications.sonarr",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.12",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Sonarr: первый сериал и проверка поиска",
+      "mode": "Interactive",
+      "operation": "media.test-series",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.13",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Sonarr: подтвердить импорт и библиотеку Jellyfin",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.6.14",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Sonarr: проверить надзор и журнал",
+      "mode": "Automatic",
+      "operation": "arr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.7.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Пройти мастер и добавить библиотеку",
+      "mode": "Interactive",
+      "operation": "jellyfin.onboarding-libraries",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.7.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Транскодирование: оставить выключенным",
+      "mode": "Automatic",
+      "operation": "jellyfin.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.7.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Отключить лишнее",
+      "mode": "Automatic",
+      "operation": "jellyfin.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.7.4",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Завести пользователя для приставки",
+      "mode": "Interactive",
+      "operation": "jellyfin.users",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.7.5",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Настроить клиент на приставке",
+      "mode": "Interactive",
+      "operation": "gx1.jellyfin-client",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.7.6",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Снять отчёт о возможностях приставки",
+      "mode": "Interactive",
+      "operation": "gx1.capabilities",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.8.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Подключить Jellyfin",
+      "mode": "Interactive",
+      "operation": "seerr.jellyfin-login",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.8.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Подключить Radarr и Sonarr",
+      "mode": "Automatic",
+      "operation": "seerr.configure",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.8.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Пользователи и права",
+      "mode": "Interactive",
+      "operation": "seerr.permissions",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.8.4",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Проверить фильтры витрины",
+      "mode": "Interactive",
+      "operation": "seerr.filters",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.8.5",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Уведомления в Пачку",
+      "mode": "Optional",
+      "operation": "notifications.seerr",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.9.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Запросить фильм и проследить путь",
+      "mode": "Interactive",
+      "operation": "media.request-test",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.9.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Проверить, что импорт прошёл хардлинком",
+      "mode": "Automatic",
+      "operation": "media.verify",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.10.1",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Включить встроенные бэкапы",
+      "mode": "Interactive",
+      "operation": "arr.backup-settings",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.10.2",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Порядок обновления образов",
+      "mode": "Deferred",
+      "operation": "updates.images",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.10.3",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Забрать изменения конфигурации",
+      "mode": "Deferred",
+      "operation": "updates.configuration",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.10.4",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Следить за местом",
+      "mode": "Automatic",
+      "operation": "media.maintenance",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "media.10.5",
+      "sourcePath": "docs/media-stack.html",
+      "title": "Раз в квартал заглядывать в Prowlarr",
+      "mode": "Guidance",
+      "operation": "indexers.maintenance",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.1.1",
+      "sourcePath": "docs/index.html",
+      "title": "Включить SSH на NAS",
+      "mode": "Guidance",
+      "operation": "nas.ssh-prerequisite",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.1.2",
+      "sourcePath": "docs/index.html",
+      "title": "Склонировать репозиторий",
+      "mode": "Automatic",
+      "operation": "nas.preflight",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.1.3",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить, что порты свободны",
+      "mode": "Automatic",
+      "operation": "nas.preflight",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.1.4",
+      "sourcePath": "docs/index.html",
+      "title": "Завести служебного пользователя hass",
+      "mode": "Interactive",
+      "operation": "nas.service-account",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.1.5",
+      "sourcePath": "docs/index.html",
+      "title": "Внести NAS в белый список автоблокировки",
+      "mode": "Guidance",
+      "operation": "nas.autoblock-policy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.2.1",
+      "sourcePath": "docs/index.html",
+      "title": "Убедиться, что файлы на месте",
+      "mode": "Automatic",
+      "operation": "ha.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.2.2",
+      "sourcePath": "docs/index.html",
+      "title": "Заполнить .env",
+      "mode": "Automatic",
+      "operation": "ha.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.2.3",
+      "sourcePath": "docs/index.html",
+      "title": "Заполнить secrets.yaml",
+      "mode": "Automatic",
+      "operation": "ha.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.2.4",
+      "sourcePath": "docs/index.html",
+      "title": "Собрать проект в Container Manager",
+      "mode": "Automatic",
+      "operation": "ha.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.2.5",
+      "sourcePath": "docs/index.html",
+      "title": "Дождаться первого старта",
+      "mode": "Automatic",
+      "operation": "ha.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.2.6",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить docker-socket-proxy",
+      "mode": "Automatic",
+      "operation": "ha.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.2.7",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить настройки HTTP в интерфейсе",
+      "mode": "Automatic",
+      "operation": "ha.deploy",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.3.1",
+      "sourcePath": "docs/index.html",
+      "title": "Создать владельца",
+      "mode": "Interactive",
+      "operation": "ha.owner-onboarding",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.3.2",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить конфигурацию",
+      "mode": "Automatic",
+      "operation": "ha.bootstrap",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.3.3",
+      "sourcePath": "docs/index.html",
+      "title": "Убедиться, что пакеты загрузились",
+      "mode": "Automatic",
+      "operation": "ha.bootstrap",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.3.4",
+      "sourcePath": "docs/index.html",
+      "title": "Установить HACS",
+      "mode": "Optional",
+      "operation": "components.hacs",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.3.5",
+      "sourcePath": "docs/index.html",
+      "title": "Поставить мобильное приложение",
+      "mode": "Optional",
+      "operation": "ha.mobile-app",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.4.1",
+      "sourcePath": "docs/index.html",
+      "title": "Подключить Synology DSM",
+      "mode": "Interactive",
+      "operation": "ha.synology-flow",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.4.2",
+      "sourcePath": "docs/index.html",
+      "title": "Поднять docker-socket-proxy",
+      "mode": "Automatic",
+      "operation": "ha.monitoring",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.4.3",
+      "sourcePath": "docs/index.html",
+      "title": "Установить Monitor Docker",
+      "mode": "Automatic",
+      "operation": "ha.monitoring",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.4.4",
+      "sourcePath": "docs/index.html",
+      "title": "Свериться с HTTP-проверками",
+      "mode": "Automatic",
+      "operation": "ha.monitoring",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.4.5",
+      "sourcePath": "docs/index.html",
+      "title": "Подключить прикладные интеграции стека",
+      "mode": "Interactive",
+      "operation": "ha.media-flows",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.4.6",
+      "sourcePath": "docs/index.html",
+      "title": "Поправить имена сенсоров в пакетах",
+      "mode": "Automatic",
+      "operation": "ha.monitoring",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.5.1",
+      "sourcePath": "docs/index.html",
+      "title": "Создать чат «Мониторинг»",
+      "mode": "Excluded",
+      "operation": "notifications.external-chat",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.5.2",
+      "sourcePath": "docs/index.html",
+      "title": "Создать бота и получить URL",
+      "mode": "Excluded",
+      "operation": "notifications.external-bot",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.5.3",
+      "sourcePath": "docs/index.html",
+      "title": "Вписать URL и перезагрузить конфигурацию",
+      "mode": "Optional",
+      "operation": "notifications.webhook",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.5.4",
+      "sourcePath": "docs/index.html",
+      "title": "Отправить тестовое сообщение",
+      "mode": "Optional",
+      "operation": "notifications.test",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.5.5",
+      "sourcePath": "docs/index.html",
+      "title": "Что теперь будет приходить само",
+      "mode": "Optional",
+      "operation": "notifications.events",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.5.6",
+      "sourcePath": "docs/index.html",
+      "title": "Посмотреть утреннюю сводку заранее",
+      "mode": "Optional",
+      "operation": "notifications.report",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.6.1",
+      "sourcePath": "docs/index.html",
+      "title": "Подготовить телевизор",
+      "mode": "Guidance",
+      "operation": "lg.prerequisites",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.6.2",
+      "sourcePath": "docs/index.html",
+      "title": "Добавить интеграцию",
+      "mode": "Interactive",
+      "operation": "ha.webos-pairing",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.6.3",
+      "sourcePath": "docs/index.html",
+      "title": "Привести entity_id к media_player.lg_tv",
+      "mode": "Automatic",
+      "operation": "lg",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.6.4",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить включение",
+      "mode": "Interactive",
+      "operation": "lg.power-test",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.6.5",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить, на какой вход встаёт телевизор",
+      "mode": "Interactive",
+      "operation": "lg.input-test",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.6.6",
+      "sourcePath": "docs/index.html",
+      "title": "Уведомления на экран",
+      "mode": "Optional",
+      "operation": "lg.notification-test",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.1",
+      "sourcePath": "docs/index.html",
+      "title": "Закрепить адрес 192.168.3.54",
+      "mode": "Guidance",
+      "operation": "gx1.address-prerequisite",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.2",
+      "sourcePath": "docs/index.html",
+      "title": "Сопрячь с Home Assistant",
+      "mode": "Interactive",
+      "operation": "ha.androidtv-pairing",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.3",
+      "sourcePath": "docs/index.html",
+      "title": "Привести идентификаторы к ожидаемым",
+      "mode": "Automatic",
+      "operation": "gx1",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.4",
+      "sourcePath": "docs/index.html",
+      "title": "Узнать реальное имя пакета Jellyfin",
+      "mode": "Interactive",
+      "operation": "gx1.package-detection",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.5",
+      "sourcePath": "docs/index.html",
+      "title": "Настроить «Продолжить просмотр»",
+      "mode": "Interactive",
+      "operation": "jellyfin.resume-preferences",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.6",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить сценарии по очереди",
+      "mode": "Interactive",
+      "operation": "tv.functional-tests",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.7",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить ночное автоотключение",
+      "mode": "Interactive",
+      "operation": "tv.night-tests",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.7.8",
+      "sourcePath": "docs/index.html",
+      "title": "Включить SIMPLINK, если ещё не включён",
+      "mode": "Guidance",
+      "operation": "lg.simplink-prerequisite",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.1",
+      "sourcePath": "docs/index.html",
+      "title": "Убедиться, что HACS на месте",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.2",
+      "sourcePath": "docs/index.html",
+      "title": "Поставить Yandex Smart Home",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.3",
+      "sourcePath": "docs/index.html",
+      "title": "Настроить облачное подключение",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.4",
+      "sourcePath": "docs/index.html",
+      "title": "Выбрать, что отдать Алисе",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.5",
+      "sourcePath": "docs/index.html",
+      "title": "Привязать навык в «Доме с Алисой»",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.6",
+      "sourcePath": "docs/index.html",
+      "title": "Проверить голосом",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.7",
+      "sourcePath": "docs/index.html",
+      "title": "Спросить у Алисы температуру",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.8.8",
+      "sourcePath": "docs/index.html",
+      "title": "Научить Алису произносить отчёт",
+      "mode": "Excluded",
+      "operation": "cloud",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.9.1",
+      "sourcePath": "docs/index.html",
+      "title": "Понять, где сейчас ходит трафик NAS",
+      "mode": "Excluded",
+      "operation": "network",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.9.2",
+      "sourcePath": "docs/index.html",
+      "title": "Если что-то не отвечает",
+      "mode": "Excluded",
+      "operation": "network",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.9.3",
+      "sourcePath": "docs/index.html",
+      "title": "Добавить резервный DNS",
+      "mode": "Excluded",
+      "operation": "network",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.9.4",
+      "sourcePath": "docs/index.html",
+      "title": "Открыть доступ снаружи",
+      "mode": "Excluded",
+      "operation": "network",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.10.1",
+      "sourcePath": "docs/index.html",
+      "title": "Создать панель и вставить YAML",
+      "mode": "Automatic",
+      "operation": "dashboard",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.10.2",
+      "sourcePath": "docs/index.html",
+      "title": "Что где лежит",
+      "mode": "Guidance",
+      "operation": "dashboard.explain",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.10.3",
+      "sourcePath": "docs/index.html",
+      "title": "Поправить два места под себя",
+      "mode": "Automatic",
+      "operation": "dashboard",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.11.1",
+      "sourcePath": "docs/index.html",
+      "title": "Включить встроенные резервные копии",
+      "mode": "Interactive",
+      "operation": "ha.backup-settings",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.11.2",
+      "sourcePath": "docs/index.html",
+      "title": "Добавить папку в Hyper Backup",
+      "mode": "Guidance",
+      "operation": "nas.hyperbackup",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.11.3",
+      "sourcePath": "docs/index.html",
+      "title": "Порядок обновления образа",
+      "mode": "Deferred",
+      "operation": "updates.ha-image",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.11.4",
+      "sourcePath": "docs/index.html",
+      "title": "Забрать изменения конфигурации",
+      "mode": "Deferred",
+      "operation": "updates.ha-configuration",
+      "status": "NotImplemented"
+    },
+    {
+      "id": "ha.11.5",
+      "sourcePath": "docs/index.html",
+      "title": "Следить за размером базы",
+      "mode": "Automatic",
+      "operation": "ha.maintenance",
+      "status": "NotImplemented"
+    }
+  ]
+}

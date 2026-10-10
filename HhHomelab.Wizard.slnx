@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HhHomelab.Wizard.Domain/HhHomelab.Wizard.Domain.csproj" />
+    <Project Path="src/HhHomelab.Wizard.Infrastructure/HhHomelab.Wizard.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HhHomelab.Wizard.UnitTests/HhHomelab.Wizard.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/HhHomelab.Wizard.ProfileCheck/HhHomelab.Wizard.ProfileCheck.csproj" />
+    <Project Path="tools/HhHomelab.Wizard.QbProbe/HhHomelab.Wizard.QbProbe.csproj" />
+  </Folder>
+</Solution>
