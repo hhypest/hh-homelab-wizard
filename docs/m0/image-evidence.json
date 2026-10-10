@@ -1,0 +1,105 @@
+{
+  "date": "2026-10-10",
+  "environment": "Docker Desktop Linux Engine 29.8.2; not DSM",
+  "images": [
+    {
+      "id": "qbittorrent",
+      "image": "lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479",
+      "repoDigests": [
+        "lscr.io/linuxserver/qbittorrent@sha256:b522f9f4b769f8f36d49d22d5eb6a92e9aa18904c6a1830b1439df511ec21983"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "5.2.4_v2.0.15-ls479",
+      "ociRevision": "6fc14590b2886c63a03bca8104297df32d29d3e0"
+    },
+    {
+      "id": "prowlarr",
+      "image": "lscr.io/linuxserver/prowlarr:2.6.5.5623-ls163",
+      "repoDigests": [
+        "lscr.io/linuxserver/prowlarr@sha256:f9151e5bc1025c6d0a630d503210cdcb6bb55a7cc098562609d96a408d838902"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "2.6.5.5623-ls163",
+      "ociRevision": "3c93802a8c7e96bea9ef084d13b13456a84b7eee"
+    },
+    {
+      "id": "radarr",
+      "image": "lscr.io/linuxserver/radarr:6.4.4.10685-ls319",
+      "repoDigests": [
+        "lscr.io/linuxserver/radarr@sha256:7dfd049e79c00b16fbc29c3f5d96a9e7b9e73a23930b4c5b3c4541d60b366814"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "6.4.4.10685-ls319",
+      "ociRevision": "156a2fce2e1010b217d774a372272c2cf49da72d"
+    },
+    {
+      "id": "sonarr",
+      "image": "lscr.io/linuxserver/sonarr:4.0.20.3014-ls326",
+      "repoDigests": [
+        "lscr.io/linuxserver/sonarr@sha256:f247545d23ba8b233d6604575347e48a623fe6ad75dda02348bf81917f3b5c06"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "4.0.20.3014-ls326",
+      "ociRevision": "678f35d60e1b6d52c8cb864cdc7cc39b688192d7"
+    },
+    {
+      "id": "flaresolverr",
+      "image": "ghcr.io/flaresolverr/flaresolverr:v3.5.2",
+      "repoDigests": [
+        "ghcr.io/flaresolverr/flaresolverr@sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "v3.5.2",
+      "ociRevision": "93125d6ea6956906c8dfa29e169b2dc67d993dc3"
+    },
+    {
+      "id": "jellyfin",
+      "image": "lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53",
+      "repoDigests": [
+        "lscr.io/linuxserver/jellyfin@sha256:1bb4f88d822a0510bb3604b68aacb80d77c1d2a30181e500090c65111b98723b"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "12.2ubu2604-ls53",
+      "ociRevision": "3f4293bb46a2bc0710ebaa801b45e7b9812f1fe8"
+    },
+    {
+      "id": "seerr",
+      "image": "ghcr.io/seerr-team/seerr:v3.5.0",
+      "repoDigests": [
+        "ghcr.io/seerr-team/seerr@sha256:27602401178d54f1964442287b9f23f67a3fa2252645ee8065839ea1c3f69e45"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "v3.5.0",
+      "ociRevision": "e2f24cb46079746936516c723b09820360f95113"
+    },
+    {
+      "id": "homeassistant",
+      "image": "ghcr.io/home-assistant/home-assistant:2026.10.0",
+      "repoDigests": [
+        "ghcr.io/home-assistant/home-assistant@sha256:1b64d38f38d922bf9d59336451fd6453e1d614f934456af4ee3d2a51061be3a4"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "2026.10.0",
+      "ociRevision": null
+    },
+    {
+      "id": "dockerproxy",
+      "image": "ghcr.io/tecnativa/docker-socket-proxy:v0.5.0",
+      "repoDigests": [
+        "ghcr.io/tecnativa/docker-socket-proxy@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459"
+      ],
+      "os": "linux",
+      "architecture": "amd64",
+      "ociVersion": "v0.5.0",
+      "ociRevision": "2e118a0c0c66e1831f68b7afd6d49ad3e2f96b5d"
+    }
+  ]
+}
