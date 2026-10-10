@@ -4,17 +4,20 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-namespace HhHomelab.Wizard.QbDockerProbe;
+namespace HhHomelab.Wizard.ProbeSupport;
 
 /// <summary>Local developer fixture. Never attaches to an existing container or host directory.</summary>
-internal sealed partial class OwnedDockerBench : IAsyncDisposable
+public sealed partial class OwnedDockerBench : IAsyncDisposable
 {
     private const string Label = "com.hh-homelab-wizard.session";
-    private readonly string session = "m0-qb-" + Guid.NewGuid().ToString("N");
+    private readonly string session = "m0-media-" + Guid.NewGuid().ToString("N");
     private readonly string context;
     private string Container => session + "-app";
     private string Network => session + "-net";
     private string Volume => session + "-config";
+    private readonly List<(string Kind, string Name)> resources = [];
+    private readonly HashSet<string> volumes = [];
+    private readonly Dictionary<string, (string Container, Uri Endpoint, int Port)> services = [];
     public Uri Endpoint { get; private set; } = null!;
     public bool CleanupSucceeded { get; private set; }
 
@@ -43,6 +46,7 @@ internal sealed partial class OwnedDockerBench : IAsyncDisposable
 
     public async Task StartAsync(string image, CancellationToken cancellationToken)
     {
+        if (resources.Count != 0) throw new InvalidOperationException("bench.mode.conflict");
         // Require a local image. No unbounded pull/install steps or Docker mods in this API probe.
         _ = await RunAsync(["image", "inspect", image, "--format", "{{.Id}}"], cancellationToken);
         var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -50,8 +54,9 @@ internal sealed partial class OwnedDockerBench : IAsyncDisposable
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         Endpoint = new Uri($"http://127.0.0.1:{port}/");
-        _ = await RunAsync(["network", "create", "--label", Label + "=" + session, Network], cancellationToken);
-        _ = await RunAsync(["volume", "create", "--label", Label + "=" + session, Volume], cancellationToken);
+        await CreateNetworkAsync(cancellationToken);
+        await CreateVolumeAsync(Volume, cancellationToken);
+        resources.Add(("container", Container));
         _ = await RunAsync(["create", "--name", Container, "--label", Label + "=" + session,
             "--network", Network, "--publish", $"127.0.0.1:{port}:{port}",
             "--env", "WEBUI_PORT=" + port, "--env", "PUID=1000", "--env", "PGID=1000",
@@ -111,7 +116,7 @@ internal sealed partial class OwnedDockerBench : IAsyncDisposable
     {
         var succeeded = true;
         // Cleanup has its own bounded tokens, independent of a cancelled scenario.
-        foreach (var (kind, name) in new[] { ("container", Container), ("volume", Volume), ("network", Network) })
+        foreach (var (kind, name) in resources.AsEnumerable().Reverse())
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             try
@@ -150,7 +155,7 @@ internal sealed partial class OwnedDockerBench : IAsyncDisposable
         {
             foreach (var mount in root.GetProperty("Mounts").EnumerateArray())
                 if (mount.GetProperty("Type").GetString() == "bind" ||
-                    mount.GetProperty("Type").GetString() == "volume" && mount.GetProperty("Name").GetString() != Volume)
+                    mount.GetProperty("Type").GetString() == "volume" && !volumes.Contains(mount.GetProperty("Name").GetString()!))
                     throw new InvalidOperationException("bench.mounts.foreign");
         }
     }

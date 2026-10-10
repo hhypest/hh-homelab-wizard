@@ -7,6 +7,8 @@
     <Project Path="tests/HhHomelab.Wizard.UnitTests/HhHomelab.Wizard.UnitTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/HhHomelab.Wizard.ArrDockerProbe/HhHomelab.Wizard.ArrDockerProbe.csproj" />
+    <Project Path="tools/HhHomelab.Wizard.ProbeSupport/HhHomelab.Wizard.ProbeSupport.csproj" />
     <Project Path="tools/HhHomelab.Wizard.ProfileCheck/HhHomelab.Wizard.ProfileCheck.csproj" />
     <Project Path="tools/HhHomelab.Wizard.QbProbe/HhHomelab.Wizard.QbProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.QbDockerProbe/HhHomelab.Wizard.QbDockerProbe.csproj" />

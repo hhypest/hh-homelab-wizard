@@ -2,7 +2,7 @@ using System.Net;
 using System.Security.Cryptography;
 using HhHomelab.Wizard.Domain;
 using HhHomelab.Wizard.Infrastructure;
-using HhHomelab.Wizard.QbDockerProbe;
+using HhHomelab.Wizard.ProbeSupport;
 
 const string pinnedImage = "lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479";
 if (args.Length != 1)

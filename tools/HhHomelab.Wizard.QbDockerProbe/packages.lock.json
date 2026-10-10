@@ -10,6 +10,9 @@
         "dependencies": {
           "HhHomelab.Wizard.Domain": "[1.0.0, )"
         }
+      },
+      "hhhomelab.wizard.probesupport": {
+        "type": "Project"
       }
     }
   }
