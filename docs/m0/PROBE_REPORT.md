@@ -66,6 +66,29 @@ QbProbe на C# сохраняется как диагностический и�
 
 Первичные источники контрактов: [Sonarr authentication](https://github.com/Sonarr/Sonarr/blob/v4.0.20.3014/src/Sonarr.Http/Authentication/AuthenticationController.cs), [ProviderControllerBase](https://github.com/Sonarr/Sonarr/blob/v4.0.20.3014/src/Sonarr.Api.V3/ProviderControllerBase.cs), [Radarr OpenAPI](https://github.com/Radarr/Radarr/blob/v6.4.4.10685/src/Radarr.Api.V3/openapi.json), [Prowlarr OpenAPI](https://github.com/Prowlarr/Prowlarr/blob/v2.6.5.5623/src/Prowlarr.Api.V1/openapi.json). Общая схема взята с живого API закреплённой версии; произвольные JSON payload не предоставляются вызывающему коду.
 
+## Jellyfin и Seerr: библиотеки и сохранённые связи
+
+Инкремент проверен на Jellyfin **12.2.0** (`lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53`) и Seerr **3.5.0** (`ghcr.io/seerr-team/seerr:v3.5.0`) вместе с закреплёнными Radarr/Sonarr. В Windows/Docker Desktop Linux Engine 29.8.2 выполнены три успешных полных запуска MediaDockerProbe на свежих конфигурациях. Последний запуск включает отрицательные проверки паролей; первые два выполнены до их добавления. Все три завершились exit 0 и cleanup; отдельные регрессионные запуски QbDockerProbe и ArrDockerProbe также завершились exit 0. Сборка Release без предупреждений; **187 unit/fixture-тестов**, 48 новых для Jellyfin/Seerr.
+
+Подтверждено runtime:
+
+- создание первого администратора Jellyfin, локаль ru-RU/RU/ru, отключение внешнего доступа приложения и завершение startup; новый вход и проверка administrator policy/user/server ID;
+- две библиотеки с типами movies/tvshows, путями `/data/media/movies` и `/data/media/tv`, ru/RU; повтор без создания и отказ при конфликте пути;
+- первый владелец Seerr через Jellyfin, затем независимый cookie context и проверка сохранённого Jellyfin API доступа, user/server IDs и endpoint;
+- получение реальных library IDs, синхронизация и включение ровно двух ожидаемых movie/show библиотек;
+- выбор HD-1080p из live Arr Test, проверка доступных root folders, Test перед сохранением и после него, сохранение двух default connections; HD-1080p и preventSearch=true выбраны только для синтетического сценария;
+- initialize только после повторного подтверждения сохранённых библиотек и обеих связей;
+- пять потерянных успешных ответов после завершённых записей: Startup/User, создание библиотеки, первый auth/jellyfin, связь Radarr, initialize; наблюдение без повторного создания;
+- отказ неверных паролей Jellyfin и Seerr в свежих клиентах;
+- сохранение credentials и server/user/library IDs, enabled libraries, links и initialized после перезапуска четырёх контейнеров; transport блокирует конфигурационные записи при повторе и проверке сохранения;
+- cleanup только ресурсов с меткой владения; проверки собственных mounts выполняются перед удалением.
+
+Первые две подготовительные полные пробы остановились с HTTP 401: сначала на анонимном Startup/User после уже установленного пароля, затем на Users/Me с legacy X-Emby-Token. Они не учитываются как успешные испытания; ресурсы очищены. Исправлено: сначала проверять login при незавершённом startup и передавать token в современном Authorization MediaBrowser. Legacy-режим не включается. [StartupController v12.2](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Api/Controllers/StartupController.cs), [AuthorizationContext v12.2](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Server.Implementations/Security/AuthorizationContext.cs) объясняют оба наблюдённых отказа. Подтверждение session/readiness снимается после неудачного повторного login/проверки связи; новые fixture-тесты не позволяют продолжать initialize на устаревшем подтверждении.
+
+Стенд не имеет host bind mounts; Jellyfin получает read-only подкаталог media собственного data volume, `/cache` временный. Сеть обычная bridge, порты на loopback. Внешние сервисы, реальные индексаторы, media files, загрузки и запросы не использованы; scan/playback/transcoding/импорт/hardlinks не проверены. Проверен первый администратор, не обычный пользователь и его policies. Успешный Test подтверждает API-связь и выбранные profile/root, а не обработку реального запроса. Потеря ответа после завершённой записи не доказывает восстановление после падения Seerr между созданием owner, выдачей Jellyfin API key и сохранением настроек. Эти несколько серверных записей не образуют общей транзакции; отдельное восстановление остаётся открытым пунктом. NAS, UI, journal и installer не проверены и не реализованы этим инкрементом.
+
+Первичные источники: [Jellyfin library controller](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Api/Controllers/LibraryStructureController.cs), [user controller](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Api/Controllers/UserController.cs), [Seerr auth](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/auth.ts), [Jellyfin settings и initialize](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/settings/index.ts), [Radarr settings/Test](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/settings/radarr.ts), [Sonarr settings/Test](https://github.com/seerr-team/seerr/blob/v3.5.0/server/routes/settings/sonarr.ts). Наличие API в source отличено от перечисленных выше runtime-результатов. Новый job `media-runtime` выполняет две свежие пробы на Ubuntu; итог конкретного CI run фиксируется в PR.
+
 ## Исходники и версии
 
 [Image evidence](image-evidence.json) содержит публичные OCI digests и metadata загруженных образов, без container environment и credentials. Digests наблюдены при pull на этом стенде, не являются новой закреплённой политикой deploy и требуют проверки архитектуры NAS до использования.
@@ -85,6 +108,6 @@ QbProbe на C# сохраняется как диагностический и�
 
 В указанном порядке проверьте onboarding HA и token exchange; status/schema Arr; startup Jellyfin и авторизацию; auth/jellyfin Seerr с hostname Jellyfin внутри общей сети. Синтетические пользователи и пароли создаются заново. После потери ответа сначала наблюдайте состояние: повторный запуск всего списка на уже созданном владельце не является корректным resume.
 
-Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма qBittorrent и Arr; расширение на Jellyfin/Seerr и HA ещё предстоит добавить. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime` и `arr-runtime` проверяют реальные сервисы.
+Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма qBittorrent, Arr, Jellyfin и Seerr; следующий инкремент — HA. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime` и `media-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

@@ -13,9 +13,12 @@
 
 ### Added
 
+- M0: C#-контракты Jellyfin 12.2.0 и Seerr 3.5.0: первый администратор, локаль ru/RU, две библиотеки, владелец Seerr через Jellyfin, включение конкретных library IDs и default-связи с Radarr/Sonarr. API Test проверяет выбранные существующие quality profiles и root folders до/после сохранения; initialize требует повторного подтверждения библиотек и связей.
+- MediaDockerProbe: четыре собственных временных контейнера, read-only mount медиатеки Jellyfin, пять потерянных успешных ответов с последующим наблюдением, отказ неверных паролей, повтор и сохранение после restart без конфигурационных записей. Используется современный Authorization MediaBrowser Token Jellyfin; legacy-авторизация не включается.
+- 48 новых unit/fixture-проверок Jellyfin/Seerr, всего 187. Отдельное Ubuntu CI-задание повторяет Media probe дважды на свежих конфигурациях. Установщик, журнал и Avalonia UI ещё не реализованы; пользовательские политики Jellyfin и воспроизведение не проверены этим инкрементом.
 - M0: C#-контракты Radarr 6.4.4.10685, Sonarr 4.0.20.3014 и Prowlarr 2.6.5.5623 для Forms/enabled, root folders, download clients qBittorrent и applications с fullSync. Проверяются версия, состояние и соединение; маскированные секреты проверяются через API Test.
 - ArrDockerProbe и общий ProbeSupport: только собственные локальные Docker resources, синтетические доступы в памяти, повтор без create/update, наблюдение после потери ответа, отказ при конфликте и проверка сохранения после stop/start с повторным чтением host ports.
-- 47 новых unit/fixture-проверок Arr; текущий набор — 139 тестов. Ubuntu CI повторяет Arr bootstrap дважды на свежих конфигурациях.
+- 47 новых unit/fixture-проверок Arr; на этом шаге набор содержал 139 тестов. Ubuntu CI повторяет Arr bootstrap дважды на свежих конфигурациях.
 
 - Следующий шаг M0: конфигурационные API-контракты qBittorrent 5.2.4 для download settings, смены credentials и категорий с проверкой результата, конфликтов и неизвестного исхода записи.
 - C# QbDockerProbe: локальные disposable Docker resources, временный пароль только в памяти, повтор без дублей, искусственная потеря ответа создания категории, проверка старых/новых credentials и сохранения после stop/start, cleanup с проверкой владения.
