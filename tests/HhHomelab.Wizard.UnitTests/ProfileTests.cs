@@ -72,12 +72,41 @@ public sealed class ProfileTests
     [Theory]
     [InlineData("image:latest")]
     [InlineData("image:stable")]
+    [InlineData("image:latest2")]
+    [InlineData("image:stable2026")]
+    [InlineData("image:nightly20261010")]
+    [InlineData("image:1.2-latest2")]
+    [InlineData("image:1.2-stable2026")]
+    [InlineData("image:2026")]
+    [InlineData("image:1.2-rc")]
     [InlineData("registry.example:5000/image")]
     [InlineData("image:")]
     [InlineData("image:1.*")]
     [InlineData("image@sha256:invalid")]
     [InlineData("image")]
     public void RejectsFloatingAndMissingTags(string value) => Assert.False(ResearchProfileValidator.IsPinnedImage(value));
+
+    [Theory]
+    [InlineData("image:2.36.1")]
+    [InlineData("image:v3.5.0")]
+    [InlineData("image:2026.10.0")]
+    [InlineData("image:5.2.4_v2.0.15-ls479")]
+    [InlineData("image:4.0.20.3014-ls326")]
+    [InlineData("image:12.2ubu2604-ls53")]
+    [InlineData("image:v1.2.3-rc.1")]
+    [InlineData("registry.example:5000/image:1.2.3")]
+    public void AcceptsExplicitVersionAndPackagingFormats(string value) => Assert.True(ResearchProfileValidator.IsPinnedImage(value));
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ParserRejectsMovingTagsInImagesAndDockerMods(bool mod)
+    {
+        var node = JsonNode.Parse(Json)!;
+        if (mod) node["services"]![0]!["dockerMods"]![0] = "image:stable2026";
+        else node["services"]![0]!["image"] = "image:latest2";
+        Assert.Throws<InvalidDataException>(() => ProfileReader.Parse(node.ToJsonString()));
+    }
 
     [Fact]
     public async Task CanonicalHashesPermitCrLfButDetectChangedAndMissingContent()
