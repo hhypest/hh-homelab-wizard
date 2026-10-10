@@ -19,9 +19,9 @@ try
 }
 catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or HttpRequestException or TaskCanceledException)
 {
-    var code = exception is InvalidOperationException && exception.Message is
-        "qb.authentication.rejected" or "qb.version.unavailable" or "qb.version.unsupported" or "input.required"
-        ? exception.Message : "qb.probe.failed";
+    var code = exception is QbittorrentContractException contract
+        ? contract.Code + (contract.StatusCode is { } status ? "; HTTP " + (int)status : "")
+        : exception is InvalidOperationException { Message: "input.required" } ? "input.required" : "qb.probe.failed";
     Console.Error.WriteLine(code + "; credentials and server response are withheld.");
     return 1;
 }

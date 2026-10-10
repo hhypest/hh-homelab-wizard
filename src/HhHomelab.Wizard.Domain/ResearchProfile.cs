@@ -90,7 +90,9 @@ public static partial class ResearchProfileValidator
         var separator = image.LastIndexOf(':');
         if (separator <= image.LastIndexOf('/') || separator == image.Length - 1) return false;
         var tag = image[(separator + 1)..];
-        return TagPattern().IsMatch(tag) && tag.Any(char.IsDigit);
+        // Deliberately support the version/packaging formats in this research profile.
+        // A digit in an arbitrary channel name does not make that channel a version.
+        return tag.Length <= 128 && VersionTagPattern().IsMatch(tag);
     }
 
     private static bool IsCommit(string? commit) => CommitPattern().IsMatch(commit ?? "");
@@ -105,6 +107,6 @@ public static partial class ResearchProfileValidator
     private static partial Regex CommitPattern();
     [GeneratedRegex("^[a-f0-9]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
-    [GeneratedRegex("^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$", RegexOptions.CultureInvariant)]
-    private static partial Regex TagPattern();
+    [GeneratedRegex(@"\Av?[0-9]+(?:\.[0-9]+){1,3}(?:-(?:alpha|beta|rc)\.?[0-9]+|(?:ubu[0-9]{4})?(?:_v[0-9]+\.[0-9]+\.[0-9]+)?(?:-ls[0-9]+)?)\z", RegexOptions.CultureInvariant)]
+    private static partial Regex VersionTagPattern();
 }
