@@ -12,7 +12,10 @@
         }
       },
       "hhhomelab.wizard.probesupport": {
-        "type": "Project"
+        "type": "Project",
+        "dependencies": {
+          "HhHomelab.Wizard.Infrastructure": "[1.0.0, )"
+        }
       }
     }
   }
