@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="../HhHomelab.Wizard.Application/HhHomelab.Wizard.Application.csproj" />
     <EmbeddedResource Include="../../profiles/hh-homelab/1.3.0/research-profile.json" LogicalName="ha-source-profile.json" />
     <ProjectReference Include="../HhHomelab.Wizard.Domain/HhHomelab.Wizard.Domain.csproj" />
     <EmbeddedResource Include="../../profiles/hh-homelab/1.3.0/components/monitor-docker.lock.json" LogicalName="monitor-docker.lock.json" />

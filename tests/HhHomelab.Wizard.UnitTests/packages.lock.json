@@ -163,12 +163,19 @@
           "xunit.v3.runner.common": "[3.2.1]"
         }
       },
+      "hhhomelab.wizard.application": {
+        "type": "Project",
+        "dependencies": {
+          "HhHomelab.Wizard.Domain": "[1.0.0, )"
+        }
+      },
       "hhhomelab.wizard.domain": {
         "type": "Project"
       },
       "hhhomelab.wizard.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "HhHomelab.Wizard.Application": "[1.0.0, )",
           "HhHomelab.Wizard.Domain": "[1.0.0, )"
         }
       }

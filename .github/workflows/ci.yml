@@ -29,6 +29,59 @@ jobs:
       - name: Validate research inventory
         run: dotnet run --project tools/HhHomelab.Wizard.ProfileCheck --no-build --configuration Release -- profiles/hh-homelab/1.3.0/research-profile.json
 
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-24.04
+            rid: linux-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+      - name: Restore locked desktop dependencies
+        run: dotnet restore HhHomelab.Wizard.slnx --locked-mode
+      - name: Publish demo and native probe with runtime
+        run: |
+          dotnet publish src/HhHomelab.Wizard.Desktop -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o artifacts/desktop
+          dotnet publish tools/HhHomelab.Wizard.DesktopProbe -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o artifacts/probe
+      - name: Install X11 dependencies for native smoke check
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y xvfb libx11-6 libice6 libsm6 libfontconfig1 libgl1 fonts-dejavu-core
+      - name: Check native Win32 window
+        if: runner.os == 'Windows'
+        run: ./artifacts/probe/HhHomelab.Wizard.DesktopProbe.exe
+      - name: Check native X11 window under Xvfb
+        if: runner.os == 'Linux'
+        run: xvfb-run -a ./artifacts/probe/HhHomelab.Wizard.DesktopProbe
+      - name: Include project licenses and usage notes
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE artifacts/desktop/LICENSE
+          Copy-Item -Recurse LICENSES artifacts/desktop/LICENSES
+          Copy-Item THIRD_PARTY_NOTICES.md artifacts/desktop/THIRD_PARTY_NOTICES.md
+          Copy-Item docs/m1/README.md artifacts/desktop/DEMO.md
+      - name: Upload trial application
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hh-homelab-wizard-m1-demo-${{ matrix.rid }}
+          path: artifacts/desktop/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload native rendering evidence
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: m1-native-screens-${{ matrix.rid }}
+          path: artifacts/native-desktop/
+          if-no-files-found: error
+          retention-days: 14
+
   qb-runtime:
     runs-on: ubuntu-24.04
     timeout-minutes: 10

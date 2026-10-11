@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../HhHomelab.Wizard.Domain/HhHomelab.Wizard.Domain.csproj" />
+  </ItemGroup>
+</Project>
