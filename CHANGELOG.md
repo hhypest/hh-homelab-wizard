@@ -6,6 +6,8 @@
 
 ### Added
 
+- ADR 0005: зафиксирован выбор владельцем макета «Фокус», его компоновка, визуальные ориентиры и состояния будущего интерфейса. README, план M1 и инструкции агентам обновлены; разработка M1 отложена до нового задания, код и зависимости не изменены.
+
 - M0: явный выбор native discovery flows DSM/LG/Android TV/Cast, ограниченный technical DTO, повторная проверка source/unique ID/step и продолжение исходного flow без создания второго. Незавершённый onboarding/existing entry/изменённая identity блокируют сопряжение; Unknown не повторяется.
 - Read-only Domain/Infrastructure проверка entry/device/identifier с отдельными Missing/Pending/Disabled/Mismatch/Ambiguous состояниями, DSM root check и нормализацией MAC/Cast UUID. Нативные discovery forms/progress serializer и Cast/Android constructors проверяются на синтетических metadata без регистрации аппаратных entities.
 - 51 новая unit/fixture-проверка; всего 497. ADR 0004 отделяет начало демонстрационного M1 от полной приёмки M0; следующим инкрементом планируется Application/Desktop, M0 и M1 не объявлены завершёнными.
