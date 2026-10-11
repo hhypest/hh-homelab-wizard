@@ -350,7 +350,7 @@ public sealed partial class HomeAssistantContractTests
     private static JsonObject Entity(string id = "registry1", string entity = "input_boolean.fixture") => new()
     { ["id"] = id, ["entity_id"] = entity, ["unique_id"] = "fixture1", ["platform"] = "input_boolean", ["config_entry_id"] = null, ["device_id"] = null, ["disabled_by"] = null };
 
-    private sealed class Fixture : HttpMessageHandler
+    private sealed partial class Fixture : HttpMessageHandler
     {
         public string Version { get; init; } = "2026.10.0";
         public bool Preauthenticated { get; init; }
@@ -441,6 +441,11 @@ public sealed partial class HomeAssistantContractTests
                 if (RevokeFailure == "lost-response") throw new HttpRequestException("synthetic-sensitive");
                 return new(HttpStatusCode.OK) { Content = new StringContent("") };
             }
+            else if (DeviceMode && path.StartsWith("/api/config/config_entries/", StringComparison.Ordinal))
+            {
+                result = DeviceResponse(request, body);
+                if (result is null) return new(HttpStatusCode.NotFound);
+            }
             else if (path == "/api/config/config_entries/entry")
             {
                 result = IntegrationEntries.DeepClone();
@@ -491,6 +496,7 @@ public sealed partial class HomeAssistantContractTests
                 {
                     case "auth/current_user": result = new JsonObject { ["id"] = f.OwnerId, ["name"] = f.IdentityFailure == "name" ? "foreign" : "M0 owner", ["is_owner"] = f.IdentityFailure != "owner", ["is_admin"] = f.IdentityFailure != "admin" }; break;
                     case "get_config": result = new JsonObject { ["version"] = f.Version, ["safe_mode"] = f.IdentityFailure == "safe_mode", ["state"] = f.Running ? "RUNNING" : "STARTING" }; break;
+                    case "config_entries/flow/progress": result = f.DeviceDiscovery.DeepClone(); break;
                     case "config/entity_registry/list": result = f.Entities.DeepClone(); break;
                     case "config/device_registry/list": result = f.RoleDevices?.DeepClone() ?? new JsonArray(new JsonObject { ["config_entries"] = new JsonArray("entry1"), ["identifiers"] = new JsonArray(new JsonArray("jellyfin", f.ServerId)), ["sw_version"] = "12.2.0" }); break;
                     case "config/entity_registry/update":

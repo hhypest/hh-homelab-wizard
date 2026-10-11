@@ -110,13 +110,15 @@ dotnet run --project tools/HhHomelab.Wizard.ProfileCheck --no-build --configurat
 
 ProfileCheck проверяет исследовательский каталог, не устанавливает стек. Для проверки содержимого исходных файлов добавьте путь к checkout hh-homelab v1.3.0 вторым аргументом. Автоматическое применение конфигурации и графический запуск появятся в следующих этапах.
 
-Developer tools QbDockerProbe, ArrDockerProbe, MediaDockerProbe и HaDockerProbe проверяют bootstrap Media и API Home Assistant на собственных временных контейнерах. Подтверждены владелец/onboarding, HTTP/WebSocket, переименование по идентичности реестра, тестовая панель и первый [config flow Jellyfin](docs/m0/JELLYFIN_FLOW.md). Текущий набор содержит 392 unit/fixture-теста.
+Developer tools QbDockerProbe, ArrDockerProbe, MediaDockerProbe и HaDockerProbe проверяют bootstrap Media и API Home Assistant на собственных временных контейнерах. Подтверждены владелец/onboarding, HTTP/WebSocket, переименование по идентичности реестра, тестовая панель и первый [config flow Jellyfin](docs/m0/JELLYFIN_FLOW.md). Текущий набор содержит 446 unit/fixture-тестов.
 
 [Локальный профиль HA](docs/m0/HA_LOCAL_PROFILE.md) проходит полный YAML checker и десять сценариев шаблонов. [HaRuntimeProbe](docs/m0/HA_RUNTIME.md) запускает полный сервер с настоящим Docker Proxy/Monitor Docker, синтетическим Docker API, 40 Docker entities, отказами, уведомлением, 18 динамическими сценариями Script и restart. Отсутствующие устройства остаются Missing; CPU первого измерения — Unknown.
 
 Добавлены [технический план десяти ролей и включение выбранных сущностей](docs/m0/HA_ENTITY_ROLES.md), с проверкой идентичности, родителей, restart/reload и потери ответа. Реальное включение и live state проверены на штатном helper; DSM и плееры — на технических фикстурах. [Полный объём и ограничения M0](docs/m0/README.md) приведены отдельно. Установщика NAS и GUI пока нет.
 
-Следующие задачи HA — остальные config flows, активация/показания DSM, выбор конкретных устройств, зависимости лишних плееров и полный dashboard. Обычный пользователь Jellyfin, его права и воспроизведение остаются отдельными пунктами Media.
+Добавлены [интерактивные USER flows DSM/LG/Android TV/Cast](docs/m0/HA_DEVICE_FLOWS.md): credentials, OTP, backup share, LG confirmation и PIN представлены отдельными шагами; неизвестный исход запрещает повторную отправку. Настоящий HA подтвердил начальные формы, LG confirmation form, создание Cast и сохранение после restart. Полное аппаратное сопряжение, показания и управление ещё не проверены.
+
+Следующие задачи HA — выбранные discovery flows и recovery, активация/показания DSM, привязка конкретных устройств, зависимости лишних плееров и полный dashboard. Обычный пользователь Jellyfin, его права и воспроизведение остаются отдельными пунктами Media.
 
 ## Лицензии
 

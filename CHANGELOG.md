@@ -6,6 +6,10 @@
 
 ### Added
 
+- M0: C# USER config flows Synology DSM, LG webOS, Android TV Remote и Google Cast, безопасные состояния credentials/OTP/backup share/confirmation/PIN, entry readback и запрет повторов неизвестного start/submit. DSM TLS проверяется, backup share выбирается явно, Cast hints не считаются выбором GX1.
+- Нативная HaDockerProbe проверяет initial forms, LG confirmation form, DSM OTP/backup serializer на синтетической share, loaded Cast и сохранение после restart. Учтены `errors: null` и небезопасный GET DSM OTP в закреплённом HA. Реальное сопряжение, аппаратная identity и общая recovery-сессия остаются открытыми.
+- 54 новых unit/fixture-теста шагов, отказов, конфликтов, отмены, потери ответа и запрета повторов; всего 446. Установщик и Avalonia UI ещё не созданы.
+
 - M0: read-only metadata реестров HA, чистый план десяти ролей DSM/LG/GX1/Cast/Jellyfin и enable явно выбранной registry identity. DSM сопоставляется по точным API/metric/unique IDs и связям parent devices; случайный первый плеер не выбирается.
 - Enable различает require_restart/reload_delay, проверяет identity/parents/readback и не повторяет update после потерянного ответа. Расширенная HaDockerProbe проверяет source keys DSM, штатный helper, restart и живое состояние после него; реальный DSM/TV этим не подтверждён.
 - 49 новых unit/fixture-проверок ролей, конфликтов, parent state, смены identity, enable, потери ответа/отмены и ограниченного DTO; всего 392. Установщик, остальные flows и полный dashboard ещё не реализованы.

@@ -111,13 +111,15 @@ ViewModels используют async-команды с отменой; уста
 
 **Цель:** доказать осуществимость первичной настройки на выбранных версиях до разработки всех экранов. Зависимостей от других этапов нет.
 
-Текущий инкремент: C#-контракты и disposable harness Media и HA; 392 unit/fixture-теста. HaDockerProbe подтверждает владельца/onboarding, токены, HTTP/WebSocket, реестр и тестовую панель. HTTP проходит pending → restart → reconnect → проверка → promote; потеря ответа не вызывает повтор записи. Первый [config flow Jellyfin](m0/JELLYFIN_FLOW.md) проверяет credentials, loaded entry/server identity и неизвестный исход создания.
+Текущий инкремент: C#-контракты и disposable harness Media и HA; 446 unit/fixture-тестов. HaDockerProbe подтверждает владельца/onboarding, токены, HTTP/WebSocket, реестр и тестовую панель. HTTP проходит pending → restart → reconnect → проверка → promote; потеря ответа не вызывает повтор записи. Первый [config flow Jellyfin](m0/JELLYFIN_FLOW.md) проверяет credentials, loaded entry/server identity и неизвестный исход создания.
 
 [Доставка Monitor Docker и рендер локального профиля](m0/HA_LOCAL_PROFILE.md) проверяют происхождение компонента, полный YAML и десять template cases. [Серверный запуск](m0/HA_RUNTIME.md) проверяет 40 Docker entities, синтетические метрики, настоящий Socket Proxy, отказы, уведомление, restart и 18 ускоренных сценариев Script. DSM/плееры остаются Missing; реальные устройства, время и playback не подтверждены.
 
 Добавлены [read-only реестры, технический план десяти ролей и enable выбранной identity](m0/HA_ENTITY_ROLES.md). DSM определяется по точным metric/API/unique IDs и родительским устройствам, плееры выбираются явно. Настоящий HA подтвердил enable helper, restart requirement, потерю ответа без повторной записи и live state после restart. DSM остаётся fixture/source evidence; общего apply/recovery engine для всех ролей пока нет.
 
-Следующий инкремент HA — остальные config flows, активация/показания DSM, выбор устройств, анализ зависимостей лишних плееров и полный dashboard. Обычный пользователь Jellyfin, его policies, транскодирование и дополнительные Media-контракты остаются до закрытия M0. [Протокол проб](m0/PROBE_REPORT.md) фиксирует фактический объём; движок установки и UI ещё не созданы.
+Добавлены [USER flows DSM/LG/Android TV/Cast](m0/HA_DEVICE_FLOWS.md) с явными credentials/OTP/backup/confirmation/PIN шагами, проверкой конфликтов и запретом повторов неизвестной записи. Нативный стенд подтвердил initial forms, LG confirmation form, DSM OTP/backup serializer на синтетической share, loaded Cast и restart. Полное сопряжение и физическая идентичность устройств не подтверждены.
+
+Следующий инкремент HA — выбранные discovery flows, recovery и связь entry/device с конкретным NAS/TV, активация/показания DSM, анализ зависимостей лишних плееров и полный dashboard. Обычный пользователь Jellyfin, его policies, транскодирование и дополнительные Media-контракты остаются до закрытия M0. [Протокол проб](m0/PROBE_REPORT.md) фиксирует фактический объём; движок установки и UI ещё не созданы.
 
 Работы:
 

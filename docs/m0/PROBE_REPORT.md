@@ -1,6 +1,6 @@
 # Протокол локальных проб M0
 
-Дата: 2026-10-10. Среда: Windows, .NET SDK 10.0.401, Docker Desktop с Linux Engine **29.8.2**, linux/amd64. Это не NAS, не испытание DSM и не проверка Avalonia.
+Дата первого стенда: 2026-10-10; расширение device flows: 2026-10-11. Среда: Windows, .NET SDK 10.0.401, Docker Desktop с Linux Engine **29.8.2**, linux/amd64. Это не NAS, не испытание DSM и не проверка Avalonia.
 
 Создана отдельная bridge-сеть и девять временных контейнеров с меткой `com.hh-homelab-wizard.session=m0-20261010-a1`. Опубликованные порты привязаны к 127.0.0.1 и назначены Docker динамически. Конфигурация временная, медиатека и каталог реального hh-homelab не монтировались. Для Docker Socket Proxy использовался только read-only socket с `POST=0` и ограниченными GET-категориями. Accounts/credentials синтетические; значения не входят в протокол.
 
@@ -194,12 +194,22 @@ Restart сохраняет профиль и метрики; после опре
 
 [Подробный контракт](HA_ENTITY_ROLES.md) описывает Unchanged/ReloadScheduled/RestartRequired, неизвестную активацию и требование живых показаний после reload. Есть unit-проверка смены identity во время parent reads; перед update выполняется повторное чтение. Общей транзакции снимка и записи нет, конкурирующие операции требуют сериализации. M0 и установщик остаются открытыми. Существующий Ubuntu job ha-runtime повторяет расширенный сценарий дважды; конкретные результаты CI фиксируются в PR.
 
+## Интерактивные flows DSM/LG/Android TV/Cast
+
+11 октября 2026 года: добавлены 54 unit/fixture-проверки, всего 446; Release build и тесты прошли на Windows без предупреждений. Новый контракт хранит намерение до POST, различает тип ввода, отказ, setup pending, loaded entry, abort и неизвестный исход. Потеря start/host/OTP/PIN/final response и отмена не разрешают автоматический повтор. Включённая entry не считается доказательством физической identity или рабочих показаний.
+
+Расширенная HaDockerProbe прошла полный сценарий на свежем собственном HA/Jellyfin: initial forms DSM/LG/Android TV, LG host → confirmation form, Cast USER flow с пустыми hints, loaded entry, повтор без flow POST и сохранение Cast после restart. DSM credentials, Android host/PIN и LG confirmation не отправлялись; реальное оборудование не подключалось. Отдельный Python внутри собственного HA-контейнера проверил serializer настоящих DSM OTP/backup forms на синтетической share и воспроизвёл `2sa(None)` → `AttributeError`; клиент не вызывает этот GET.
+
+Первые два диагностических запуска остановились на LG initial form: HA допускает `errors: null`, клиент первоначально требовал object. После исправления и добавления fixture с этим ответом полный сценарий завершился успешно. Cleanup подтверждён для неудачных и успешного запусков. Прежние onboarding/Jellyfin/registry/enable/dashboard/HTTP/revocation проверки также прошли. Pins и NuGet-зависимости не менялись.
+
+[Контракт device flows](HA_DEVICE_FLOWS.md) отделяет source evidence, синтетические проверки и runtime. Полное аппаратное сопряжение, выбранные discovery flows, serial/MAC/UUID confirmation, активация DSM sensors, общий journal/recovery и пользовательский UI остаются открытыми. Ubuntu job `ha-runtime` выполняет расширенную пробу дважды; успешность конкретного head подтверждается результатом CI в PR.
+
 ## Воспроизведение и следующие пробы
 
 Для нового стенда используйте образы из research-profile, отдельные сеть/метку и свежую конфигурацию. Назначайте порты только на loopback, после каждого запуска/перезапуска заново определяйте port binding. Перед reset/cleanup проверяйте метку владения и отсутствие чужих bind mounts. Не переносите этот сценарий на production и не сохраняйте credentials.
 
 В указанном порядке проверьте onboarding HA и token exchange; status/schema Arr; startup Jellyfin и авторизацию; auth/jellyfin Seerr с hostname Jellyfin внутри общей сети. Синтетические пользователи и пароли создаются заново. После потери ответа сначала наблюдайте состояние: повторный запуск всего списка на уже созданном владельце не является корректным resume.
 
-Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма Media и минимальной конфигурации HA; серверный запуск локального профиля с Docker Proxy и динамические пробы уже выполнены в описанном выше объёме. Контракты enable и технического role planning также реализованы. Следующий инкремент — оставшиеся HA config flows, активация/показания DSM, выбор устройств, зависимости лишних плееров и полный dashboard. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime`, `media-runtime` и `ha-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
+Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма Media и минимальной конфигурации HA; серверный запуск локального профиля с Docker Proxy и динамические пробы уже выполнены в описанном выше объёме. Контракты enable, технического role planning и USER device flows также реализованы. Следующий инкремент — выбранные discovery flows и recovery, связь конкретных entry/devices, активация/показания DSM, зависимости лишних плееров и полный dashboard. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime`, `media-runtime` и `ha-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.
