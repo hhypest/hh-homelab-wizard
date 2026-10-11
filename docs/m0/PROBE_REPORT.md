@@ -172,12 +172,24 @@ HaProfileProbe дважды прошёл на свежих собственны�
 - [Sonarr OpenAPI](https://github.com/Sonarr/Sonarr/blob/v4.0.20.3014/src/Sonarr.Api.V3/openapi.json), [Radarr OpenAPI](https://github.com/Radarr/Radarr/blob/v6.4.4.10685/src/Radarr.Api.V3/openapi.json), [Prowlarr applications](https://github.com/Prowlarr/Prowlarr/blob/v2.6.5.5623/src/Prowlarr.Api.V1/Applications/ApplicationController.cs).
 - [Monitor Docker manifest в закреплённом commit](https://github.com/ualex73/monitor_docker/blob/78abdc40d96871be44bd965202de59fe2e5b10d3/custom_components/monitor_docker/manifest.json), [лицензия](https://github.com/ualex73/monitor_docker/blob/78abdc40d96871be44bd965202de59fe2e5b10d3/LICENSE.md).
 
+## Полный HA-сервер, Docker Proxy и действия
+
+11 октября 2026 года: locked restore, Release build без предупреждений и 343 unit/fixture-теста прошли на Windows / SDK 10.0.401. Новых NuGet-зависимостей и изменений pins нет. ProfileCheck повторно подтверждает 9 сервисов, 19 fingerprints и 118 NotImplemented шагов.
+
+Два свежих прогона HaRuntimeProbe на Docker Desktop Linux Engine 29.8.2 завершились exit 0: настоящий HA 2026.10.0 и Socket Proxy v0.5.0, загрузка неизменённого Monitor Docker, все 40 выбранных Docker entities, тестовая память/число контейнеров, отсутствие аппаратных сущностей, локальное уведомление, stop/OOM/restarting/повреждённый JSON/HTTP 503, остановка и восстановление proxy. GET разрешён, POST блокируется. Первый CPU остаётся Unknown. Backend — синтетический Docker API через socket собственного volume; host Docker socket и bind mounts отсутствуют.
+
+Настоящий Script engine выполнил 18 сценариев исходного TV/Resume YAML: подтверждённая пауза и порядок выключения, возобновление, неподтверждённая пауза, потеря показаний, ручной запрет, защита и отмена во время ожидания, отказ toast, подтверждение media ID перед seek, отсутствие сессии/устаревшие Resume данные и три неудачные попытки запуска приложения. Тестовые копии задержек ускорены; fake device services живут в отдельном HA-контексте и не создают фиктивных серверных сущностей. Time triggers, реальные интервалы и управление устройствами не испытаны.
+
+Restart сохраняет профиль и метрики; после определения нового loopback port создаётся новый HTTP-клиент. Отзыв обеих сессий и независимый cleanup подтверждены. Во время разработки исправлены ошибки harness: пустые строки вместо событий Docker прерывали event loop, а старый HTTP endpoint после restart мешал session revocation. YAML и код Monitor Docker не изменены для обхода этих ошибок. Отдельная регрессионная HaProfileProbe прошла checker/import/10 template cases и cleanup.
+
+[Подробный контракт](HA_RUNTIME.md) фиксирует наблюдаемые значения и ограничения. Добавлен Ubuntu job ha-local-runtime с двумя свежими прогонами; факт успеха конкретного CI run публикуется в PR. NAS не изменялся. M0 остаётся открытым, установщик и UI отсутствуют.
+
 ## Воспроизведение и следующие пробы
 
 Для нового стенда используйте образы из research-profile, отдельные сеть/метку и свежую конфигурацию. Назначайте порты только на loopback, после каждого запуска/перезапуска заново определяйте port binding. Перед reset/cleanup проверяйте метку владения и отсутствие чужих bind mounts. Не переносите этот сценарий на production и не сохраняйте credentials.
 
 В указанном порядке проверьте onboarding HA и token exchange; status/schema Arr; startup Jellyfin и авторизацию; auth/jellyfin Seerr с hostname Jellyfin внутри общей сети. Синтетические пользователи и пароли создаются заново. После потери ответа сначала наблюдайте состояние: повторный запуск всего списка на уже созданном владельце не является корректным resume.
 
-Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма Media и минимальной конфигурации HA; следующий инкремент — серверный запуск локального профиля с Docker Proxy, динамические пробы автоматизаций, оставшиеся HA config flows, роли и полный dashboard. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime`, `media-runtime` и `ha-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
+Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма Media и минимальной конфигурации HA; серверный запуск локального профиля с Docker Proxy и динамические пробы уже выполнены в описанном выше объёме. Следующий инкремент — оставшиеся HA config flows, роли и полный dashboard. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime`, `media-runtime` и `ha-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.
