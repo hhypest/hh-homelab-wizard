@@ -1,0 +1,51 @@
+<Styles xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="FocusBackground">#F6F8FC</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusSurface">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusText">#1B293C</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusMuted">#56657A</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusBorder">#DCE3ED</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusAccent">#286859</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusOnAccent">#FFFFFF</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusTint">#E8F4EF</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusDanger">#A4323C</SolidColorBrush>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="FocusBackground">#10151F</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusSurface">#18202D</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusText">#E7EDF6</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusMuted">#A8B6C9</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusBorder">#334156</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusAccent">#94D8C3</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusOnAccent">#152E27</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusTint">#20372E</SolidColorBrush>
+          <SolidColorBrush x:Key="FocusDanger">#FFADB4</SolidColorBrush>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Styles.Resources>
+  <Style Selector="Window">
+    <Setter Property="Background" Value="{DynamicResource FocusBackground}" />
+    <Setter Property="Foreground" Value="{DynamicResource FocusText}" />
+    <Setter Property="FontSize" Value="14" />
+  </Style>
+  <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+  <Style Selector="TextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource FocusMuted}" /></Style>
+  <Style Selector="TextBlock.title"><Setter Property="FontSize" Value="32" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+  <Style Selector="TextBlock.section"><Setter Property="FontSize" Value="18" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+  <Style Selector="TextBlock.eyebrow"><Setter Property="Foreground" Value="{DynamicResource FocusAccent}" /><Setter Property="FontSize" Value="12" /></Style>
+  <Style Selector="TextBlock.step"><Setter Property="Foreground" Value="{DynamicResource FocusMuted}" /><Setter Property="Margin" Value="12,8" /></Style>
+  <Style Selector="TextBlock.step.active"><Setter Property="Foreground" Value="{DynamicResource FocusAccent}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{DynamicResource FocusSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource FocusBorder}" />
+    <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="12" /><Setter Property="Padding" Value="24" />
+  </Style>
+  <Style Selector="Button"><Setter Property="MinHeight" Value="44" /><Setter Property="Padding" Value="16,10" /><Setter Property="CornerRadius" Value="8" /></Style>
+  <Style Selector="Button.primary"><Setter Property="Background" Value="{DynamicResource FocusAccent}" /><Setter Property="Foreground" Value="{DynamicResource FocusOnAccent}" /></Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter"><Setter Property="Background" Value="{DynamicResource FocusAccent}" /><Setter Property="Foreground" Value="{DynamicResource FocusOnAccent}" /></Style>
+  <Style Selector="TextBox"><Setter Property="MinHeight" Value="44" /><Setter Property="CornerRadius" Value="8" /></Style>
+  <Style Selector="ProgressBar"><Setter Property="Foreground" Value="{DynamicResource FocusAccent}" /><Setter Property="Height" Value="6" /></Style>
+</Styles>

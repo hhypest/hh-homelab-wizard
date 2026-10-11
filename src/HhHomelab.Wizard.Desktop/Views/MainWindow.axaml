@@ -1,0 +1,82 @@
+<Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:HhHomelab.Wizard.Desktop.ViewModels" x:Class="HhHomelab.Wizard.Desktop.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel" Title="hh-homelab wizard · Демонстрация M1"
+        Width="1000" Height="860" MinWidth="640" MinHeight="600">
+  <Grid RowDefinitions="Auto,Auto,*">
+    <Border Background="{DynamicResource FocusSurface}" BorderBrush="{DynamicResource FocusBorder}" BorderThickness="0,0,0,1" Padding="24,16">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Border Background="{DynamicResource FocusAccent}" CornerRadius="10" Width="36" Height="36" Margin="0,0,12,0">
+          <TextBlock Text="hh" Foreground="{DynamicResource FocusOnAccent}" FontWeight="Bold" VerticalAlignment="Center" HorizontalAlignment="Center" />
+        </Border>
+        <StackPanel Grid.Column="1"><TextBlock Text="hh-homelab wizard" FontWeight="SemiBold" /><TextBlock Text="Настройка домашнего сервера" Classes="muted" FontSize="12" /></StackPanel>
+        <Border Grid.Column="2" Background="{DynamicResource FocusTint}" CornerRadius="6" Padding="10,6" VerticalAlignment="Center"><TextBlock Text="Демонстрация M1" FontSize="12" /></Border>
+      </Grid>
+    </Border>
+    <Border Grid.Row="1" BorderBrush="{DynamicResource FocusBorder}" BorderThickness="0,0,0,1" Padding="12,10">
+      <WrapPanel HorizontalAlignment="Center">
+        <TextBlock Text="01  Подключение" Classes="step" Classes.active="{Binding IsConnection}" />
+        <TextBlock Text="02  План" Classes="step" Classes.active="{Binding IsPlan}" />
+        <TextBlock Text="03  Выполнение" Classes="step" Classes.active="{Binding IsProgress}" />
+        <TextBlock Text="04  Результат" Classes="step" Classes.active="{Binding IsResult}" />
+      </WrapPanel>
+    </Border>
+    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel MaxWidth="640" HorizontalAlignment="Stretch" Margin="24,32" Spacing="24">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{Binding StepLabel}" Classes="eyebrow" HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding Title}" Classes="title" TextAlignment="Center" />
+          <TextBlock Text="{Binding Subtitle}" Classes="muted" TextAlignment="Center" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsConnection}" Spacing="24">
+          <Border Classes="card"><StackPanel Spacing="16">
+            <TextBlock Text="Пример параметров Synology" Classes="section" />
+            <TextBlock Text="Адрес NAS (IP или имя)" /><TextBox x:Name="HostInput" Text="{Binding Host}" AutomationProperties.Name="Адрес NAS" />
+            <TextBlock Text="Пользователь SSH" /><TextBox x:Name="UserInput" Text="{Binding User}" AutomationProperties.Name="Пользователь SSH" />
+            <TextBlock Text="Пароли и ключи здесь не нужны. Проверка SSH, DSM и Container Manager будет добавлена на следующих этапах." Classes="muted" />
+            <TextBlock x:Name="ValidationMessage" Text="{Binding Validation}" IsVisible="{Binding HasValidation}" Foreground="{DynamicResource FocusDanger}" />
+          </StackPanel></Border>
+          <Button x:Name="ContinueButton" Content="Показать демонстрационный план →" Command="{Binding ContinueCommand}" Classes="primary" HorizontalAlignment="Right" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsPlan}" Spacing="16">
+          <Border Classes="card"><StackPanel Spacing="12">
+            <TextBlock Text="Медиатека" Classes="section" /><TextBlock Text="Загрузка, каталог и просмотр" Classes="muted" />
+            <TextBlock Text="qBittorrent · Prowlarr · Radarr · Sonarr · Jellyfin · Seerr · FlareSolverr" />
+            <TextBlock Text="Сервисы будут настроены и связаны между собой. Индексаторы выбирает пользователь." Classes="muted" />
+          </StackPanel></Border>
+          <Border Classes="card"><StackPanel Spacing="12">
+            <TextBlock Text="Home Assistant" Classes="section" /><TextBlock Text="Датчики NAS, плееры и панель" Classes="muted" />
+            <TextBlock Text="Выбор NAS и телевизоров, подтверждение сопряжения, проверка сущностей и автоматизаций." />
+            <TextBlock Text="Состав первого выпуска фиксирован. Свободный выбор компонентов запланирован для 2.0.0." Classes="muted" />
+          </StackPanel></Border>
+          <Expander Header="Вариант демонстрации" HorizontalAlignment="Stretch">
+            <ComboBox x:Name="DemoSelector" ItemsSource="{Binding DemoChoices}" SelectedItem="{Binding SelectedDemo}" HorizontalAlignment="Stretch" AutomationProperties.Name="Вариант демонстрации">
+              <ComboBox.ItemTemplate><DataTemplate x:DataType="vm:DemoChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+            </ComboBox>
+          </Expander>
+          <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+            <Button Content="Назад" Command="{Binding BackCommand}" HorizontalAlignment="Left" />
+            <Button x:Name="StartButton" Grid.Column="1" Content="Начать демонстрацию →" Command="{Binding StartCommand}" Classes="primary" />
+          </Grid>
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsProgress}" Spacing="20">
+          <TextBlock Text="{Binding ProgressLabel}" /><ProgressBar x:Name="OperationProgress" Minimum="0" Maximum="100" Value="{Binding ProgressPercent}" />
+          <Border Classes="card"><StackPanel Spacing="12">
+            <TextBlock Text="{Binding CurrentOperation}" Classes="section" />
+            <TextBlock Text="Выполняется демонстрационная операция…" IsVisible="{Binding !IsWaiting}" Classes="muted" />
+            <StackPanel IsVisible="{Binding IsWaiting}" Spacing="16">
+              <TextBlock Text="Представьте, что телевизор LG запросил доступ. В настоящей установке потребуется разрешить подключение на его экране." />
+              <Button x:Name="ConfirmButton" Content="Подтвердить в демонстрации" Command="{Binding ConfirmCommand}" Classes="primary" HorizontalAlignment="Left" />
+            </StackPanel>
+          </StackPanel></Border>
+          <Button x:Name="StopButton" Content="Остановить" Command="{Binding StopCommand}" HorizontalAlignment="Left" />
+          <TextBlock Text="Остановка прекращает дальнейшие действия и не является откатом." Classes="muted" />
+        </StackPanel>
+        <StackPanel IsVisible="{Binding IsResult}" Spacing="20">
+          <Border Classes="card"><StackPanel Spacing="16"><TextBlock Text="{Binding ResultMessage}" /><TextBlock Text="{Binding ProgressLabel}" Classes="muted" /></StackPanel></Border>
+          <Button x:Name="NewDemoButton" Content="К новой демонстрации" Command="{Binding NewDemoCommand}" Classes="primary" HorizontalAlignment="Right" />
+        </StackPanel>
+        <Expander Header="Технические подробности" HorizontalAlignment="Stretch"><TextBlock Text="{Binding Diagnostic}" Classes="muted" /></Expander>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</Window>
