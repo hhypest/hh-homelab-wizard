@@ -51,15 +51,35 @@ jobs:
         run: |
           dotnet publish src/HhHomelab.Wizard.Desktop -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o artifacts/desktop
           dotnet publish tools/HhHomelab.Wizard.DesktopProbe -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o artifacts/probe
-      - name: Install X11 dependencies for native smoke check
+      - name: Install X11 and Wayland dependencies for native smoke checks
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb libx11-6 libice6 libsm6 libfontconfig1 libgl1 fonts-dejavu-core
+        run: sudo apt-get update && sudo apt-get install -y xvfb weston libx11-6 libice6 libsm6 libfontconfig1 libgl1 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-client0 libwayland-egl1 libxkbcommon0 fonts-dejavu-core
       - name: Check native Win32 window
         if: runner.os == 'Windows'
-        run: ./artifacts/probe/HhHomelab.Wizard.DesktopProbe.exe
+        run: ./artifacts/probe/HhHomelab.Wizard.DesktopProbe.exe --expect-backend Win32
       - name: Check native X11 window under Xvfb
         if: runner.os == 'Linux'
-        run: xvfb-run -a ./artifacts/probe/HhHomelab.Wizard.DesktopProbe
+        run: xvfb-run -a env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET ./artifacts/probe/HhHomelab.Wizard.DesktopProbe --expect-backend X11
+      - name: Check unavailable Wayland falls back to X11
+        if: runner.os == 'Linux'
+        run: xvfb-run -a env -u WAYLAND_SOCKET WAYLAND_DISPLAY=wizard-missing ./artifacts/probe/HhHomelab.Wizard.DesktopProbe --expect-backend X11
+      - name: Check native Wayland window without XWayland
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export XDG_RUNTIME_DIR="$(mktemp -d)"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          weston --backend=headless-backend.so --use-gl --socket=wizard-wayland --idle-time=0 --width=1280 --height=1024 --log="$RUNNER_TEMP/wizard-weston.log" &
+          compositor_pid=$!
+          trap 'kill "$compositor_pid" 2>/dev/null || true; wait "$compositor_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 100); do
+            if [ -S "$XDG_RUNTIME_DIR/wizard-wayland" ]; then break; fi
+            if ! kill -0 "$compositor_pid" 2>/dev/null; then cat "$RUNNER_TEMP/wizard-weston.log"; exit 1; fi
+            sleep 0.1
+          done
+          if [ ! -S "$XDG_RUNTIME_DIR/wizard-wayland" ]; then cat "$RUNNER_TEMP/wizard-weston.log"; exit 1; fi
+          env -u DISPLAY -u WAYLAND_SOCKET WAYLAND_DISPLAY=wizard-wayland LIBGL_ALWAYS_SOFTWARE=1 ./artifacts/probe/HhHomelab.Wizard.DesktopProbe --expect-backend Wayland
       - name: Include project licenses and usage notes
         shell: pwsh
         run: |

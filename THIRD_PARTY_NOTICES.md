@@ -4,7 +4,8 @@
 
 | Компонент | Версия / источник | Тексты |
 | --- | --- | --- |
-| Avalonia и Fluent theme | 12.1.4, AvaloniaUI/Avalonia tag 12.1.4 | Avalonia-LICENSE.md, Avalonia-NOTICE.md |
+| Avalonia, Fluent theme и Wayland backend | 12.1.4, AvaloniaUI/Avalonia tag 12.1.4 | Avalonia-LICENSE.md, Avalonia-NOTICE.md |
+| NWayland | 0.11.0, commit 2c37c6f84c45e2e0428221b24ff486187e8ae873 | NWayland-LICENSE.txt |
 | CommunityToolkit.Mvvm | 8.4.2, NuGet | Toolkit-LICENSE.md, Toolkit-NOTICES.txt |
 | .NET runtime и Microsoft.Extensions.DependencyInjection | 10.0.12, dotnet/runtime tag v10.0.12 | dotnet-LICENSE.txt, dotnet-NOTICES.txt |
 | MicroCom.Runtime | 0.11.6, commit 76785efcafd91b5902fd19dd11145f6dd655b7b4 | MicroCom-LICENSE.txt |

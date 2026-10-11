@@ -11,14 +11,25 @@ namespace HhHomelab.Wizard.DesktopProbe;
 
 internal static class Program
 {
+    internal static string? ExpectedBackend { get; private set; }
     [STAThread]
-    public static int Main(string[] args) => AppBuilder.Configure<ProbeApp>().UsePlatformDetect()
-        .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+    public static int Main(string[] args)
+    {
+        if (args.Length != 0)
+        {
+            if (args.Length != 2 || args[0] != "--expect-backend" || args[1] is not ("Win32" or "X11" or "Wayland"))
+            { Console.Error.WriteLine("Usage: DesktopProbe [--expect-backend Win32|X11|Wayland]"); return 2; }
+            ExpectedBackend = args[1];
+        }
+        return DesktopPlatform.Configure(AppBuilder.Configure<ProbeApp>())
+            .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
+    }
 }
 
-/// <summary>Developer-only native Win32/X11 check of the real composition root. Never connects to NAS.</summary>
+/// <summary>Developer-only native Win32/X11/Wayland check of the real composition root. Never connects to NAS.</summary>
 public sealed class ProbeApp : App
 {
+    private string evidenceDirectory = "artifacts/native-desktop";
     public override void OnFrameworkInitializationCompleted()
     {
         base.OnFrameworkInitializationCompleted();
@@ -33,8 +44,18 @@ public sealed class ProbeApp : App
                 Directory.CreateDirectory("artifacts/native-desktop");
                 window.RequestedThemeVariant = ThemeVariant.Light;
                 await Task.Delay(150);
-                Require(window.IsVisible && window.TryGetPlatformHandle() is not null, "native.window");
-                var platform = window.TryGetPlatformHandle()!.HandleDescriptor;
+                Require(window.IsVisible && window.PlatformImpl is not null, "native.window");
+                // Wayland deliberately exposes no Win32/X11-style public native handle.
+                var platform = window.PlatformImpl!.GetType().Assembly.GetName().Name switch
+                {
+                    "Avalonia.Win32" => "Win32",
+                    "Avalonia.X11" => "X11",
+                    "Avalonia.Wayland" => "Wayland",
+                    _ => "Unknown"
+                };
+                Require(platform != "Unknown" && (Program.ExpectedBackend is null || platform == Program.ExpectedBackend), "native.backend");
+                evidenceDirectory = Path.Combine(evidenceDirectory, platform);
+                Directory.CreateDirectory(evidenceDirectory);
                 Capture(window, "connection");
                 vm.ContinueCommand.Execute(null); Require(vm.IsPlan, "navigate.plan"); Capture(window, "plan");
                 var run = vm.StartCommand.ExecuteAsync(null);
@@ -62,7 +83,7 @@ public sealed class ProbeApp : App
                 window.Close(); // Exercise the actual native Closing handler, including its asynchronous wait.
                 await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
                 await closingRun.WaitAsync(TimeSpan.FromSeconds(10));
-                Require(vm.Progress?.State == WizardState.Cancelled && !vm.IsBusy && !window.IsVisible && window.TryGetPlatformHandle() is null, "close.cancelled-and-closed");
+                Require(vm.Progress?.State == WizardState.Cancelled && !vm.IsBusy && !window.IsVisible && window.PlatformImpl is null, "close.cancelled-and-closed");
                 Console.WriteLine($"PASS native desktop: {platform}; success/failure/cancel/unknown/active-window-close; {Environment.OSVersion.VersionString}");
                 exit = 0;
             }
@@ -77,11 +98,11 @@ public sealed class ProbeApp : App
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (!condition()) await Task.Delay(10, timeout.Token);
     }
-    private static void Capture(Window window, string name)
+    private void Capture(Window window, string name)
     {
         window.UpdateLayout();
         using var bitmap = new RenderTargetBitmap(PixelSize.FromSize(window.Bounds.Size, window.RenderScaling), new Vector(96, 96) * window.RenderScaling);
         bitmap.Render(window);
-        bitmap.Save(Path.Combine("artifacts/native-desktop", name + ".png"), PngBitmapEncoderOptions.Default);
+        bitmap.Save(Path.Combine(evidenceDirectory, name + ".png"), PngBitmapEncoderOptions.Default);
     }
 }

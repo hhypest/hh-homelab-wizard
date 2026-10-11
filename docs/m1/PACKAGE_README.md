@@ -4,8 +4,10 @@
 
 Распакуйте всю папку: нативные библиотеки нужны приложению вместе с исполняемым файлом. .NET runtime включён, отдельная установка .NET, Python или Node.js не требуется.
 
-- Windows x64: запустите `HhHomelab.Wizard.Desktop.exe`.
-- Ubuntu 24.04 x64 / X11: разрешите запуск `chmod +x HhHomelab.Wizard.Desktop`, затем выполните `./HhHomelab.Wizard.Desktop`.
+- Windows 11 x64: запустите `HhHomelab.Wizard.Desktop.exe`.
+- Ubuntu 24.04 x64 / X11 или Wayland: разрешите запуск `chmod +x HhHomelab.Wizard.Desktop`, затем выполните `./HhHomelab.Wizard.Desktop`.
+
+Одна Linux-сборка работает в обоих сеансах. При заданном `WAYLAND_DISPLAY` приложение пытается использовать нативный Wayland; если compositor недоступен, пробует X11. Резервный запуск требует доступного X11/XWayland display. Windows 10 исключена из целевых платформ проекта.
 
 Ubuntu требует системные зависимости:
 
@@ -13,10 +15,16 @@ Ubuntu требует системные зависимости:
 sudo apt-get install libx11-6 libice6 libsm6 libfontconfig1 libgl1 fonts-dejavu-core libicu74 libssl3t64 zlib1g
 ```
 
+Для нативного Wayland дополнительно:
+
+```sh
+sudo apt-get install libwayland-client0 libwayland-egl1 libxkbcommon0 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri
+```
+
 Введите пример IP/имени и пользователя, откройте план. В разделе «Вариант демонстрации» выберите успех, ошибку Media или потерю ответа. Во время выполнения доступна остановка; на шаге устройств нужно отдельное подтверждение. При неизвестном результате текущая операция не повторяется. Кнопка новой демонстрации начинает независимый искусственный сценарий.
 
 Закрытие отменяет и ожидает активную сессию. Остановка не является откатом; журнал, возобновление и настоящая установка появятся позже. Прогресс считает шесть искусственных групп операций. Светлая/тёмная тема следует системе.
 
-Windows 10 22H2 Home/Pro остаётся целевой проверкой проекта, но не входит в текущую официальную матрицу поддержки .NET 10. Работа на всех клиентских ОС ещё не принята; пожалуйста, сообщите редакцию/build, DPI, commit сборки и результат проверки через [репозиторий проекта](https://github.com/hhypest/hh-homelab-wizard).
+Интерактивная работа на всех клиентских ОС ещё не принята; пожалуйста, сообщите редакцию/build Windows 11 либо дистрибутив/версию и X11/Wayland compositor Linux, DPI, commit сборки и результат проверки через [репозиторий проекта](https://github.com/hhypest/hh-homelab-wizard).
 
 Код — MIT (`LICENSE`), документация — CC BY 4.0 (`LICENSES/CC-BY-4.0.txt`), © 2026 hhypest. Уведомления сторонних компонентов находятся в `THIRD_PARTY_NOTICES.md` и `LICENSES/third-party`.
