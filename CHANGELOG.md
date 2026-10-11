@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+### Added
+
+- M0: проверяемая C#-доставка Monitor Docker из точного commit, raw SHA-256 lock для 39 файлов с лицензией Apache-2.0, ограничения ZIP и отказ при изменении/неполноте/path traversal/symlink. HACS и внешний установочный скрипт не требуются.
+- Рендер локального HA-профиля из доверенных fingerprints v1.3.0: Docker/DSM/TV YAML, исключение Alice/Pachca, локальные persistent notifications, явные адреса и секреты в памяти. TAR передаётся потоково, `secrets.yaml` — 0600; TLS-проверка HTTP-датчика включена.
+- HaProfileProbe проверяет полный YAML без ошибок/предупреждений, импорты и зависимости Monitor Docker, десять сценариев настоящих HA-шаблонов просмотра в образе 2026.10.0. Добавлены 31 unit/fixture-тест и отдельный Ubuntu runtime job; всего 314 тестов. Серверный запуск полного профиля, реальные метрики/устройства, таймеры и полный dashboard ещё не подтверждены.
+
 ### Fixed
 
 - По замечаниям Codex к PR #9: deadline ожидания RUNNING выдаёт `ha.startup.timeout`; окончательный отказ HTTP configure очищает намерение и запрещает присвоить позднейший чужой trial. `DisposeAsync` сохраняет диагностический код cleanup, не подменяя исходную ошибку при выходе из `await using`; обязательный отзыв проверяется явным `RevokeSessionAsync` и `SessionRevocationConfirmed`.

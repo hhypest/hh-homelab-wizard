@@ -1,1 +1,6 @@
-<Project Sdk="Microsoft.NET.Sdk" />
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../../src/HhHomelab.Wizard.Infrastructure/HhHomelab.Wizard.Infrastructure.csproj" />
+    <EmbeddedResource Include="ha-profile-probe.py" LogicalName="ha-profile-probe.py" />
+  </ItemGroup>
+</Project>

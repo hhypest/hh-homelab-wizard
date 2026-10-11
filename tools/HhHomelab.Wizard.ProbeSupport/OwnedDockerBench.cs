@@ -167,13 +167,15 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
         return result.Output + (includeError ? result.Error : "");
     }
 
-    private static async Task<(int ExitCode, string Output, string Error)> RunProcessAsync(IEnumerable<string> arguments, CancellationToken cancellationToken)
+    private static async Task<(int ExitCode, string Output, string Error)> RunProcessAsync(IEnumerable<string> arguments, CancellationToken cancellationToken,
+        Stream? input = null, TimeSpan? timeout = null)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(TimeSpan.FromSeconds(45));
+        deadline.CancelAfter(timeout ?? TimeSpan.FromSeconds(45));
         var start = new ProcessStartInfo("docker")
         {
-            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true
+            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
+            RedirectStandardInput = input is not null
         };
         foreach (var argument in arguments) start.ArgumentList.Add(argument);
         using var process = Process.Start(start) ?? throw new InvalidOperationException("bench.docker.unavailable");
@@ -181,6 +183,11 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
         var error = process.StandardError.ReadToEndAsync(deadline.Token);
         try
         {
+            if (input is not null)
+            {
+                await input.CopyToAsync(process.StandardInput.BaseStream, deadline.Token);
+                process.StandardInput.Close();
+            }
             await process.WaitForExitAsync(deadline.Token);
             return (process.ExitCode, await output, await error);
         }

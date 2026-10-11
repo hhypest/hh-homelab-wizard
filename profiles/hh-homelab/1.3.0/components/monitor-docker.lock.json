@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "repository": "https://github.com/ualex73/monitor_docker",
+  "commit": "78abdc40d96871be44bd965202de59fe2e5b10d3",
+  "manifestVersion": "1.20b3",
+  "license": "Apache-2.0",
+  "requirements": [
+    "aiodocker==0.25.0",
+    "python-dateutil==2.9.0.post0"
+  ],
+  "files": [
+    {
+      "path": "custom_components/monitor_docker/__init__.py",
+      "sha256": "aab1e3b2a679070ebce16a0ae59ef29a49d53e622e855eba11d77b29a3cc17d7"
+    },
+    {
+      "path": "custom_components/monitor_docker/button.py",
+      "sha256": "d08e58aab5b5f90076ec3f4aac4a690caffbb8e07a1f3843f5f8381c332428c3"
+    },
+    {
+      "path": "custom_components/monitor_docker/const.py",
+      "sha256": "a8cbd52bbc45de7fb56f94cf747aa26d0b02f4d80a2f6a3909a39b176e3a2eb1"
+    },
+    {
+      "path": "custom_components/monitor_docker/helpers.py",
+      "sha256": "aeec56d06f780f1d88fdf31f6048af0389d4ab4fb77efc18addb59ef8253ea13"
+    },
+    {
+      "path": "custom_components/monitor_docker/icons.json",
+      "sha256": "f02351ffb13205821c83b9672b18cedc73784b24dd9551e126acd16b8a58abc9"
+    },
+    {
+      "path": "custom_components/monitor_docker/manifest.json",
+      "sha256": "8c55027a5b378acc18791d25ba7fed04b1e91f0a70f61c6396f678f381617060"
+    },
+    {
+      "path": "custom_components/monitor_docker/sensor.py",
+      "sha256": "bfc06f93ba27ad341b2e74be7a27f31e7376d98e44ef9c42107f0ab6d9b71448"
+    },
+    {
+      "path": "custom_components/monitor_docker/services.yaml",
+      "sha256": "06607e37386bc45f383fb1cc35bf7a93cd64c6f0efbdee38ff706aa69262ff9a"
+    },
+    {
+      "path": "custom_components/monitor_docker/strings.json",
+      "sha256": "5659643283aed2632088148bfcd72c23726c46bcdb7a72a5ce62f2e5c889d918"
+    },
+    {
+      "path": "custom_components/monitor_docker/switch.py",
+      "sha256": "a837d7bf0afdc4dd8e156669fe611a335166a3ee1cdb793900575794a8f0a208"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/bg.json",
+      "sha256": "e04cfebc013363b9685745ab5e6cd89612e9c03a63eb93cb1f969def5c3ea586"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/ca.json",
+      "sha256": "b9f27429204a3106148ea165d8ec2ae7922fe9740050034eb069d1f040e5afe3"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/cs.json",
+      "sha256": "7c032b051b70d1e072179f3949f29ee0255a58087964eb989497ac4fa0549ea9"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/de.json",
+      "sha256": "b4ad9717c91445304db18ab42d65fea77f2e0bc47e7f2937cca9ad272cabf4f9"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/el.json",
+      "sha256": "2e292c5f063adcd881048fa66cd6ce2eb89d664a9d8ac95f0ff8c840c93ccdf5"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/en.json",
+      "sha256": "79990d16a32a435e977f3f42605b42b43d5da7a8d80c6a13056f2d302fa751b8"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/es.json",
+      "sha256": "100be9355914ce6f20ea07595afcc26f04ccfaca70238deddb03ca8c6557c59e"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/et.json",
+      "sha256": "3dbcda11ab7cd61b1d8c24af08d88b5b149229309a946102f8f6fd5e3d5b636b"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/fi.json",
+      "sha256": "d74142db02be14d26fbc02db4da91a4d885937928a811f9684e3f3b1f236cbae"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/fr.json",
+      "sha256": "4a717751b8fe71591d3329f46920fced5ef5599adc94317bead2204575435385"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/he.json",
+      "sha256": "9f39a53f7528c535c9b874acf77e5d59edac7a2c36050a179ac91594f251326a"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/hu.json",
+      "sha256": "63f6bbe46e09ad2b7eb18a803b8f0232ffcbec49248aef71c08de074e0501ad0"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/id.json",
+      "sha256": "81f0201d58464aef0b16786327f9d6ddceb3a99353c8f9af3e40ee07e33d6ffb"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/it.json",
+      "sha256": "919104ccc6e8b12032a3b92c9535828fd4186fae583d851575c182a15d3cf3c2"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/ja.json",
+      "sha256": "1f47763213e8f842af7460d3a37206fddbb015a8014adabe4b55ae27f52e9733"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/ko.json",
+      "sha256": "25986e981107dfab65a12823f03c133832bf99ee04a16cd64d66c9e99c615195"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/lt.json",
+      "sha256": "7dccaf44494f9de77d5acf106021144071884c93d7b15e2c1a25aa487b62412f"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/nb.json",
+      "sha256": "eaf262a19de01ac2db43f82033b4863ad1d0e6acd3483cfb8954bc87161f4f01"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/nl.json",
+      "sha256": "4091ab2c241b6b67526baae105654547366bc692db720831c9cf92768bb16944"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/pl.json",
+      "sha256": "0d6ff2a066a11a458a6efbbe4dc3fb6757c1a62bcfa17c4a955bb72501fe5682"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/pt-BR.json",
+      "sha256": "100be9355914ce6f20ea07595afcc26f04ccfaca70238deddb03ca8c6557c59e"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/pt.json",
+      "sha256": "100be9355914ce6f20ea07595afcc26f04ccfaca70238deddb03ca8c6557c59e"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/ru.json",
+      "sha256": "1f47c0be5c4dd5bc6009e15b5193acffa3f528a2e93032ea81a6ffeff90da542"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/sk.json",
+      "sha256": "e6b4ab22e4b551f2cf07c74548990a13d12454dfc3248a9dfa027109f210b7b1"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/sv.json",
+      "sha256": "386bd641c9392dba64d5f1d5bac787e5a9949d2a9a3b454ed7b22552b860fd38"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/tr.json",
+      "sha256": "21669cc7d80278f8af4e9fd0eaa4a342e6873d7dc8712976b1d77acdc78cbf60"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/zh-Hans.json",
+      "sha256": "ca806e1636cc6a1622568e7e916e08c1f95e3051c8b90d0536841e1b9111134d"
+    },
+    {
+      "path": "custom_components/monitor_docker/translations/zh-Hant.json",
+      "sha256": "dd67ea3fd3f2acb61c55490b25e0b1f06ffc86b4d8fd2da8fc24e56ca989abfb"
+    },
+    {
+      "path": "LICENSE.md",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}
