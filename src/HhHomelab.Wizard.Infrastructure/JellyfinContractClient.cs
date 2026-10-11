@@ -19,6 +19,7 @@ public sealed class JellyfinContractClient
         ArgumentNullException.ThrowIfNull(http); ArrContractClient.ValidateEndpoint(http.BaseAddress);
         api = new(http, "jellyfin", request =>
         {
+            request.Headers.Accept.ParseAdd("application/json; profile=\"PascalCase\"");
             var header = "MediaBrowser Client=\"hh-homelab-wizard M0\", Device=\"Developer probe\", DeviceId=\"hh-homelab-wizard-m0\", Version=\"0.0.0\"";
             if (accessToken is not null) header += ", Token=\"" + accessToken + "\"";
             request.Headers.TryAddWithoutValidation("Authorization", header);

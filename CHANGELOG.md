@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- По замечаниям Codex к PR #9: deadline ожидания RUNNING выдаёт `ha.startup.timeout`; окончательный отказ HTTP configure очищает намерение и запрещает присвоить позднейший чужой trial. `DisposeAsync` сохраняет диагностический код cleanup, не подменяя исходную ошибку при выходе из `await using`; обязательный отзыв проверяется явным `RevokeSessionAsync` и `SessionRevocationConfirmed`.
+- Пробы Jellyfin ждут основной API через `Startup/User`: ранний 200 временного SetupServer на `System/Info/Public` больше не принимается за готовность. Адаптер явно запрашивает JSON-профиль PascalCase; выбор формата не зависит от default transport/server.
 - По замечаниям Codex к PR #7: HA-клиент не принимает и не подтверждает pending HTTP trial без собственного намерения configure, даже при полном совпадении значений. Новый клиент блокирует такой trial; перенос подтверждённого намерения между запусками остаётся задачей журнала M3.
 - HomeAssistantContractClient использует `IAsyncDisposable`: собственный refresh token отзывается через `/auth/revoke` перед новой авторизацией, при ошибке проверки владельца/конфигурации и штатном завершении. Неудачный отзыв сохраняет приватный токен для явного повторного cleanup и сообщает безопасный код; чужие сессии не удаляются.
 - Внутренний таймаут HA WebSocket/HTTP больше не выдаётся за отмену пользователем: результат записи обозначается неизвестным, чтение — ошибкой транспорта. Явная отмена сохраняет `OperationCanceledException`; записи не повторяются автоматически.
@@ -17,6 +19,8 @@
 
 ### Added
 
+- M0: первый config flow HA — Jellyfin на закреплённых HA 2026.10.0 / Jellyfin 12.2.0. Явный ввод credentials, безопасные статусы, проверка entry ID, состояния loaded и server ID через device registry; повтор наблюдает результат. Существующие записи не присваиваются по названию, неизвестный результат не вызывает повтор POST. Намерение пока хранится только в памяти; восстановление через журнал M3 не реализовано.
+- 19 новых unit/fixture-проверок, всего 283: замечания PR #9, Jellyfin flow, потеря ответа/отмена, конфликт идентичности, pending setup и повтор без записей. HaDockerProbe и Ubuntu CI дополнены отдельным Jellyfin-контейнером, подключением из HA и readback после restart. Это developer tools; M0 остаётся открыт.
 - M0: HomeAssistantContractClient для HA Container 2026.10.0 — владелец/onboarding, нормальный login после потерянного ответа, приватные access/refresh tokens, подтверждение owner/admin, HTTP/WebSocket и единичное переименование по идентичности реестра с проверкой коллизий.
 - Storage dashboard create/save/readback с явным списком зарегистрированных включённых сущностей; существующая другая конфигурация не перезаписывается. Это тестовая панель, не полный dashboard hh-homelab.
 - HTTP protection: наблюдение RUNNING, pending/restart/reconnect, проверка active trial и явное promote; failed/reverted/foreign pending блокирует подтверждение. Настройки IP ban/threshold=5 и отсутствие trusted proxies подтверждаются после перезапуска.

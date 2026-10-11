@@ -6,7 +6,7 @@ using Xunit;
 
 namespace HhHomelab.Wizard.UnitTests;
 
-public sealed class HomeAssistantContractTests
+public sealed partial class HomeAssistantContractTests
 {
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private static Task<bool> Bootstrap(HomeAssistantContractClient ha) => ha.BootstrapOwnerAsync("M0 owner", "wizard", "synthetic-password", Token);
@@ -279,9 +279,11 @@ public sealed class HomeAssistantContractTests
     {
         using var f = new Fixture(); using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
         f.RevokeFailure = "transport";
-        var e = await Assert.ThrowsAsync<MediaContractException>(async () => await ha.DisposeAsync());
-        Assert.Equal("ha.session.revoke.result-unknown", e.Code); Assert.Single(f.ActiveRefresh);
-        f.RevokeFailure = null; await ha.DisposeAsync(); Assert.Empty(f.ActiveRefresh); Assert.Null(ha.SessionCleanupFailure);
+        await ha.DisposeAsync();
+        Assert.Equal("ha.session.revoke.result-unknown", ha.SessionCleanupFailure); Assert.Single(f.ActiveRefresh);
+        Assert.False(ha.SessionRevocationConfirmed);
+        f.RevokeFailure = null; await ha.RevokeSessionAsync(Token); Assert.Empty(f.ActiveRefresh); Assert.Null(ha.SessionCleanupFailure);
+        Assert.True(ha.SessionRevocationConfirmed);
     }
 
     [Fact]
@@ -313,6 +315,38 @@ public sealed class HomeAssistantContractTests
         Assert.Equal(code, e.Code); Assert.False(Token.IsCancellationRequested);
     }
 
+    [Fact]
+    public async Task AwaitUsingUnwindPreservesValidationFailureWhenBothCleanupAttemptsFail()
+    {
+        using var f = new Fixture { IdentityFailure = "owner", RevokeFailure = "transport" }; using var h = f.Http(); var ha = f.Client(h);
+        var e = await Assert.ThrowsAsync<MediaContractException>(async () => { await using (ha) { await Bootstrap(ha); } });
+        Assert.Equal("ha.owner.identity-mismatch", e.Code); Assert.Equal(2, f.Revokes);
+        Assert.Equal("ha.session.revoke.result-unknown", ha.SessionCleanupFailure);
+        f.RevokeFailure = null; await ha.RevokeSessionAsync(Token); Assert.True(ha.SessionRevocationConfirmed);
+    }
+
+    [Fact]
+    public async Task StartupDeadlineIsDistinctFromCallerCancellation()
+    {
+        using var f = new Fixture { Running = false }; using var h = f.Http(); await using var ha = f.Client(h); await Bootstrap(ha);
+        var e = await Assert.ThrowsAsync<MediaContractException>(() => ha.WaitUntilRunningAsync(Token, TimeSpan.FromMilliseconds(20), TimeSpan.FromMilliseconds(1)));
+        Assert.Equal("ha.startup.timeout", e.Code);
+        using var caller = new CancellationTokenSource(); caller.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ha.WaitUntilRunningAsync(caller.Token, TimeSpan.FromSeconds(1), TimeSpan.FromMilliseconds(1)));
+    }
+
+    [Fact]
+    public async Task RejectedConfigureCannotAdoptLaterIdenticalTrial()
+    {
+        using var f = new Fixture { RejectConfigure = true }; using var h = f.Http(); await using var first = f.Client(h); await Bootstrap(first);
+        await Assert.ThrowsAsync<MediaContractException>(() => first.StageHttpProtectionAsync(Token));
+        f.RejectConfigure = false;
+        using var h2 = f.Http(); await using var second = f.Client(h2); await Bootstrap(second); await second.StageHttpProtectionAsync(Token);
+        await first.ReconnectAsync(Token);
+        var e = await Assert.ThrowsAsync<MediaContractException>(() => first.StageHttpProtectionAsync(Token)); Assert.Equal("ha.http.pending-conflict", e.Code);
+        e = await Assert.ThrowsAsync<MediaContractException>(() => first.ConfirmHttpProtectionAsync(Token)); Assert.Equal("ha.http.intent-required", e.Code); Assert.Equal(0, f.Promotes);
+    }
+
     private static JsonObject Entity(string id = "registry1", string entity = "input_boolean.fixture") => new()
     { ["id"] = id, ["entity_id"] = entity, ["unique_id"] = "fixture1", ["platform"] = "input_boolean", ["config_entry_id"] = null, ["device_id"] = null, ["disabled_by"] = null };
 
@@ -332,6 +366,23 @@ public sealed class HomeAssistantContractTests
         public string? RevokeFailure { get; set; }
         public string? TimeoutPath { get; set; }
         public bool InvalidTokenType { get; init; }
+        public bool RejectConfigure { get; set; }
+        public string? LoseFlow { get; set; }
+        public bool CancelFlow { get; set; }
+        public int FlowStarts, FlowSubmits;
+        public bool FlowComplete { get; set; }
+        public string FlowHandler { get; set; } = "jellyfin";
+        public string? FlowError { get; set; }
+        public string ServerId { get; set; } = new('a', 32);
+        public string EntryState { get; set; } = "loaded";
+        public string? EntryDisabled { get; set; }
+        public JsonArray IntegrationEntries { get; } = [];
+        private JsonObject UserForm(string? error = null) => new()
+        {
+            ["type"] = "form", ["flow_id"] = "flow1", ["handler"] = FlowHandler, ["step_id"] = "user",
+            ["errors"] = error is null ? new JsonObject() : new JsonObject { ["base"] = error },
+            ["data_schema"] = new JsonArray(new JsonObject { ["name"] = "url" }, new JsonObject { ["name"] = "username" }, new JsonObject { ["name"] = "password", ["default"] = "synthetic-sensitive" })
+        };
         public int Grants, Revokes;
         public HashSet<string> ActiveRefresh { get; } = [];
         public bool Running { get; set; } = true;
@@ -386,8 +437,36 @@ public sealed class HomeAssistantContractTests
                 if (RevokeFailure == "lost-response") throw new HttpRequestException("synthetic-sensitive");
                 return new(HttpStatusCode.OK) { Content = new StringContent("") };
             }
+            else if (path == "/api/config/config_entries/entry") result = IntegrationEntries.DeepClone();
+            else if (path == "/api/config/config_entries/flow") { FlowStarts++; result = UserForm(); }
+            else if (path == "/api/config/config_entries/flow/flow1")
+            {
+                if (request.Method == HttpMethod.Get)
+                {
+                    if (FlowComplete) return new(HttpStatusCode.NotFound);
+                    result = UserForm(); // HA reruns async_step_user(None), clearing earlier errors.
+                }
+                else
+                {
+                    FlowSubmits++;
+                    if (FlowError is not null || body?["password"]?.GetValue<string>() != "synthetic-password") result = UserForm(FlowError ?? "invalid_auth");
+                    else
+                    {
+                        FlowComplete = true;
+                        var entry = new JsonObject { ["entry_id"] = "entry1", ["domain"] = "jellyfin", ["source"] = "user", ["state"] = EntryState, ["disabled_by"] = EntryDisabled, ["title"] = "same-title" };
+                        IntegrationEntries.Add(entry.DeepClone());
+                        result = new JsonObject { ["type"] = "create_entry", ["flow_id"] = "flow1", ["handler"] = "jellyfin", ["result"] = entry };
+                    }
+                }
+            }
             else if (path == "/api/config/core/check_config") result = new JsonObject { ["result"] = BadConfig ? "invalid" : "valid", ["errors"] = BadConfig ? "synthetic-sensitive" : null, ["warnings"] = null };
             else throw new InvalidOperationException("Unexpected fixture HTTP route");
+            if (request.Method == HttpMethod.Post && path == LoseFlow)
+            {
+                LoseFlow = null;
+                if (CancelFlow) { CallerToCancel!.Cancel(); throw new OperationCanceledException(token); }
+                throw new HttpRequestException("synthetic-sensitive");
+            }
             return new(HttpStatusCode.OK) { Content = new StringContent(result!.ToJsonString()) };
         }
         private sealed class Socket(Fixture f) : IHomeAssistantSocket
@@ -405,13 +484,14 @@ public sealed class HomeAssistantContractTests
                     case "auth/current_user": result = new JsonObject { ["id"] = f.OwnerId, ["name"] = f.IdentityFailure == "name" ? "foreign" : "M0 owner", ["is_owner"] = f.IdentityFailure != "owner", ["is_admin"] = f.IdentityFailure != "admin" }; break;
                     case "get_config": result = new JsonObject { ["version"] = f.Version, ["safe_mode"] = f.IdentityFailure == "safe_mode", ["state"] = f.Running ? "RUNNING" : "STARTING" }; break;
                     case "config/entity_registry/list": result = f.Entities.DeepClone(); break;
+                    case "config/device_registry/list": result = new JsonArray(new JsonObject { ["config_entries"] = new JsonArray("entry1"), ["identifiers"] = new JsonArray(new JsonArray("jellyfin", f.ServerId)), ["sw_version"] = "12.2.0" }); break;
                     case "config/entity_registry/update": f.RegistryWrites++; f.Entities[0]!["entity_id"] = msg["new_entity_id"]!.DeepClone(); result = new JsonObject(); break;
                     case "lovelace/dashboards/list": result = f.Dashboards.DeepClone(); break;
                     case "lovelace/dashboards/create": f.DashboardCreates++; var d = (JsonObject)msg.DeepClone(); d.Remove("type"); d["id"] = "dashboard1"; f.Dashboards.Add(d); result = d.DeepClone(); break;
                     case "lovelace/config": result = f.DashboardConfig?.DeepClone(); if (result is null) error = "config_not_found"; break;
                     case "lovelace/config/save": f.DashboardSaves++; f.DashboardConfig = msg["config"]!.DeepClone(); break;
                     case "http/config": result = new JsonObject { ["default"] = f.Default.DeepClone(), ["stable"] = f.Stable?.DeepClone(), ["pending"] = f.Pending?.DeepClone(), ["active_config_type"] = f.Active, ["revert_at"] = f.Pending is null ? null : "fixture-deadline" }; break;
-                    case "http/config/configure": f.Configures++; f.Pending = (JsonObject)msg["config"]!.DeepClone(); f.Active = "pending"; result = new JsonObject { ["restart"] = true }; break;
+                    case "http/config/configure": f.Configures++; if (f.RejectConfigure) { error = "invalid_config"; break; } f.Pending = (JsonObject)msg["config"]!.DeepClone(); f.Active = "pending"; result = new JsonObject { ["restart"] = true }; break;
                     case "http/config/promote": f.Promotes++; f.Stable = f.Pending; f.Pending = null; f.Active = "stable"; break;
                     default: throw new InvalidOperationException("Unexpected fixture WS route");
                 }
