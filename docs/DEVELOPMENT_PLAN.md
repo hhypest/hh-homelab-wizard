@@ -69,7 +69,7 @@ src/
 tests/
   HhHomelab.Wizard.UnitTests/
   HhHomelab.Wizard.ContractTests/
-  HhHomelab.Wizard.UiTests/
+  HhHomelab.Wizard.DesktopTests/
   fixtures/
 profiles/
   hh-homelab/1.3.0/

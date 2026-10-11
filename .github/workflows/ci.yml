@@ -66,7 +66,7 @@ jobs:
           Copy-Item LICENSE artifacts/desktop/LICENSE
           Copy-Item -Recurse LICENSES artifacts/desktop/LICENSES
           Copy-Item THIRD_PARTY_NOTICES.md artifacts/desktop/THIRD_PARTY_NOTICES.md
-          Copy-Item docs/m1/README.md artifacts/desktop/DEMO.md
+          Copy-Item docs/m1/PACKAGE_README.md artifacts/desktop/DEMO.md
       - name: Upload trial application
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
