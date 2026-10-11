@@ -20,6 +20,10 @@ jobs:
       - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
           global-json-file: global.json
+      - name: Verify registry pull retry policy
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash .github/scripts/test-pull-image.sh
       - name: Restore locked dependencies
         run: dotnet restore HhHomelab.Wizard.slnx --locked-mode
       - name: Build
@@ -115,7 +119,7 @@ jobs:
       - name: Build probe
         run: dotnet build tools/HhHomelab.Wizard.QbDockerProbe --no-restore --configuration Release
       - name: Pull pinned research image
-        run: docker pull lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479
+        run: bash .github/scripts/pull-image.sh lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479
       - name: Verify bootstrap twice on fresh containers
         shell: bash
         run: |
@@ -140,10 +144,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker pull lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479
-          docker pull lscr.io/linuxserver/radarr:6.4.4.10685-ls319
-          docker pull lscr.io/linuxserver/sonarr:4.0.20.3014-ls326
-          docker pull lscr.io/linuxserver/prowlarr:2.6.5.5623-ls163
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/radarr:6.4.4.10685-ls319
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/sonarr:4.0.20.3014-ls326
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/prowlarr:2.6.5.5623-ls163
       - name: Verify Arr bootstrap twice on fresh configurations
         shell: bash
         run: |
@@ -168,8 +172,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker pull ghcr.io/home-assistant/home-assistant:2026.10.0
-          docker pull lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53
+          bash .github/scripts/pull-image.sh ghcr.io/home-assistant/home-assistant:2026.10.0
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53
       - name: Verify HA onboarding and configuration twice on fresh containers
         shell: bash
         run: |
@@ -197,7 +201,7 @@ jobs:
       - name: Build profile probe
         run: dotnet build tools/HhHomelab.Wizard.HaProfileProbe --no-restore --configuration Release
       - name: Pull pinned HA image
-        run: docker pull ghcr.io/home-assistant/home-assistant:2026.10.0
+        run: bash .github/scripts/pull-image.sh ghcr.io/home-assistant/home-assistant:2026.10.0
       - name: Verify local YAML, component imports and TV templates twice
         shell: bash
         run: |
@@ -228,8 +232,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker pull ghcr.io/home-assistant/home-assistant:2026.10.0
-          docker pull ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
+          bash .github/scripts/pull-image.sh ghcr.io/home-assistant/home-assistant:2026.10.0
+          bash .github/scripts/pull-image.sh ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
       - name: Verify full HA server and accelerated action fixtures twice
         shell: bash
         run: |
@@ -254,10 +258,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker pull lscr.io/linuxserver/radarr:6.4.4.10685-ls319
-          docker pull lscr.io/linuxserver/sonarr:4.0.20.3014-ls326
-          docker pull lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53
-          docker pull ghcr.io/seerr-team/seerr:v3.5.0
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/radarr:6.4.4.10685-ls319
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/sonarr:4.0.20.3014-ls326
+          bash .github/scripts/pull-image.sh lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53
+          bash .github/scripts/pull-image.sh ghcr.io/seerr-team/seerr:v3.5.0
       - name: Verify Jellyfin and Seerr twice on fresh configurations
         shell: bash
         run: |

@@ -4,9 +4,7 @@
 
 [Project «hh-homelab-wizard — Разработка»](https://github.com/users/hhypest/projects/3) показывает эти Issues с нативным полем Milestone, текущим Status, исполнителями и PR. Представления выделяют работу первого выпуска, участие владельца, эпики и 2.0.0. [Правила Project](PROJECT.md) определяют обновление доски и отличают статус работы от фактической приёмки.
 
-Первоначальная структура создана 2026-10-11 после слияния PR #17: **10 Milestones, 15 эпиков и 60 дочерних задач**. Три дочерние задачи закрыты как исторические результаты с доказательствами. M0 и M1 остаются открытыми; M2–M8 и 2.0.0 не объявлены выполненными. Код установщика и реальные ресурсы NAS этим изменением не создаются.
-
-Настройка Project и закрепление правил ведения доски отслеживаются отдельно в [#94](https://github.com/hhypest/hh-homelab-wizard/issues/94), дочерней административной задаче M1. Она добавлена после первоначальной структуры и не заменяет клиентскую приёмку.
+Текущая готовность продукта — [STATUS](STATUS.md). [Реестр независимого аудита](audit/2026-10-11-follow-up.md) связывает замечания и критерии с существующими задачами; #96–#103 включены в соответствующие Milestones, отдельный эпик аудита не создаётся.
 
 ## Этапы первого выпуска
 
@@ -22,7 +20,7 @@
 | [M7](https://github.com/hhypest/hh-homelab-wizard/milestone/8) | [#25](https://github.com/hhypest/hh-homelab-wizard/issues/25) | Многоуровневые проверки, реальные Media/HA/Jellyfin/YouTube/ночные сценарии, отчёт и support bundle. | [#22](https://github.com/hhypest/hh-homelab-wizard/issues/22), [#23](https://github.com/hhypest/hh-homelab-wizard/issues/23), [#24](https://github.com/hhypest/hh-homelab-wizard/issues/24) |
 | [M8](https://github.com/hhypest/hh-homelab-wizard/milestone/9) | [#26](https://github.com/hhypest/hh-homelab-wizard/issues/26) | Аппаратные E2E трёх клиентских конфигураций, resume/сбои/данные, чистые пакеты и принятый выпуск 1.0.0. | [#25](https://github.com/hhypest/hh-homelab-wizard/issues/25) |
 
-M3: дизайн журнала и fixtures [#51](https://github.com/hhypest/hh-homelab-wizard/issues/51) можно выполнять параллельно M1; интеграция и завершение M3 требуют M2. M2 начинается после приёмки M0/M1. Наличие кода/CI не снимает эти условия; реальные установочные мутации требуют готового M3 и авторизованного конкретного плана.
+Зависимости таблицы определяют **завершение этапа**, а не запрет независимого инкремента. Design/fixtures и одноразовый стенд M2/M3 разрешены до полной M0/M1 по [ADR 0008](adr/0008-audit-development-sequence.md). В задачах #46–#54 это разделение обозначено явно; native blocked-by эпиков сохраняют условия полной приёмки. Реальные установочные мутации требуют готовности обязательных механизмов M3 и авторизованного конкретного плана.
 
 ## Версия 2.0.0
 
@@ -41,12 +39,24 @@ M3: дизайн журнала и fixtures [#51](https://github.com/hhypest/hh-
 
 Архивирование hh-homelab описано в [#92](https://github.com/hhypest/hh-homelab-wizard/issues/92): сначала перенос, проверенная самостоятельная поставка и выпуск 2.0.0, затем переход в архив выполняет владелец. Эта карта не выполняет архивирование и не меняет работающие установки.
 
-## Ближайшие действия
+## Приоритет после независимого аудита
 
-1. Завершить клиентскую приёмку M1: Windows 11 [#42](https://github.com/hhypest/hh-homelab-wizard/issues/42), Ubuntu 24.04 X11 [#43](https://github.com/hhypest/hh-homelab-wizard/issues/43), Ubuntu 24.04 Wayland [#44](https://github.com/hhypest/hh-homelab-wizard/issues/44); свести результаты в [#45](https://github.com/hhypest/hh-homelab-wizard/issues/45). Self-contained пакет запускается без установленного .NET/SDK; CI Server/Xvfb/Weston не заменяет интерактивный результат.
-2. На изолированных стендах дополнить Media-контракты [#35](https://github.com/hhypest/hh-homelab-wizard/issues/35) и полный dashboard/зависимости плееров [#38](https://github.com/hhypest/hh-homelab-wizard/issues/38).
-3. По отдельно согласованному аппаратному протоколу подтвердить DSM-сенсоры [#36](https://github.com/hhypest/hh-homelab-wizard/issues/36), flows/identity устройств [#37](https://github.com/hhypest/hh-homelab-wizard/issues/37) и read-only capabilities NAS [#39](https://github.com/hhypest/hh-homelab-wizard/issues/39). Доступы вводятся локально.
-4. Принять покрытие M0 в [#40](https://github.com/hhypest/hh-homelab-wizard/issues/40); после M0/M1 перейти к эпикам M2/M3. План и актуальные blocked-by определяют доступную следующую задачу.
+| Очередь | Issue / Milestone | Результат |
+| --- | --- | --- |
+| P1, следующий PR | [#97](https://github.com/hhypest/hh-homelab-wizard/issues/97) / M0 | Исправить B1/B2 с регрессиями timeout/read/write/caller cancellation; затем общий транспорт |
+| P1 | [#99](https://github.com/hhypest/hh-homelab-wizard/issues/99) / M3 | Операции, ErrorCode/Kind и порты Application; первые образцы Qb/Arr |
+| P1 | [#100](https://github.com/hhypest/hh-homelab-wizard/issues/100) / M0 | Единственный источник pins/roles и проверка clients/probes/CI |
+| P1, после фундамента | [#101](https://github.com/hhypest/hh-homelab-wizard/issues/101) / M3 | Вертикаль qBittorrent на одноразовом SSH/Docker стенде и resume в новом процессе |
+| P2, независимо | [#98](https://github.com/hhypest/hh-homelab-wizard/issues/98) / M1 | Читаемость, formatter/анализаторы, Dependabot, coverage/fixtures и pull retry |
+| P2, до реальных экранов | [#103](https://github.com/hhypest/hh-homelab-wizard/issues/103) / M2 | Screen VM, typed interaction, валидация и UI mapping ошибок |
+| P2, до M5 | [#102](https://github.com/hhypest/hh-homelab-wizard/issues/102) / M5 | Разделить HA, вынести probe helpers и journal intent |
+| Организация / на проверке | [#96](https://github.com/hhypest/hh-homelab-wizard/issues/96) / M1 | Реестр аудита, план, STATUS и правила PR |
+
+Модель #99 и профиль #100 можно проектировать независимо; runnable вертикаль использует исправленный транспорт и минимальные принятые стендовые части #46/#48/#49/#50/#51/#52/#53. #101 не подменяет полные критерии #57 или M4.
+
+Клиентские #42–#45 и аппаратные #35–#40 продолжаются отдельно по согласованным протоколам. Новые HA-исследования вширь не должны задерживать вертикаль. Фиксированный состав v1 сохраняется; выбор графа V2 начинается после M8.
+
+Project и native sub-issues/blocked-by для новых задач не обновлены доступным API. Рабочие статусы, родительские эпики и зависимости записаны в Issues; при наличии API синхронизировать эти записи с доской и нативными связями.
 
 ## Как вести задачи
 
