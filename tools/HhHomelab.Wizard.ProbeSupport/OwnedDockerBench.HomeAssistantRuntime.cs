@@ -87,8 +87,27 @@ public sealed partial class OwnedDockerBench
     {
         await VerifyOwnershipAsync("container", Container, token);
         // Request originates from HA, not the developer host. A forbidden POST must never reach the backend.
-        const string script = "import urllib.request,urllib.error; u='http://dockerproxy:2375'; assert urllib.request.urlopen(u+'/version',timeout=5).status==200; " +
-            "r=urllib.request.Request(u+'/containers/radarr/stop',data=b'',method='POST');\ntry:\n urllib.request.urlopen(r,timeout=5); raise AssertionError()\nexcept urllib.error.HTTPError as e:\n assert e.code==403\nprint('policy-passed')";
+        const string script = """
+            import time, urllib.request, urllib.error
+            u = 'http://dockerproxy:2375'
+            deadline = time.monotonic() + 30
+            while True:
+                try:
+                    with urllib.request.urlopen(u + '/version', timeout=2) as response:
+                        assert response.status == 200
+                    break
+                except (urllib.error.URLError, TimeoutError, ConnectionError):
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.25)
+            request = urllib.request.Request(u + '/containers/radarr/stop', data=b'', method='POST')
+            try:
+                urllib.request.urlopen(request, timeout=5)
+                raise AssertionError()
+            except urllib.error.HTTPError as error:
+                assert error.code == 403
+            print('policy-passed')
+            """;
         var result = await RunAsync(["exec", Container, "python3", "-c", script], token);
         if (result.Trim() != "policy-passed") throw new InvalidOperationException("bench.proxy.policy.failed");
     }

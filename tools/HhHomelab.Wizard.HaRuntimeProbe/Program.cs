@@ -64,7 +64,22 @@ try
     }
     await bench.SetDockerProxyRunningAsync(false, token); await ha.RefreshDockerDownProbeAsync(token);
     await WaitAsync(ha, r => r.DockerProxyError == true, token);
-    await bench.SetDockerProxyRunningAsync(true, token); await bench.VerifyDockerProxyPolicyAsync(token); await ha.RefreshDockerDownProbeAsync(token);
+    // Start readiness while the proxy is still stopped: an initial refusal must be retried.
+    using var recoveryCancel = CancellationTokenSource.CreateLinkedTokenSource(token);
+    var recoveryPolicy = bench.VerifyDockerProxyPolicyAsync(recoveryCancel.Token);
+    try
+    {
+        await Task.Delay(TimeSpan.FromSeconds(2), token);
+        await bench.SetDockerProxyRunningAsync(true, token);
+        await recoveryPolicy;
+    }
+    catch
+    {
+        recoveryCancel.Cancel();
+        try { await recoveryPolicy; } catch { /* Observe the probe failure without replacing the original error. */ }
+        throw;
+    }
+    await ha.RefreshDockerDownProbeAsync(token);
     await WaitAsync(ha, r => r.DockerProxyError == false, token);
     Console.WriteLine("ha-runtime: proxy interruption/recovery distinguished from healthy state");
     await bench.CheckHomeAssistantActionsAsync(token);
