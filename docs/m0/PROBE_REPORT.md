@@ -135,6 +135,20 @@ QbProbe на C# сохраняется как диагностический и�
 
 Намерение HTTP configure пока хранится в памяти одного клиента, не переносится в новый процесс. Журнал M3, аварийное завершение, потерянный ответ выдачи неизвестного токена, config flows и полный профиль остаются открытыми. Реальные DSM/устройства и Avalonia UI этим инкрементом не проверены. Результаты CI следует проверять по конкретному PR, локальная проба не заменяет Linux CI.
 
+## Jellyfin config flow и замечания PR #9
+
+11 октября 2026 года: locked restore, Release build без предупреждений и **283 unit/fixture-теста** прошли на Windows / SDK 10.0.401. ProfileCheck подтвердил прежние 9 сервисов, 19 fingerprints и 118 шагов, включая содержимое checkout v1.3.0. Новых зависимостей и изменений image pins нет. Все операции установки в research-profile по-прежнему `NotImplemented`.
+
+HaDockerProbe расширен собственным Jellyfin 12.2.0 peer в Docker bridge-сети. На локальном Linux Engine 29.8.2 полный сценарий дважды прошёл на свежих конфигурациях: синтетический администратор Jellyfin, HA owner/onboarding, отказ неверного пароля в настоящем USER config flow, явная коррекция, loaded entry и device/server identity. Повтор запрещает flow POST; после restart новый HA login подтверждает тот же entry/server чтением. Сохранились проверки registry/dashboard/HTTP trial, чужой identical trial, потери ответов этих операций, metadata сессий и явного revocation; cleanup собственных ресурсов успешен.
+
+Первоначальные пробы остановились до настройки HA на `jellyfin.read.transport-failed` / `media.response-invalid`. Найден ранний SetupServer Jellyfin: `System/Info/Public` уже возвращает 200/camelCase до основного API, а переход между серверами может разрывать соединение. В harness readiness перенесён на `Startup/User` (503 до основного API, 200 fresh или 401/403 после настройки); версия/идентичность подтверждаются отдельно. В адаптер добавлен явный PascalCase Accept. Диагностическая фиксированная задержка и вывод формы ответа удалены; итоговая проба прошла без них. Источники точной версии: [SetupServer](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Server/ServerSetupApp/SetupServer.cs), [JSON formatter](https://github.com/jellyfin/jellyfin/blob/v12.2/Jellyfin.Api/Formatters/PascalCaseJsonProfileFormatter.cs).
+
+19 новых проверок относительно 264 включают три регрессии PR #9: outer startup deadline отличается от caller cancellation, отказ configure не сохраняет владение позднейшим trial другого клиента, обе неудачные попытки cleanup при настоящем `await using` unwinding сохраняют исходную ошибку проверки. `DisposeAsync` теперь best effort с видимым `SessionCleanupFailure`; обязательный успех cleanup требует явного `RevokeSessionAsync` и `SessionRevocationConfirmed`. Это не гарантия отзыва при аварийном завершении процесса.
+
+Fixtures Jellyfin покрывают потерянные start/submit и отмену, pending setup, чужой entry/server, disabled/setup_error, неизвестный handler, явную коррекцию credentials и отсутствие повторных POST. **Потеря ответа config flow на живом сервере не инъецировалась.** Неопределённый успешный create нельзя безопасно восстановить по title: metadata не раскрывает account identity, USER flow не перечисляется, GET завершённого flow возвращает 404. Точные операции и границы описаны в [контракте Jellyfin](JELLYFIN_FLOW.md).
+
+Права обычного/служебного аккаунта Jellyfin, реальный media_player, воспроизведение, DSM/телевизоры, полный профиль и прикладные автоматизации не проверены. Журнал M3 и продуктовый resume ещё отсутствуют; M0 открыт. Ubuntu `ha-runtime` и `media-runtime` проверяют связанные изменения на закреплённых образах; результаты конкретного запуска публикуются в PR.
+
 ## Исходники и версии
 
 [Image evidence](image-evidence.json) содержит публичные OCI digests и metadata загруженных образов, без container environment и credentials. Digests наблюдены при pull на этом стенде, не являются новой закреплённой политикой deploy и требуют проверки архитектуры NAS до использования.

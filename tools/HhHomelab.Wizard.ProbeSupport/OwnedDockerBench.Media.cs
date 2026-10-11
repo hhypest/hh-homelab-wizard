@@ -118,11 +118,15 @@ public sealed partial class OwnedDockerBench
             deadline.Token.ThrowIfCancellationRequested();
             try
             {
-                var path = id switch { "qbittorrent" => "api/v2/app/version", "jellyfin" => "System/Info/Public", "seerr" => "api/v1/status", _ => "ping" };
+                // Jellyfin's temporary SetupServer returns 200/camelCase for public info before
+                // the real API starts. Startup/User is 503 there; 200 fresh or 401/403 after
+                // onboarding prove the main API is serving (not credentials or setup success).
+                var path = id switch { "qbittorrent" => "api/v2/app/version", "jellyfin" => "Startup/User", "seerr" => "api/v1/status", _ => "ping" };
                 using var request = new HttpRequestMessage(HttpMethod.Get, path);
                 request.Headers.Referrer = http.BaseAddress;
                 using var reply = await http.SendAsync(request, deadline.Token);
                 if (reply.StatusCode == (id == "qbittorrent" ? HttpStatusCode.Forbidden : HttpStatusCode.OK)) return;
+                if (id == "jellyfin" && reply.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden) return;
                 if (id == "qbittorrent" && reply.StatusCode is HttpStatusCode.OK or HttpStatusCode.Unauthorized)
                     throw new InvalidOperationException("bench.qb.authentication-policy.invalid");
             }

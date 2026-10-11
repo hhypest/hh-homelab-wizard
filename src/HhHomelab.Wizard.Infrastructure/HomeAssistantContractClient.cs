@@ -11,7 +11,7 @@ namespace HhHomelab.Wizard.Infrastructure;
 /// <summary>M0 contracts for an owned HA Container 2026.10.0. Dedicated HTTP transport,
 /// redirects disabled, no default authentication, no concurrent operations. Tokens stay private.
 /// Resource ownership and durable intent must be supplied by the future installer.</summary>
-public sealed class HomeAssistantContractClient : IAsyncDisposable
+public sealed partial class HomeAssistantContractClient : IAsyncDisposable
 {
     private const string ClientId = "http://hh-homelab-wizard.local/";
     private static readonly string[] Steps = ["user", "core_config", "analytics", "integration"];
@@ -27,8 +27,10 @@ public sealed class HomeAssistantContractClient : IAsyncDisposable
     private bool disposed;
     public string? OwnerId { get; private set; }
     /// <summary>Safe diagnostic if cleanup after a failed authorization could not confirm revocation.
-    /// The original failure is preserved; DisposeAsync retries cleanup and reports failure.</summary>
+    /// The original failure is preserved; DisposeAsync retries cleanup without masking it.
+    /// Explicit RevokeSessionAsync is required when confirmed cleanup is a success criterion.</summary>
     public string? SessionCleanupFailure { get; private set; }
+    public bool SessionRevocationConfirmed => refreshToken is null;
 
     public HomeAssistantContractClient(HttpClient http) : this(http, () => new HomeAssistantSocket()) { }
     internal HomeAssistantContractClient(HttpClient http, Func<IHomeAssistantSocket> socketFactory)
@@ -276,17 +278,31 @@ public sealed class HomeAssistantContractClient : IAsyncDisposable
         if (httpIntent is not null && !SameHttp(desired, httpIntent)) throw new MediaContractException("ha.http.baseline-conflict");
         httpIntent = desired;
         stagedGeneration = generation;
-        var result = Object(await CommandAsync("http/config/configure", new() { ["config"] = desired }, true, token));
-        if (!Bool(result, "restart")) throw new MediaContractException("ha.http.restart-not-confirmed");
+        try
+        {
+            var result = Object(await CommandAsync("http/config/configure", new() { ["config"] = desired }, true, token));
+            if (!Bool(result, "restart")) throw new MediaContractException("ha.http.restart-not-confirmed");
+        }
+        catch (MediaContractException e) when (e.Code == "ha.ws.result-unknown") { throw; }
+        catch (OperationCanceledException) { throw; } // A caller cancellation does not prove the write was rejected.
+        catch { httpIntent = null; stagedGeneration = null; throw; }
         return HomeAssistantHttpStage.RestartRequired;
     }
 
     /// <summary>Bounded observation only. An open HTTP/WebSocket endpoint is not proof of completed startup.</summary>
-    public async Task WaitUntilRunningAsync(CancellationToken token)
+    public Task WaitUntilRunningAsync(CancellationToken token) =>
+        WaitUntilRunningAsync(token, TimeSpan.FromMinutes(2), TimeSpan.FromSeconds(1));
+
+    internal async Task WaitUntilRunningAsync(CancellationToken token, TimeSpan timeout, TimeSpan interval)
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromMinutes(2));
-        while (Text(Object(await CommandAsync("get_config", null, false, deadline.Token)), "state") != "RUNNING")
-            await Task.Delay(1000, deadline.Token);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(timeout);
+        try
+        {
+            while (Text(Object(await CommandAsync("get_config", null, false, deadline.Token)), "state") != "RUNNING")
+                await Task.Delay(interval, deadline.Token);
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        { throw new MediaContractException("ha.startup.timeout"); }
     }
 
     /// <summary>Explicit confirmation after reconnect and successful pending trial. Never confirms a failed trial.</summary>
@@ -400,7 +416,9 @@ public sealed class HomeAssistantContractClient : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         if (disposed) return;
-        await RevokeSessionAsync(CancellationToken.None);
-        disposed = true;
+        try { await RevokeSessionAsync(CancellationToken.None); }
+        catch (MediaContractException) { } // Never mask an operation failure during await-using unwinding.
+        finally { disposed = true; }
+        // Cleanup status remains visible; explicit RevokeSessionAsync can still retry on a live HTTP transport.
     }
 }

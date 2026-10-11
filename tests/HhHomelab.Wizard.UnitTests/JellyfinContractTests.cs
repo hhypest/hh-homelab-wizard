@@ -11,6 +11,15 @@ public sealed class JellyfinContractTests
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private static MediaLibrary Movies => new("Фильмы", "movies", "/data/media/movies");
 
+    [Fact]
+    public async Task ExplicitPascalCaseProfileOverridesDifferentTransportDefault()
+    {
+        using var f = new Fixture { NegotiateProfile = true }; using var h = f.Client();
+        h.DefaultRequestHeaders.Accept.ParseAdd("application/json; profile=\"CamelCase\"");
+        var jellyfin = new JellyfinContractClient(h);
+        Assert.False(await jellyfin.GetStartupCompletedAsync(Token)); Assert.Equal("00000000000000000000000000000001", jellyfin.ServerId);
+    }
+
     [Theory]
     [InlineData("/etc")]
     [InlineData("/data/torrents/movies")]
@@ -134,6 +143,7 @@ public sealed class JellyfinContractTests
 
     private sealed class Fixture : HttpMessageHandler
     {
+        public bool NegotiateProfile { get; init; }
         private const string Server = "00000000000000000000000000000001";
         private const string User = "00000000000000000000000000000002";
         private bool lost;
@@ -159,6 +169,8 @@ public sealed class JellyfinContractTests
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests++;
+            if (NegotiateProfile && !request.Headers.Accept.Any(a => a.ToString() == "application/json; profile=\"PascalCase\""))
+                return Reply(new JsonObject { ["version"] = Version, ["id"] = Server, ["startupWizardCompleted"] = Completed }.ToJsonString());
             var route = request.RequestUri!.AbsolutePath;
             Assert.False(request.Headers.Contains("X-Emby-Token"));
             var authorized = request.Headers.GetValues("Authorization").Single().Contains(", Token=", StringComparison.Ordinal);

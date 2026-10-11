@@ -91,8 +91,12 @@ jobs:
         run: dotnet restore tools/HhHomelab.Wizard.HaDockerProbe --locked-mode
       - name: Build probe
         run: dotnet build tools/HhHomelab.Wizard.HaDockerProbe --no-restore --configuration Release
-      - name: Pull pinned research image
-        run: docker pull ghcr.io/home-assistant/home-assistant:2026.10.0
+      - name: Pull pinned HA and Jellyfin images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull ghcr.io/home-assistant/home-assistant:2026.10.0
+          docker pull lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53
       - name: Verify HA onboarding and configuration twice on fresh containers
         shell: bash
         run: |

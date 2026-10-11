@@ -37,6 +37,24 @@ public sealed partial class OwnedDockerBench
         Endpoint = await ReadBindingAsync(Container, 8123, token);
         await WaitHomeAssistantAsync(token);
     }
+    /// <summary>Jellyfin peer reachable from HA on this fixture's private Docker network.</summary>
+    public async Task StartHomeAssistantJellyfinPeerAsync(string image, CancellationToken token)
+    {
+        if (image != "lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53" || Endpoint is null || services.Count != 0)
+            throw new InvalidOperationException("bench.profile.unsupported");
+        await VerifyOwnershipAsync("container", Container, token);
+        _ = await RunAsync(["image", "inspect", image, "--format", "{{.Id}}"], token);
+        var container = session + "-jellyfin";
+        var volume = container + "-config";
+        await CreateVolumeAsync(volume, token); resources.Add(("container", container));
+        _ = await RunAsync(["create", "--name", container, "--label", Label + "=" + session, "--network", Network,
+            "--network-alias", "jellyfin", "--publish", "127.0.0.1::8096", "--env", "PUID=1000", "--env", "PGID=1000",
+            "--mount", $"type=volume,source={volume},target=/config", "--tmpfs", "/cache:rw,uid=1000,gid=1000,mode=0755",
+            "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1", image], token);
+        _ = await RunAsync(["start", container], token);
+        services.Add("jellyfin", (container, await ReadBindingAsync(container, 8096, token), 8096));
+        await WaitMediaAsync("jellyfin", token);
+    }
     public async Task WaitHomeAssistantAsync(CancellationToken token)
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromMinutes(3));

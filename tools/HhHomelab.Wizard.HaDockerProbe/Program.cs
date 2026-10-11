@@ -15,10 +15,19 @@ try
 {
     var profile = ProfileReader.Parse(await File.ReadAllTextAsync(args[0], token));
     const string image = "ghcr.io/home-assistant/home-assistant:2026.10.0";
+    const string jellyfinImage = "lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53";
     if (profile.Source.Tag != "v1.3.0" || profile.Source.Commit != "b05047b081f3543520582315002e359ef1d93e59" ||
-        profile.Services.Single(s => s.Id == "homeassistant").Image != image) throw new InvalidOperationException("bench.profile.unsupported");
+        profile.Services.Single(s => s.Id == "homeassistant").Image != image || profile.Services.Single(s => s.Id == "jellyfin").Image != jellyfinImage) throw new InvalidOperationException("bench.profile.unsupported");
     bench = await OwnedDockerBench.ConnectAsync(token); await bench.StartHomeAssistantAsync(image, token);
+    await bench.StartHomeAssistantJellyfinPeerAsync(jellyfinImage, token);
+    Console.WriteLine("fixture: pinned HA and Jellyfin ready on an owned private network; loopback ports only");
     var password = Convert.ToHexString(RandomNumberGenerator.GetBytes(24));
+    using var jellyfinHttp = Client(bench.GetEndpoint("jellyfin"));
+    var jellyfin = new JellyfinContractClient(jellyfinHttp);
+    await WaitForJellyfinIdentityAsync(jellyfin, token);
+    Console.WriteLine("jellyfin: public identity verified");
+    await jellyfin.BootstrapAsync("wizard_m0", password, token);
+    Console.WriteLine("jellyfin: synthetic administrator and pinned runtime verified");
     using var http = Client(bench.Endpoint, loseOwner: true);
     await using var ha = new HomeAssistantContractClient(http, () => new ProbeSocket());
     await Unknown(() => ha.BootstrapOwnerAsync("M0 owner", "wizard_m0", password, token), "ha.owner.result-unknown");
@@ -26,6 +35,20 @@ try
     var owner = ha.OwnerId;
     if (await ha.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
     Console.WriteLine("ha: owner response loss reconciled through normal login; onboarding complete; owner/admin/version verified");
+    var jellyfinTarget = bench.GetInternalEndpoint("jellyfin");
+    if ((await ha.StartJellyfinSetupAsync(jellyfinTarget, jellyfin.ServerId!, "wizard_m0", token)).Stage != HomeAssistantJellyfinStage.AwaitingCredentials ||
+        (await ha.SubmitJellyfinCredentialsAsync("synthetic-wrong-password", token)).Stage != HomeAssistantJellyfinStage.AuthenticationRejected)
+        throw new InvalidOperationException("bench.ha.jellyfin.credentials-check.failed");
+    var jellyfinProgress = await ha.SubmitJellyfinCredentialsAsync(password, token);
+    using (var setupDeadline = CancellationTokenSource.CreateLinkedTokenSource(token))
+    {
+        setupDeadline.CancelAfter(TimeSpan.FromMinutes(2));
+        while (jellyfinProgress.Stage == HomeAssistantJellyfinStage.AwaitingSetup)
+        { await Task.Delay(1000, setupDeadline.Token); jellyfinProgress = await ha.ObserveJellyfinSetupAsync(setupDeadline.Token); }
+    }
+    if (jellyfinProgress.Stage != HomeAssistantJellyfinStage.Loaded || jellyfinProgress.EntryId is null)
+        throw new InvalidOperationException("bench.ha.jellyfin.not-loaded");
+    Console.WriteLine("ha: Jellyfin USER flow rejected wrong credentials; corrected input loaded pinned server; device identity verified from HA");
     using (var wrongHttp = Client(bench.Endpoint))
     await using (var wrong = new HomeAssistantContractClient(wrongHttp))
     {
@@ -80,11 +103,16 @@ try
     await ha.CheckConfigurationAsync(token);
     Console.WriteLine("ha: HTTP pending trial restarted, reconnected, verified and promoted; configure/promote response loss reconciled; check_config valid");
     ProbeSocket.ForbidWrites = true;
+    ProbeHttp.ForbidFlows = true;
+    if (await ha.StartJellyfinSetupAsync(jellyfinTarget, jellyfin.ServerId!, "wizard_m0", token) != jellyfinProgress)
+        throw new InvalidOperationException("bench.ha.jellyfin.repeat.failed");
     await VerifyAsync(ha, observed, renamed, dashboard, token);
     ProbeHttp.LoseNextRevoke = true;
     await Unknown(async () => { await ha.RevokeSessionAsync(token); return true; }, "ha.session.revoke.result-unknown");
     if (ha.SessionCleanupFailure != "ha.session.revoke.result-unknown") throw new InvalidOperationException("bench.ha.revoke.failure-hidden");
-    await ha.DisposeAsync(); // Explicit retry of idempotent revocation; empty 200 for already revoked token is valid.
+    await ha.RevokeSessionAsync(token); // Explicit retry of idempotent revocation; empty 200 is valid.
+    if (!ha.SessionRevocationConfirmed) throw new InvalidOperationException("bench.ha.revoke.unconfirmed");
+    await ha.DisposeAsync();
     Console.WriteLine("ha: lost revocation response reported; explicit cleanup retry confirmed; no synchronous disposal");
     await bench.RestartHomeAssistantAsync(token);
     // Dynamic Docker port may change; login with the same password in a new context.
@@ -95,7 +123,12 @@ try
     await restarted.WaitUntilRunningAsync(token);
     if (await restarted.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
     await VerifyAsync(restarted, observed, renamed, dashboard, token);
+    if (await restarted.ObserveJellyfinEntryAsync(jellyfinProgress.EntryId, jellyfin.ServerId!, token) != jellyfinProgress)
+        throw new InvalidOperationException("bench.ha.jellyfin.persistence.failed");
+    Console.WriteLine("restart: Jellyfin entry still loaded with the same server identity; read-only confirmation; no active playback required");
     Console.WriteLine("restart: same owner, registry identity, dashboard and stable HTTP policy; configuration writes blocked; no storage edits");
+    await restarted.RevokeSessionAsync(token);
+    if (!restarted.SessionRevocationConfirmed) throw new InvalidOperationException("bench.ha.revoke.unconfirmed");
     exit = 0;
 }
 catch (MediaContractException e) { Console.Error.WriteLine(e.Code + (e.StatusCode is { } s ? "; HTTP " + (int)s : "")); }
@@ -106,6 +139,17 @@ return exit;
 static HttpClient Client(Uri endpoint, bool loseOwner = false, bool forbidConfiguration = false) => new(new ProbeHttp(
     new HttpClientHandler { UseCookies = false, AllowAutoRedirect = false, UseProxy = false }, loseOwner, forbidConfiguration))
     { BaseAddress = endpoint, Timeout = TimeSpan.FromSeconds(30) };
+static async Task WaitForJellyfinIdentityAsync(JellyfinContractClient jellyfin, CancellationToken token)
+{
+    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromMinutes(2));
+    while (true)
+    {
+        try { await jellyfin.GetStartupCompletedAsync(deadline.Token); return; }
+        catch (MediaContractException e) when (e.Code == "jellyfin.read.transport-failed") { }
+        catch (TaskCanceledException) when (!deadline.IsCancellationRequested) { }
+        await Task.Delay(1000, deadline.Token); // Only a readiness GET; no credentials or writes are repeated.
+    }
+}
 static async Task Unknown(Func<Task<bool>> action, string code)
 {
     try { await action(); throw new InvalidOperationException("bench.response-loss.not-injected"); }
@@ -145,7 +189,7 @@ internal sealed class ProbeSocket : IHomeAssistantSocket
     public async Task SendAsync(JsonObject message, CancellationToken token)
     {
         current = message["type"]!.GetValue<string>();
-        if (ForbidWrites && current is not ("auth" or "auth/current_user" or "auth/refresh_tokens" or "get_config" or "config/entity_registry/list" or "lovelace/dashboards/list" or "lovelace/config" or "http/config"))
+        if (ForbidWrites && current is not ("auth" or "auth/current_user" or "auth/refresh_tokens" or "get_config" or "config/entity_registry/list" or "config/device_registry/list" or "lovelace/dashboards/list" or "lovelace/config" or "http/config"))
             throw new InvalidOperationException("bench.ha.configuration-write.forbidden");
         await inner.SendAsync(message, token);
     }
@@ -161,10 +205,13 @@ internal sealed class ProbeSocket : IHomeAssistantSocket
 internal sealed class ProbeHttp(HttpMessageHandler inner, bool loseOwner, bool forbidConfiguration) : DelegatingHandler(inner)
 {
     public static bool LoseNextRevoke { get; set; }
+    public static bool ForbidFlows { get; set; }
     private bool lost;
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
     {
         var path = request.RequestUri!.AbsolutePath;
+        if (ForbidFlows && request.Method != HttpMethod.Get && path.StartsWith("/api/config/config_entries/flow", StringComparison.Ordinal))
+            throw new InvalidOperationException("bench.ha.flow-write.forbidden");
         if (forbidConfiguration && request.Method != HttpMethod.Get && path is not ("/auth/login_flow" or "/auth/token" or "/auth/revoke" or "/api/config/core/check_config") && !path.StartsWith("/auth/login_flow/", StringComparison.Ordinal))
             throw new InvalidOperationException("bench.ha.configuration-write.forbidden");
         var response = await base.SendAsync(request, token);
