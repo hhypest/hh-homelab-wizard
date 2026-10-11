@@ -2,5 +2,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/HhHomelab.Wizard.Infrastructure/HhHomelab.Wizard.Infrastructure.csproj" />
     <EmbeddedResource Include="ha-profile-probe.py" LogicalName="ha-profile-probe.py" />
+    <EmbeddedResource Include="docker-api-fixture.py" LogicalName="docker-api-fixture.py" />
+    <EmbeddedResource Include="ha-actions-fixture.py" LogicalName="ha-actions-fixture.py" />
   </ItemGroup>
 </Project>

@@ -6,12 +6,17 @@
 
 ### Added
 
+- M0: HaRuntimeProbe запускает полный HA-профиль, настоящий Docker Socket Proxy v0.5.0 и безопасный синтетический Docker API через socket собственного volume; host socket и bind mounts не используются. Проверяются метрики, отказы, уведомление, restart, session revocation и cleanup; отдельный Ubuntu job повторяет пробу дважды.
+- Read-only наблюдение 40 Docker entities, десяти аппаратных entity IDs и шести scripts с различением Missing/Unknown/Unavailable/Invalid/Available. Сырые attributes и error texts не возвращаются; 29 новых unit/fixture-тестов, всего 343.
+- 18 динамических сценариев исходных TV/Resume actions в настоящем Script engine HA 2026.10.0, включая прерывания, ручную защиту, потерю показаний и проверку media ID перед seek. Ускоряются только тестовые копии задержек; фактические устройства и time triggers остаются до аппаратных испытаний.
+
 - M0: проверяемая C#-доставка Monitor Docker из точного commit, raw SHA-256 lock для 39 файлов с лицензией Apache-2.0, ограничения ZIP и отказ при изменении/неполноте/path traversal/symlink. HACS и внешний установочный скрипт не требуются.
 - Рендер локального HA-профиля из доверенных fingerprints v1.3.0: Docker/DSM/TV YAML, исключение Alice/Pachca, локальные persistent notifications, явные адреса и секреты в памяти. TAR передаётся потоково, `secrets.yaml` — 0600; TLS-проверка HTTP-датчика включена.
-- HaProfileProbe проверяет полный YAML без ошибок/предупреждений, импорты и зависимости Monitor Docker, десять сценариев настоящих HA-шаблонов просмотра в образе 2026.10.0. Добавлены 31 unit/fixture-тест и отдельный Ubuntu runtime job; всего 314 тестов. Серверный запуск полного профиля, реальные метрики/устройства, таймеры и полный dashboard ещё не подтверждены.
+- HaProfileProbe проверяет полный YAML без ошибок/предупреждений, импорты и зависимости Monitor Docker, десять сценариев настоящих HA-шаблонов просмотра в образе 2026.10.0. Добавлены 31 unit/fixture-тест и отдельный Ubuntu runtime job; на этом шаге всего 314 тестов. Объём checker не включает серверный запуск, метрики, устройства, таймеры и полный dashboard.
 
 ### Fixed
 
+- По замечанию Codex P2 к PR #12: после `docker start` proxy проверяется с ограниченным ожиданием GET readiness. Временный отказ соединения больше не обрывает recovery; проба начинает ожидание до запуска остановленного proxy. POST policy проверяется однократно после готовности.
 - По замечаниям Codex к PR #9: deadline ожидания RUNNING выдаёт `ha.startup.timeout`; окончательный отказ HTTP configure очищает намерение и запрещает присвоить позднейший чужой trial. `DisposeAsync` сохраняет диагностический код cleanup, не подменяя исходную ошибку при выходе из `await using`; обязательный отзыв проверяется явным `RevokeSessionAsync` и `SessionRevocationConfirmed`.
 - Пробы Jellyfin ждут основной API через `Startup/User`: ранний 200 временного SetupServer на `System/Info/Public` больше не принимается за готовность. Адаптер явно запрашивает JSON-профиль PascalCase; выбор формата не зависит от default transport/server.
 - По замечаниям Codex к PR #7: HA-клиент не принимает и не подтверждает pending HTTP trial без собственного намерения configure, даже при полном совпадении значений. Новый клиент блокирует такой trial; перенос подтверждённого намерения между запусками остаётся задачей журнала M3.

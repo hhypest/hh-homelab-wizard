@@ -133,6 +133,38 @@ jobs:
             dotnet run --project tools/HhHomelab.Wizard.HaProfileProbe --no-build --configuration Release -- upstream-fixture
           done
 
+  ha-local-runtime:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: hhypest/hh-homelab
+          ref: b05047b081f3543520582315002e359ef1d93e59
+          path: upstream-fixture
+          persist-credentials: false
+      - uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          global-json-file: global.json
+      - name: Restore locked runtime probe dependencies
+        run: dotnet restore tools/HhHomelab.Wizard.HaRuntimeProbe --locked-mode
+      - name: Build runtime probe
+        run: dotnet build tools/HhHomelab.Wizard.HaRuntimeProbe --no-restore --configuration Release
+      - name: Pull pinned HA and Socket Proxy images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker pull ghcr.io/home-assistant/home-assistant:2026.10.0
+          docker pull ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
+      - name: Verify full HA server and accelerated action fixtures twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            dotnet run --project tools/HhHomelab.Wizard.HaRuntimeProbe --no-build --configuration Release -- upstream-fixture
+          done
+
   media-runtime:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
