@@ -67,6 +67,26 @@ try
     // A real storage helper is fixture data, not a fabricated replacement for a missing DSM sensor.
     var helper = await ha.CreateProbeHelperAsync(token);
     var observed = (await ha.GetEntitiesAsync(token)).Single(e => e.Platform == "input_boolean" && e.UniqueId == helper);
+    var roleInventory = await ha.GetRoleInventoryAsync(token);
+    await bench.VerifySynologyRoleSourceAsync(token);
+    if (!roleInventory.Entities.Any(e => e.Identity == observed) || !roleInventory.Entries.Any(e => e.Domain == "jellyfin" && e.State == "loaded"))
+        throw new InvalidOperationException("bench.ha.roles.inventory.failed");
+    await ha.DisableProbeHelperAsync(observed, token);
+    var disabledHelper = (await ha.GetEntitiesAsync(token)).Single(e => e.RegistryId == observed.RegistryId);
+    if (disabledHelper.DisabledBy != "user" || await ha.EnsureEntityEnabledAsync(disabledHelper, token) != HomeAssistantEnableStage.RestartRequired)
+        throw new InvalidOperationException("bench.ha.enable.restart-not-reported");
+    await ha.DisableProbeHelperAsync(observed, token);
+    ProbeSocket.LoseNext = "config/entity_registry/update";
+    await Unknown(async () => { await ha.EnsureEntityEnabledAsync(disabledHelper, token); return true; }, "ha.ws.result-unknown");
+    await ha.ReconnectAsync(token);
+    ProbeSocket.ForbidWrites = true;
+    try
+    {
+        if (await ha.EnsureEntityEnabledAsync(disabledHelper, token) != HomeAssistantEnableStage.Unchanged)
+            throw new InvalidOperationException("bench.ha.enable.rewritten");
+    }
+    finally { ProbeSocket.ForbidWrites = false; }
+    Console.WriteLine("ha: restricted role inventory read; selected native helper enabled; restart requirement preserved; lost enable response not repeated");
     const string renamed = "input_boolean.hh_homelab_m0_verified";
     ProbeSocket.LoseNext = "config/entity_registry/update";
     await Unknown(() => ha.EnsureEntityIdAsync(observed, renamed, token), "ha.ws.result-unknown");
@@ -123,6 +143,8 @@ try
     await restarted.WaitUntilRunningAsync(token);
     if (await restarted.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
     await VerifyAsync(restarted, observed, renamed, dashboard, token);
+    if (!await restarted.IsProbeHelperAvailableAsync(renamed, token)) throw new InvalidOperationException("bench.ha.enabled-helper.unavailable");
+    Console.WriteLine("restart: enabled native helper has a live on/off state; registry enable alone was not accepted as availability");
     if (await restarted.ObserveJellyfinEntryAsync(jellyfinProgress.EntryId, jellyfin.ServerId!, token) != jellyfinProgress)
         throw new InvalidOperationException("bench.ha.jellyfin.persistence.failed");
     Console.WriteLine("restart: Jellyfin entry still loaded with the same server identity; read-only confirmation; no active playback required");
@@ -189,7 +211,7 @@ internal sealed class ProbeSocket : IHomeAssistantSocket
     public async Task SendAsync(JsonObject message, CancellationToken token)
     {
         current = message["type"]!.GetValue<string>();
-        if (ForbidWrites && current is not ("auth" or "auth/current_user" or "auth/refresh_tokens" or "get_config" or "config/entity_registry/list" or "config/device_registry/list" or "lovelace/dashboards/list" or "lovelace/config" or "http/config"))
+        if (ForbidWrites && current is not ("auth" or "auth/current_user" or "auth/refresh_tokens" or "get_config" or "get_states" or "config/entity_registry/list" or "config/device_registry/list" or "lovelace/dashboards/list" or "lovelace/config" or "http/config"))
             throw new InvalidOperationException("bench.ha.configuration-write.forbidden");
         await inner.SendAsync(message, token);
     }

@@ -6,6 +6,10 @@
 
 ### Added
 
+- M0: read-only metadata реестров HA, чистый план десяти ролей DSM/LG/GX1/Cast/Jellyfin и enable явно выбранной registry identity. DSM сопоставляется по точным API/metric/unique IDs и связям parent devices; случайный первый плеер не выбирается.
+- Enable различает require_restart/reload_delay, проверяет identity/parents/readback и не повторяет update после потерянного ответа. Расширенная HaDockerProbe проверяет source keys DSM, штатный helper, restart и живое состояние после него; реальный DSM/TV этим не подтверждён.
+- 49 новых unit/fixture-проверок ролей, конфликтов, parent state, смены identity, enable, потери ответа/отмены и ограниченного DTO; всего 392. Установщик, остальные flows и полный dashboard ещё не реализованы.
+
 - M0: HaRuntimeProbe запускает полный HA-профиль, настоящий Docker Socket Proxy v0.5.0 и безопасный синтетический Docker API через socket собственного volume; host socket и bind mounts не используются. Проверяются метрики, отказы, уведомление, restart, session revocation и cleanup; отдельный Ubuntu job повторяет пробу дважды.
 - Read-only наблюдение 40 Docker entities, десяти аппаратных entity IDs и шести scripts с различением Missing/Unknown/Unavailable/Invalid/Available. Сырые attributes и error texts не возвращаются; 29 новых unit/fixture-тестов, всего 343.
 - 18 динамических сценариев исходных TV/Resume actions в настоящем Script engine HA 2026.10.0, включая прерывания, ручную защиту, потерю показаний и проверку media ID перед seek. Ускоряются только тестовые копии задержек; фактические устройства и time triggers остаются до аппаратных испытаний.

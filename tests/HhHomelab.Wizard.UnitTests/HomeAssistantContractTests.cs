@@ -377,6 +377,10 @@ public sealed partial class HomeAssistantContractTests
         public string EntryState { get; set; } = "loaded";
         public string? EntryDisabled { get; set; }
         public JsonArray IntegrationEntries { get; } = [];
+        public JsonArray? RoleDevices { get; set; }
+        public JsonObject EnableResponse { get; set; } = new() { ["require_restart"] = true };
+        public bool IgnoreEnable { get; set; }
+        public bool ChangeEntityAfterParentRead { get; set; }
         private JsonObject UserForm(string? error = null) => new()
         {
             ["type"] = "form", ["flow_id"] = "flow1", ["handler"] = FlowHandler, ["step_id"] = "user",
@@ -437,7 +441,11 @@ public sealed partial class HomeAssistantContractTests
                 if (RevokeFailure == "lost-response") throw new HttpRequestException("synthetic-sensitive");
                 return new(HttpStatusCode.OK) { Content = new StringContent("") };
             }
-            else if (path == "/api/config/config_entries/entry") result = IntegrationEntries.DeepClone();
+            else if (path == "/api/config/config_entries/entry")
+            {
+                result = IntegrationEntries.DeepClone();
+                if (ChangeEntityAfterParentRead) { Entities[0]!["unique_id"] = "foreign"; ChangeEntityAfterParentRead = false; }
+            }
             else if (path == "/api/config/config_entries/flow") { FlowStarts++; result = UserForm(); }
             else if (path == "/api/config/config_entries/flow/flow1")
             {
@@ -484,8 +492,14 @@ public sealed partial class HomeAssistantContractTests
                     case "auth/current_user": result = new JsonObject { ["id"] = f.OwnerId, ["name"] = f.IdentityFailure == "name" ? "foreign" : "M0 owner", ["is_owner"] = f.IdentityFailure != "owner", ["is_admin"] = f.IdentityFailure != "admin" }; break;
                     case "get_config": result = new JsonObject { ["version"] = f.Version, ["safe_mode"] = f.IdentityFailure == "safe_mode", ["state"] = f.Running ? "RUNNING" : "STARTING" }; break;
                     case "config/entity_registry/list": result = f.Entities.DeepClone(); break;
-                    case "config/device_registry/list": result = new JsonArray(new JsonObject { ["config_entries"] = new JsonArray("entry1"), ["identifiers"] = new JsonArray(new JsonArray("jellyfin", f.ServerId)), ["sw_version"] = "12.2.0" }); break;
-                    case "config/entity_registry/update": f.RegistryWrites++; f.Entities[0]!["entity_id"] = msg["new_entity_id"]!.DeepClone(); result = new JsonObject(); break;
+                    case "config/device_registry/list": result = f.RoleDevices?.DeepClone() ?? new JsonArray(new JsonObject { ["config_entries"] = new JsonArray("entry1"), ["identifiers"] = new JsonArray(new JsonArray("jellyfin", f.ServerId)), ["sw_version"] = "12.2.0" }); break;
+                    case "config/entity_registry/update":
+                        f.RegistryWrites++;
+                        var selected = f.Entities.Select(n => (JsonObject)n!).Single(e => e["entity_id"]!.GetValue<string>() == msg["entity_id"]!.GetValue<string>());
+                        if (msg.ContainsKey("new_entity_id")) selected["entity_id"] = msg["new_entity_id"]!.DeepClone();
+                        if (msg.ContainsKey("disabled_by") && !f.IgnoreEnable) selected["disabled_by"] = msg["disabled_by"]?.DeepClone();
+                        result = msg.ContainsKey("disabled_by") ? f.EnableResponse.DeepClone() : new JsonObject();
+                        break;
                     case "lovelace/dashboards/list": result = f.Dashboards.DeepClone(); break;
                     case "lovelace/dashboards/create": f.DashboardCreates++; var d = (JsonObject)msg.DeepClone(); d.Remove("type"); d["id"] = "dashboard1"; f.Dashboards.Add(d); result = d.DeepClone(); break;
                     case "lovelace/config": result = f.DashboardConfig?.DeepClone(); if (result is null) error = "config_not_found"; break;
