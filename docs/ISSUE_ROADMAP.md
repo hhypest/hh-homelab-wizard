@@ -59,4 +59,3 @@ M3: дизайн журнала и fixtures [#51](https://github.com/hhypest/hh-
 [#33](https://github.com/hhypest/hh-homelab-wizard/issues/33) — базовые Media bootstrap-пробы; [#34](https://github.com/hhypest/hh-homelab-wizard/issues/34) — HA-контракты и серверные fixtures; [#41](https://github.com/hhypest/hh-homelab-wizard/issues/41) — демонстрационный каркас, self-contained публикации и native CI. Эти закрытые записи описывают ограниченный доказанный результат. Полная установка NAS, аппаратные свойства, playback и клиентская приёмка остаются в открытых задачах.
 
 Документ: [CC BY 4.0](../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.
-
