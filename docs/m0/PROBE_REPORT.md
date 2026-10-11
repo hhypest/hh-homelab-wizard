@@ -204,12 +204,22 @@ Restart сохраняет профиль и метрики; после опре
 
 [Контракт device flows](HA_DEVICE_FLOWS.md) отделяет source evidence, синтетические проверки и runtime. Полное аппаратное сопряжение, выбранные discovery flows, serial/MAC/UUID confirmation, активация DSM sensors, общий journal/recovery и пользовательский UI остаются открытыми. Ubuntu job `ha-runtime` выполняет расширенную пробу дважды; успешность конкретного head подтверждается результатом CI в PR.
 
+## Discovery selection, binding и начало M1
+
+11 октября 2026 года: добавлена 51 unit/fixture-проверка, всего 497. Release build и tests прошли на Windows. Покрыты явный выбор исходного discovery, обновлённая metadata перед сопряжением, отсутствие вторых starts, source readback, OTP/host continuation, конфликты, потеря ответа/отмена и read-only binding states.
+
+Свежая HaDockerProbe прошла расширенный сценарий: native initial discovery forms и progress serializer на синтетических metadata; нативные конструкторы Cast/Android подтвердили device identifiers; серверные progress/inventory endpoints прочитаны через настоящий API. Загруженная Cast entry при отсутствующем device вернула DeviceMissing. В отдельном Python-процессе mock заменял только LG entry check и Cast onboarding gate; подключения к NAS/TV и регистрации искусственных hardware entities не было.
+
+Первый диагностический запуск source-проверки завершился ошибкой импорта: использовано имя Android base class, отличающееся от закреплённого исходника. После исправления на AndroidTVRemoteBaseEntity полный сценарий прошёл. Cleanup подтверждён обоих запусков; прежние onboarding/USER flows/registry/dashboard/HTTP/restart/revocation проверки также прошли. Конкретные Windows/Linux CI и два Ubuntu native сценария фиксируются в PR текущего head.
+
+[ADR 0004](../adr/0004-m1-entry.md) отделяет начало M1 от полной приёмки M0. Следующий инкремент — Application/Desktop и демонстрационный MVVM-сценарий без NAS; M1 ещё не начат. Дополнительные Media/HA-контракты, аппаратные проверки и приёмка M0 остаются открытыми. [Discovery/binding контракт](HA_DISCOVERY_BINDING.md) фиксирует текущую реализацию и пределы доказательства.
+
 ## Воспроизведение и следующие пробы
 
 Для нового стенда используйте образы из research-profile, отдельные сеть/метку и свежую конфигурацию. Назначайте порты только на loopback, после каждого запуска/перезапуска заново определяйте port binding. Перед reset/cleanup проверяйте метку владения и отсутствие чужих bind mounts. Не переносите этот сценарий на production и не сохраняйте credentials.
 
 В указанном порядке проверьте onboarding HA и token exchange; status/schema Arr; startup Jellyfin и авторизацию; auth/jellyfin Seerr с hostname Jellyfin внутри общей сети. Синтетические пользователи и пароли создаются заново. После потери ответа сначала наблюдайте состояние: повторный запуск всего списка на уже созданном владельце не является корректным resume.
 
-Дальнейшая работа перечислена в [M0 README](README.md). Повторяемый Docker harness реализован для описанного объёма Media и минимальной конфигурации HA; серверный запуск локального профиля с Docker Proxy и динамические пробы уже выполнены в описанном выше объёме. Контракты enable, технического role planning и USER device flows также реализованы. Следующий инкремент — выбранные discovery flows и recovery, связь конкретных entry/devices, активация/показания DSM, зависимости лишних плееров и полный dashboard. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime`, `media-runtime` и `ha-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
+Дальнейшая работа перечислена в [M0 README](README.md) и [условиях начала M1](../adr/0004-m1-entry.md). Повторяемый Docker harness реализован для описанного объёма Media и минимальной конфигурации HA; серверный запуск локального профиля с Docker Proxy и динамические пробы уже выполнены в описанном выше объёме. Контракты enable, role planning, USER/discovery flows и registry binding также реализованы. Аппаратная проверка, recovery, показания DSM, зависимости лишних плееров и полный dashboard остаются открытыми. CI ядра выполняет unit/fixture-проверки, отдельные `qb-runtime`, `arr-runtime`, `media-runtime` и `ha-runtime` проверяют реальные сервисы. Наличие workflow не считается доказательством успешного CI; результаты конкретного запуска опубликованы в соответствующем PR.
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

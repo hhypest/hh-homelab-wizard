@@ -480,6 +480,12 @@ public sealed partial class HomeAssistantContractTests
                 if (CancelFlow) { CallerToCancel!.Cancel(); throw new OperationCanceledException(token); }
                 throw new HttpRequestException("synthetic-sensitive");
             }
+            if (DeviceSelectionLoss && request.Method == HttpMethod.Get && path.StartsWith("/api/config/config_entries/flow/", StringComparison.Ordinal))
+            {
+                DeviceSelectionLoss = false;
+                if (CancelFlow) { CallerToCancel!.Cancel(); throw new OperationCanceledException(token); }
+                throw new HttpRequestException("synthetic-sensitive");
+            }
             return new(HttpStatusCode.OK) { Content = new StringContent(result!.ToJsonString()) };
         }
         private sealed class Socket(Fixture f) : IHomeAssistantSocket

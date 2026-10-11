@@ -13,6 +13,10 @@ public sealed partial class HomeAssistantContractClient
         public string OwnerId { get; } = ownerId;
         public string? FlowId { get; set; }
         public string? EntryId { get; set; }
+        public HomeAssistantDiscoveredFlow? Discovery { get; init; }
+        public string Source => Discovery is null ? "user" : DiscoverySource(Discovery.Source);
+        public string? StepId { get; set; }
+        public string? DiscoveredHost { get; set; }
         public bool Unknown { get; set; } = true;
         public HomeAssistantDeviceProgress? Progress { get; set; }
     }
@@ -57,10 +61,13 @@ public sealed partial class HomeAssistantContractClient
         if (string.IsNullOrWhiteSpace(username) || username.Any(char.IsControl) || string.IsNullOrEmpty(password) || password.Any(char.IsControl))
             throw new ArgumentException("ha.device.credentials.invalid");
         if (port is < 1 or > 65535) throw new ArgumentException("ha.device.port.invalid");
-        return SubmitDeviceAsync(HomeAssistantDeviceIntegration.SynologyDsm, HomeAssistantDeviceInput.DsmCredentials,
-            new() { ["host"] = RequireDeviceIntent(HomeAssistantDeviceIntegration.SynologyDsm).Target.Host,
+        var intent = RequireDeviceIntent(HomeAssistantDeviceIntegration.SynologyDsm);
+        var payload = new JsonObject {
                 ["username"] = username, ["password"] = password, ["port"] = port.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["ssl"] = useSsl, ["verify_ssl"] = true }, token);
+                ["ssl"] = useSsl, ["verify_ssl"] = true };
+        if (intent.Discovery is null) payload["host"] = intent.Target.Host;
+        else if (intent.StepId == "user") payload["host"] = intent.DiscoveredHost;
+        return SubmitDeviceAsync(HomeAssistantDeviceIntegration.SynologyDsm, HomeAssistantDeviceInput.DsmCredentials, payload, token);
     }
 
     public Task<HomeAssistantDeviceProgress> SubmitDsmOtpAsync(string otp, CancellationToken token)
@@ -102,9 +109,10 @@ public sealed partial class HomeAssistantContractClient
     public async Task<HomeAssistantDeviceProgress> ObserveDeviceSetupAsync(HomeAssistantDeviceIntegration integration, CancellationToken token)
     {
         var intent = RequireDeviceIntent(integration);
-        if (intent.EntryId is { } id) return await ObserveDeviceEntryAsync(integration, id, token);
+        if (intent.EntryId is { } id) return await ObserveDeviceEntryCoreAsync(integration, id, intent.Source, token);
         if (intent.Progress?.Stage == HomeAssistantDeviceSetupStage.Aborted) return intent.Progress;
         if (intent.FlowId is null || intent.Unknown) return UnknownDevice();
+        if (intent.Discovery is not null) await VerifySelectedDiscoveryAsync(intent, token);
         // HA's GET reruns async_step_2sa(None), while pinned DSM requires a dict.
         // Keep the acknowledged OTP form; POST is the only supported continuation.
         if (intent.Progress?.Input == HomeAssistantDeviceInput.DsmOtp) return intent.Progress;
@@ -113,6 +121,7 @@ public sealed partial class HomeAssistantContractClient
             var result = Object(await HttpAsync(HttpMethod.Get, "api/config/config_entries/flow/" + intent.FlowId, null, true, "ha.device.observe", token));
             // GET can clear errors and does not prove whether a previous POST executed.
             var progress = ReadDeviceForm(result, intent);
+            if (intent.Discovery is not null && Text(result, "step_id") != intent.StepId) throw new MediaContractException("ha.discovery.selection-conflict");
             if (progress.Input != intent.Progress?.Input) throw new MediaContractException("ha.device.flow-conflict");
             if (intent.Progress is { Problem: not HomeAssistantDeviceProblem.None } previous && progress.Input == previous.Input && progress.Problem == HomeAssistantDeviceProblem.None)
                 progress = progress with { Problem = previous.Problem };
@@ -124,11 +133,14 @@ public sealed partial class HomeAssistantContractClient
     }
 
     /// <summary>Read-only entry observation, also after restart. No adoption or proof of physical identity.</summary>
-    public async Task<HomeAssistantDeviceProgress> ObserveDeviceEntryAsync(HomeAssistantDeviceIntegration integration, string entryId, CancellationToken token)
+    public Task<HomeAssistantDeviceProgress> ObserveDeviceEntryAsync(HomeAssistantDeviceIntegration integration, string entryId, CancellationToken token) =>
+        ObserveDeviceEntryCoreAsync(integration, entryId, "user", token);
+
+    private async Task<HomeAssistantDeviceProgress> ObserveDeviceEntryCoreAsync(HomeAssistantDeviceIntegration integration, string entryId, string source, CancellationToken token)
     {
         DeviceIdentifierValue(entryId);
         var matches = (await DeviceEntriesAsync(DeviceDomain(integration), token)).Select(Object).Where(e => Text(e, "entry_id") == entryId).ToArray();
-        if (matches.Length != 1 || Text(matches[0], "domain") != DeviceDomain(integration) || Text(matches[0], "source") != "user" || matches[0]["disabled_by"] is not null)
+        if (matches.Length != 1 || Text(matches[0], "domain") != DeviceDomain(integration) || Text(matches[0], "source") != source || matches[0]["disabled_by"] is not null)
             throw new MediaContractException("ha.device.entry-missing-or-conflict");
         return Text(matches[0], "state") switch
         {
@@ -173,10 +185,10 @@ public sealed partial class HomeAssistantContractClient
         else if (type == "create_entry" && !starting)
         {
             if (intent.Progress?.Input is not (HomeAssistantDeviceInput.DsmCredentials or HomeAssistantDeviceInput.DsmOtp or
-                HomeAssistantDeviceInput.DsmBackupLocation or HomeAssistantDeviceInput.LgConfirmation or HomeAssistantDeviceInput.AndroidPin or HomeAssistantDeviceInput.CastHosts))
+                HomeAssistantDeviceInput.DsmBackupLocation or HomeAssistantDeviceInput.LgConfirmation or HomeAssistantDeviceInput.AndroidPin or HomeAssistantDeviceInput.CastHosts or HomeAssistantDeviceInput.CastDiscoveryConfirmation))
                 throw new MediaContractException("ha.device.transition-unsupported");
             var entry = Object(result["result"]);
-            if (Text(entry, "domain") != DeviceDomain(intent.Target.Integration) || Text(entry, "source") != "user")
+            if (Text(entry, "domain") != DeviceDomain(intent.Target.Integration) || Text(entry, "source") != intent.Source)
                 throw new MediaContractException("ha.device.response-invalid");
             intent.EntryId = DeviceIdentifier(entry, "entry_id");
             progress = DeviceProgress(HomeAssistantDeviceSetupStage.AwaitingSetup, entryId: intent.EntryId);
@@ -185,8 +197,9 @@ public sealed partial class HomeAssistantContractClient
         {
             progress = ReadDeviceForm(result, intent);
             var previous = intent.Progress?.Input;
-            var allowed = starting ? progress.Input == InitialDeviceInput(intent.Target.Integration) : previous switch
+            var allowed = starting ? progress.Input == (intent.Discovery is null ? InitialDeviceInput(intent.Target.Integration) : DiscoveryInput(intent.Discovery)) : previous switch
             {
+                HomeAssistantDeviceInput.AndroidDiscoveryConfirmation => progress.Input == HomeAssistantDeviceInput.AndroidPin,
                 HomeAssistantDeviceInput.Host => progress.Input == (intent.Target.Integration == HomeAssistantDeviceIntegration.LgWebOs ? HomeAssistantDeviceInput.LgConfirmation : HomeAssistantDeviceInput.AndroidPin) || progress.Input == HomeAssistantDeviceInput.Host,
                 HomeAssistantDeviceInput.DsmCredentials or HomeAssistantDeviceInput.DsmOtp or HomeAssistantDeviceInput.DsmBackupLocation => progress.Input is HomeAssistantDeviceInput.DsmCredentials or HomeAssistantDeviceInput.DsmOtp or HomeAssistantDeviceInput.DsmBackupLocation,
                 _ => progress.Input == previous
@@ -195,6 +208,7 @@ public sealed partial class HomeAssistantContractClient
         }
         intent.Unknown = false;
         intent.Progress = progress;
+        if (type == "form") intent.StepId = Text(result, "step_id");
         return progress;
     }
 
@@ -205,17 +219,27 @@ public sealed partial class HomeAssistantContractClient
         var (input, fields) = (intent.Target.Integration, Text(result, "step_id")) switch
         {
             (HomeAssistantDeviceIntegration.SynologyDsm, "user") => (HomeAssistantDeviceInput.DsmCredentials, new[] { "host", "username", "password", "port", "ssl", "verify_ssl" }),
+            (HomeAssistantDeviceIntegration.SynologyDsm, "link") when intent.Discovery is not null => (HomeAssistantDeviceInput.DsmCredentials, ["username", "password", "port", "ssl", "verify_ssl"]),
             (HomeAssistantDeviceIntegration.SynologyDsm, "2sa") => (HomeAssistantDeviceInput.DsmOtp, ["otp_code"]),
             (HomeAssistantDeviceIntegration.SynologyDsm, "backup_share") => (HomeAssistantDeviceInput.DsmBackupLocation, ["backup_share", "backup_path"]),
             (HomeAssistantDeviceIntegration.LgWebOs or HomeAssistantDeviceIntegration.AndroidTvRemote, "user") => (HomeAssistantDeviceInput.Host, ["host"]),
             (HomeAssistantDeviceIntegration.LgWebOs, "pairing") => (HomeAssistantDeviceInput.LgConfirmation, []),
             (HomeAssistantDeviceIntegration.AndroidTvRemote, "pair") => (HomeAssistantDeviceInput.AndroidPin, ["pin"]),
+            (HomeAssistantDeviceIntegration.AndroidTvRemote, "zeroconf_confirm") when intent.Discovery is not null => (HomeAssistantDeviceInput.AndroidDiscoveryConfirmation, []),
             (HomeAssistantDeviceIntegration.GoogleCast, "config") => (HomeAssistantDeviceInput.CastHosts, ["known_hosts"]),
+            (HomeAssistantDeviceIntegration.GoogleCast, "confirm") when intent.Discovery is not null => (HomeAssistantDeviceInput.CastDiscoveryConfirmation, []),
             _ => throw new MediaContractException("ha.device.interaction-unsupported")
         };
         var schema = Array(result["data_schema"]).Select(Object).ToArray();
         if (!schema.Select(f => Text(f, "name")).Order(StringComparer.Ordinal).SequenceEqual(fields.Order(StringComparer.Ordinal)))
             throw new MediaContractException("ha.device.schema-unsupported");
+        if (intent.Discovery is not null && input == HomeAssistantDeviceInput.DsmCredentials)
+        {
+            var host = Text(result, "step_id") == "link" ? Text(Object(result["description_placeholders"]), "host") : Text(schema.Single(f => Text(f, "name") == "host"), "default");
+            ValidateDeviceHost(host);
+            if (intent.DiscoveredHost is not null && intent.DiscoveredHost != host) throw new MediaContractException("ha.discovery.host-conflict");
+            intent.DiscoveredHost = host;
+        }
         IReadOnlyList<string> shares = System.Array.Empty<string>();
         if (input == HomeAssistantDeviceInput.DsmBackupLocation)
         {

@@ -36,7 +36,12 @@ try
     if (await ha.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
     Console.WriteLine("ha: owner response loss reconciled through normal login; onboarding complete; owner/admin/version verified");
     await bench.VerifyDsmInteractiveFormsAsync(token);
+    await bench.VerifyDiscoveryContractsAsync(token);
     var castProgress = await VerifyDeviceFormsAsync(ha, token);
+    _ = await ha.GetDiscoveredDeviceFlowsAsync(token);
+    if ((await ha.ObserveDeviceBindingAsync(new(HomeAssistantDeviceIntegration.GoogleCast, castProgress.EntryId!, "missingDevice", "00000000-0000-0000-0000-000000000001"), token)).Status != HomeAssistantDeviceBindingStatus.DeviceMissing)
+        throw new InvalidOperationException("bench.ha.cast.missing-device.accepted");
+    Console.WriteLine("ha: discovery metadata read only; loaded Cast with a missing physical device remains DeviceMissing");
     var jellyfinTarget = bench.GetInternalEndpoint("jellyfin");
     if ((await ha.StartJellyfinSetupAsync(jellyfinTarget, jellyfin.ServerId!, "wizard_m0", token)).Stage != HomeAssistantJellyfinStage.AwaitingCredentials ||
         (await ha.SubmitJellyfinCredentialsAsync("synthetic-wrong-password", token)).Stage != HomeAssistantJellyfinStage.AuthenticationRejected)

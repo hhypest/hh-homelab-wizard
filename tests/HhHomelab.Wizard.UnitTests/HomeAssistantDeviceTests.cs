@@ -318,21 +318,26 @@ public sealed partial class HomeAssistantContractTests
         public Action<JsonObject>? AlterDeviceResult { get; set; }
         private string deviceDomain = "";
         private string deviceStep = "";
+        private string deviceSource = "user";
+        private string deviceFlowId = "flow1";
         private bool otpAccepted;
         private JsonObject DeviceForm(JsonObject? errors = null)
         {
             string[] names = (deviceDomain, deviceStep) switch
             {
                 ("synology_dsm", "user") => ["host", "username", "password", "port", "ssl", "verify_ssl"],
+                ("synology_dsm", "link") => ["username", "password", "port", "ssl", "verify_ssl"],
                 (_, "2sa") => ["otp_code"], (_, "backup_share") => ["backup_share", "backup_path"],
+                (_, "zeroconf_confirm" or "confirm") => [],
                 (_, "pairing") => [], (_, "pair") => ["pin"], (_, "config") => ["known_hosts"], _ => ["host"]
             };
             var schema = new JsonArray(names.Select(name => (JsonNode?)new JsonObject { ["name"] = name, ["default"] = "synthetic-sensitive", ["type"] = "string" }).ToArray());
+            if (deviceDomain == "synology_dsm" && deviceSource != "user" && deviceStep == "user") schema[0]!["default"] = "192.0.2.1";
             if (deviceStep == "backup_share") schema[0]!["selector"] = new JsonObject { ["select"] = new JsonObject { ["options"] = new JsonArray(
                 new JsonObject { ["value"] = "/volume1/backups", ["label"] = "synthetic-sensitive" }, new JsonObject { ["value"] = "/volume2/archive", ["label"] = "synthetic-sensitive" }) } };
-            return new() { ["type"] = "form", ["handler"] = deviceDomain, ["flow_id"] = "flow1", ["step_id"] = deviceStep, ["data_schema"] = schema,
+            return new() { ["type"] = "form", ["handler"] = deviceDomain, ["flow_id"] = deviceFlowId, ["step_id"] = deviceStep, ["data_schema"] = schema,
                 ["errors"] = errors ?? (deviceDomain == "webostv" && deviceStep == "user" || deviceDomain == "cast" ? null : new JsonObject()),
-                ["description_placeholders"] = new JsonObject { ["name"] = "synthetic-sensitive" } };
+                ["description_placeholders"] = new JsonObject { ["name"] = "synthetic-sensitive", ["host"] = "192.0.2.1" } };
         }
         private JsonNode? DeviceResponse(HttpRequestMessage request, JsonObject? body)
         {
@@ -341,14 +346,21 @@ public sealed partial class HomeAssistantContractTests
             if (path.EndsWith("/entry", StringComparison.Ordinal))
             {
                 var domain = request.RequestUri.Query.Split('=')[^1];
-                return new JsonArray(IntegrationEntries.Select(n => (JsonObject)n!).Where(e => e["domain"]?.GetValue<string>() == domain).Select(e => e.DeepClone()).ToArray());
+                return new JsonArray(IntegrationEntries.Select(n => (JsonObject)n!).Where(e => domain == "" || e["domain"]?.GetValue<string>() == domain).Select(e => e.DeepClone()).ToArray());
             }
             if (path.EndsWith("/flow", StringComparison.Ordinal))
             {
-                FlowStarts++; deviceDomain = body!["handler"]!.GetValue<string>(); deviceStep = deviceDomain == "cast" ? "config" : "user"; result = DeviceForm();
+                FlowStarts++; deviceSource = "user"; deviceFlowId = "flow1"; deviceDomain = body!["handler"]!.GetValue<string>(); deviceStep = deviceDomain == "cast" ? "config" : "user"; result = DeviceForm();
             }
             else if (request.Method == HttpMethod.Get)
             {
+                if (deviceSource != "user")
+                {
+                    var flow = DeviceDiscovery.Select(n => (JsonObject)n!).SingleOrDefault(f => f["flow_id"]?.GetValue<string>() == path.Split('/')[^1]);
+                    if (flow is null) return null;
+                    deviceFlowId = flow["flow_id"]!.GetValue<string>(); deviceStep = flow["step_id"]!.GetValue<string>(); deviceDomain = flow["handler"]!.GetValue<string>();
+                    deviceSource = flow["context"]!["source"]!.GetValue<string>();
+                }
                 if (FlowComplete) return null;
                 if (deviceStep == "2sa") { OtpReads++; throw new InvalidOperationException("Pinned DSM OTP GET must not be called"); }
                 result = DeviceForm(); // GET clears previously acknowledged errors.
@@ -356,9 +368,10 @@ public sealed partial class HomeAssistantContractTests
             else
             {
                 FlowSubmits++; DeviceInputs.Add((JsonObject)body!.DeepClone());
-                if (DeviceAbort is { } reason) { FlowComplete = true; result = new() { ["type"] = "abort", ["handler"] = deviceDomain, ["flow_id"] = "flow1", ["reason"] = reason }; }
+                if (DeviceAbort is { } reason) { FlowComplete = true; result = new() { ["type"] = "abort", ["handler"] = deviceDomain, ["flow_id"] = deviceFlowId, ["reason"] = reason }; }
                 else if (DeviceError is { } errors) { result = DeviceForm(errors); DeviceError = null; }
                 else if (deviceStep == "user" && deviceDomain is "webostv" or "androidtv_remote") { deviceStep = deviceDomain == "webostv" ? "pairing" : "pair"; result = DeviceForm(); }
+                else if (deviceStep == "zeroconf_confirm") { deviceStep = "pair"; result = DeviceForm(); }
                 else if (deviceDomain == "synology_dsm" && DsmOtp && !otpAccepted)
                 {
                     var otp = body["otp_code"]?.GetValue<string>(); deviceStep = "2sa";
@@ -369,15 +382,20 @@ public sealed partial class HomeAssistantContractTests
                 else result = CreateDeviceEntry();
             }
             AlterDeviceResult?.Invoke(result);
+            if (deviceSource != "user")
+            {
+                var selected = DeviceDiscovery.Select(n => (JsonObject)n!).SingleOrDefault(f => f["flow_id"]?.GetValue<string>() == deviceFlowId);
+                if (selected is not null) { if (FlowComplete) DeviceDiscovery.Remove(selected); else selected["step_id"] = deviceStep; }
+            }
             return result;
         }
         private JsonObject CreateDeviceEntry()
         {
             FlowComplete = true;
-            var entry = new JsonObject { ["entry_id"] = "entry1", ["domain"] = deviceDomain, ["source"] = "user", ["state"] = EntryState, ["disabled_by"] = EntryDisabled,
+            var entry = new JsonObject { ["entry_id"] = "entry1", ["domain"] = deviceDomain, ["source"] = deviceSource, ["state"] = EntryState, ["disabled_by"] = EntryDisabled,
                 ["title"] = "synthetic-sensitive", ["data"] = new JsonObject { ["password"] = "synthetic-sensitive" } };
             IntegrationEntries.Add(entry.DeepClone());
-            return new() { ["type"] = "create_entry", ["handler"] = deviceDomain, ["flow_id"] = "flow1", ["result"] = entry };
+            return new() { ["type"] = "create_entry", ["handler"] = deviceDomain, ["flow_id"] = deviceFlowId, ["result"] = entry };
         }
     }
 }
