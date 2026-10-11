@@ -35,6 +35,8 @@ try
     var owner = ha.OwnerId;
     if (await ha.GetProbeSessionCountAsync(token) != 1) throw new InvalidOperationException("bench.ha.session.orphaned");
     Console.WriteLine("ha: owner response loss reconciled through normal login; onboarding complete; owner/admin/version verified");
+    await bench.VerifyDsmInteractiveFormsAsync(token);
+    var castProgress = await VerifyDeviceFormsAsync(ha, token);
     var jellyfinTarget = bench.GetInternalEndpoint("jellyfin");
     if ((await ha.StartJellyfinSetupAsync(jellyfinTarget, jellyfin.ServerId!, "wizard_m0", token)).Stage != HomeAssistantJellyfinStage.AwaitingCredentials ||
         (await ha.SubmitJellyfinCredentialsAsync("synthetic-wrong-password", token)).Stage != HomeAssistantJellyfinStage.AuthenticationRejected)
@@ -124,6 +126,8 @@ try
     Console.WriteLine("ha: HTTP pending trial restarted, reconnected, verified and promoted; configure/promote response loss reconciled; check_config valid");
     ProbeSocket.ForbidWrites = true;
     ProbeHttp.ForbidFlows = true;
+    if (await ha.StartDeviceSetupAsync(new(HomeAssistantDeviceIntegration.GoogleCast, null), token) != castProgress)
+        throw new InvalidOperationException("bench.ha.cast.repeat.failed");
     if (await ha.StartJellyfinSetupAsync(jellyfinTarget, jellyfin.ServerId!, "wizard_m0", token) != jellyfinProgress)
         throw new InvalidOperationException("bench.ha.jellyfin.repeat.failed");
     await VerifyAsync(ha, observed, renamed, dashboard, token);
@@ -148,6 +152,9 @@ try
     if (await restarted.ObserveJellyfinEntryAsync(jellyfinProgress.EntryId, jellyfin.ServerId!, token) != jellyfinProgress)
         throw new InvalidOperationException("bench.ha.jellyfin.persistence.failed");
     Console.WriteLine("restart: Jellyfin entry still loaded with the same server identity; read-only confirmation; no active playback required");
+    if (await restarted.ObserveDeviceEntryAsync(HomeAssistantDeviceIntegration.GoogleCast, castProgress.EntryId!, token) != castProgress)
+        throw new InvalidOperationException("bench.ha.cast.persistence.failed");
+    Console.WriteLine("restart: Google Cast USER entry loaded; read-only confirmation; no physical Cast device claimed");
     Console.WriteLine("restart: same owner, registry identity, dashboard and stable HTTP policy; configuration writes blocked; no storage edits");
     await restarted.RevokeSessionAsync(token);
     if (!restarted.SessionRevocationConfirmed) throw new InvalidOperationException("bench.ha.revoke.unconfirmed");
@@ -183,6 +190,31 @@ static async Task VerifyAsync(HomeAssistantContractClient ha, HomeAssistantEntit
         await ha.StageHttpProtectionAsync(token) != HomeAssistantHttpStage.Unchanged || await ha.ConfirmHttpProtectionAsync(token))
         throw new InvalidOperationException("bench.ha.persistence.failed");
     await ha.CheckConfigurationAsync(token);
+}
+static async Task<HomeAssistantDeviceProgress> VerifyDeviceFormsAsync(HomeAssistantContractClient ha, CancellationToken token)
+{
+    foreach (var integration in new[] { HomeAssistantDeviceIntegration.SynologyDsm, HomeAssistantDeviceIntegration.LgWebOs, HomeAssistantDeviceIntegration.AndroidTvRemote })
+    {
+        // Host is never submitted to DSM/Android. LG host submission only advances to a confirmation form.
+        Console.WriteLine("ha: validating native initial form for " + integration);
+        var progress = await ha.StartDeviceSetupAsync(new(integration, "192.0.2.1"), token);
+        var expected = integration == HomeAssistantDeviceIntegration.SynologyDsm ? HomeAssistantDeviceInput.DsmCredentials : HomeAssistantDeviceInput.Host;
+        if (progress.Input != expected || progress.Stage != HomeAssistantDeviceSetupStage.AwaitingInput)
+            throw new InvalidOperationException("bench.ha.device.initial-form.failed");
+        if (integration == HomeAssistantDeviceIntegration.LgWebOs &&
+            (await ha.SubmitDeviceHostAsync(integration, token)).Input != HomeAssistantDeviceInput.LgConfirmation)
+            throw new InvalidOperationException("bench.ha.lg.confirmation-form.failed");
+    }
+    Console.WriteLine("ha: native DSM/LG/Android USER forms validated; LG confirmation pending; no device credentials or pairing submitted");
+    if ((await ha.StartDeviceSetupAsync(new(HomeAssistantDeviceIntegration.GoogleCast, null), token)).Input != HomeAssistantDeviceInput.CastHosts)
+        throw new InvalidOperationException("bench.ha.cast.initial-form.failed");
+    var cast = await ha.SubmitCastHostsAsync([], token);
+    using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token); deadline.CancelAfter(TimeSpan.FromMinutes(2));
+    while (cast.Stage == HomeAssistantDeviceSetupStage.AwaitingSetup)
+    { await Task.Delay(1000, deadline.Token); cast = await ha.ObserveDeviceSetupAsync(HomeAssistantDeviceIntegration.GoogleCast, deadline.Token); }
+    if (cast.Stage != HomeAssistantDeviceSetupStage.EntryLoaded || cast.EntryId is null) throw new InvalidOperationException("bench.ha.cast.not-loaded");
+    Console.WriteLine("ha: native Google Cast USER flow loaded with empty discovery hints; no device selected or playback readiness claimed");
+    return cast;
 }
 static async Task ReconnectUntilTrialAsync(HomeAssistantContractClient ha, CancellationToken token)
 {
