@@ -33,7 +33,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 Работа ведётся в [Issues/Milestones](https://github.com/hhypest/hh-homelab-wizard/issues) и [Project](https://github.com/users/hhypest/projects/3). После независимого аудита приоритет — транспорт, модель операций и один вертикальный сценарий qBittorrent с журналом/resume; [ADR 0008](docs/adr/0008-audit-development-sequence.md) отделяет доступную разработку от полной приёмки.
 
 - [Карта задач](docs/ISSUE_ROADMAP.md) и [правила Project](docs/PROJECT.md).
-- [Исходный аудит](docs/audit/2026-10-11-independent-review.md) и [решения по каждой находке](docs/audit/2026-10-11-follow-up.md).
+- [Сведения об источнике аудита](docs/audit/2026-10-11-independent-review.md) и [решения по каждой находке](docs/audit/2026-10-11-follow-up.md).
 - [CONTRIBUTING](CONTRIBUTING.md), [AGENTS](AGENTS.md), [CHANGELOG](CHANGELOG.md).
 - [Архитектура](docs/adr/0001-architecture.md), [журнал и секреты](docs/adr/0002-journal-and-secrets.md), [интерфейс «Фокус»](docs/adr/0005-focus-ui.md), [клиентские платформы](docs/adr/0007-client-platforms.md).
 
