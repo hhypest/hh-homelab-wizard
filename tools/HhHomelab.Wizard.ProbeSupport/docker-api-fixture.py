@@ -1,6 +1,6 @@
 """Synthetic Docker API on an owned volume's Unix socket; never a real Docker daemon.
 
-Only GET/HEAD are implemented. A separate Docker exec changes the fixed scenario
+Only GET is implemented. A separate Docker exec changes the fixed scenario
 file. HTTP clients cannot mutate the fixture or reach the developer's Docker API.
 """
 from datetime import datetime, timedelta, timezone
