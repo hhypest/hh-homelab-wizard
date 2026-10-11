@@ -41,7 +41,7 @@ dotnet publish src/HhHomelab.Wizard.Desktop -c Release -r win-x64 --self-contain
 dotnet publish src/HhHomelab.Wizard.Desktop -c Release -r linux-x64 --self-contained true --no-restore -o artifacts/desktop-linux
 ```
 
-После локальной публикации для передачи пакета включите `LICENSE`, `LICENSES`, `THIRD_PARTY_NOTICES.md` и этот README. CI копирует их автоматически.
+После локальной публикации для передачи пакета включите `LICENSE`, `LICENSES`, `THIRD_PARTY_NOTICES.md` и [инструкцию пакета](PACKAGE_README.md) под именем `DEMO.md`. CI копирует их автоматически. Инструкция пакета не зависит от относительных ссылок исходной документации.
 
 Ubuntu 24.04 x64 требует X11-сеанс и системные библиотеки. Для этой матрицы:
 
@@ -56,7 +56,7 @@ Xvfb нужен только автоматической пробе CI. Дру�
 | Проверка | Состояние / граница |
 | --- | --- |
 | Локальные locked restore/build/tests | 512 unit/fixture + 8 UI проверок прошли на Windows, 2026-10-11 |
-| Локальная native self-contained проба | Win32 HWND, Windows NT 10.0.26300.0: успех, отмена, неизвестный ответ, закрытие; отдельный runtime не загружался через `dotnet` |
+| Локальная native self-contained проба | Win32 HWND, Windows 11 Pro build 26300: успех, ошибка, отмена, неизвестный ответ, фактическое закрытие активного окна с отменой/ожиданием; запуск self-contained executable |
 | CI Windows runner | Автоматический build/tests/publish + Win32 probe; это Windows Server, не приёмка Windows 10/11 |
 | CI Ubuntu 24.04 | Build/tests/publish + X11 probe под Xvfb; не интерактивная приёмка обычного сеанса |
 | Windows 10 22H2 Home/Pro x64 | Обязательная проверка запуска без .NET и ввода пользователем пока не выполнена; см. ограничение upstream support в ADR 0006 |

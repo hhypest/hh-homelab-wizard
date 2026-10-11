@@ -34,6 +34,7 @@ public sealed class ProbeApp : App
                 window.RequestedThemeVariant = ThemeVariant.Light;
                 await Task.Delay(150);
                 Require(window.IsVisible && window.TryGetPlatformHandle() is not null, "native.window");
+                var platform = window.TryGetPlatformHandle()!.HandleDescriptor;
                 Capture(window, "connection");
                 vm.ContinueCommand.Execute(null); Require(vm.IsPlan, "navigate.plan"); Capture(window, "plan");
                 var run = vm.StartCommand.ExecuteAsync(null);
@@ -45,13 +46,24 @@ public sealed class ProbeApp : App
                 var stopped = vm.StartCommand.ExecuteAsync(null);
                 await Until(() => vm.IsWaiting); vm.StopCommand.Execute(null); await stopped;
                 Require(vm.Progress?.State == WizardState.Cancelled, "result.cancelled");
+                vm.NewDemoCommand.Execute(null); vm.SelectedDemo = vm.DemoChoices[1]; vm.ContinueCommand.Execute(null);
+                await vm.StartCommand.ExecuteAsync(null);
+                Require(vm.Progress?.State == WizardState.Failed, "result.failed");
                 vm.NewDemoCommand.Execute(null); vm.SelectedDemo = vm.DemoChoices[2]; vm.ContinueCommand.Execute(null);
                 var unknown = vm.StartCommand.ExecuteAsync(null);
                 await Until(() => vm.IsWaiting); vm.ConfirmCommand.Execute(null); await unknown;
                 Require(vm.Progress?.State == WizardState.OutcomeUnknown && !vm.StartCommand.CanExecute(null), "result.unknown");
                 window.RequestedThemeVariant = ThemeVariant.Dark; Capture(window, "unknown-dark");
-                await vm.CloseAsync(); Require(!vm.IsBusy, "close.completed");
-                Console.WriteLine($"PASS native desktop: {window.TryGetPlatformHandle()?.HandleDescriptor}; success/cancel/unknown/close; {Environment.OSVersion.VersionString}");
+                vm.NewDemoCommand.Execute(null); vm.SelectedDemo = vm.DemoChoices[0]; vm.ContinueCommand.Execute(null);
+                var closingRun = vm.StartCommand.ExecuteAsync(null);
+                Require(vm.IsBusy && !closingRun.IsCompleted, "close.active-session");
+                var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                window.Closed += (_, _) => closed.TrySetResult();
+                window.Close(); // Exercise the actual native Closing handler, including its asynchronous wait.
+                await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                await closingRun.WaitAsync(TimeSpan.FromSeconds(10));
+                Require(vm.Progress?.State == WizardState.Cancelled && !vm.IsBusy && !window.IsVisible && window.TryGetPlatformHandle() is null, "close.cancelled-and-closed");
+                Console.WriteLine($"PASS native desktop: {platform}; success/failure/cancel/unknown/active-window-close; {Environment.OSVersion.VersionString}");
                 exit = 0;
             }
             catch (Exception) { Console.Error.WriteLine("FAIL native desktop probe; no NAS operations were performed."); }

@@ -109,9 +109,12 @@ public sealed class FocusTests(UiFixture fixture)
         var (window, vm, adapter) = Create(block: true);
         vm.ContinueCommand.Execute(null); var run = vm.StartCommand.ExecuteAsync(null);
         await adapter.Entered.Task;
-        await vm.CloseAsync(); await run;
+        var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        window.Closed += (_, _) => closed.TrySetResult();
+        window.Close();
+        await closed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken); await run;
         Assert.Equal(WizardState.Cancelled, vm.Progress!.State); Assert.False(vm.IsBusy);
-        Assert.False(vm.StartCommand.CanExecute(null)); window.Close();
+        Assert.False(vm.StartCommand.CanExecute(null)); Assert.False(window.IsVisible);
     });
 
     [Theory]
