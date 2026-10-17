@@ -10,7 +10,10 @@ public static class DesktopPlatform
         builder.UsePlatformDetect();
         // WAYLAND_DISPLAY is set by the compositor in a native Wayland session.
         // Windows and pure X11 sessions retain their platform-detected backend.
-        if (OperatingSystem.IsLinux() && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY")))
+        if (
+            OperatingSystem.IsLinux()
+            && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"))
+        )
             builder.UseWaylandWithFallback();
         return builder;
     }
