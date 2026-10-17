@@ -29,24 +29,39 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOCKER_HOST")))
             throw new InvalidOperationException("bench.remote-docker.forbidden");
         var selected = await RunProcessAsync(["context", "show"], cancellationToken);
-        if (selected.ExitCode != 0) throw new InvalidOperationException("bench.docker.unavailable");
+        if (selected.ExitCode != 0)
+            throw new InvalidOperationException("bench.docker.unavailable");
         var context = selected.Output.Trim();
-        if (!ContextPattern().IsMatch(context)) throw new InvalidOperationException("bench.context.invalid");
+        if (!ContextPattern().IsMatch(context))
+            throw new InvalidOperationException("bench.context.invalid");
         var inspected = await RunProcessAsync(["context", "inspect", context], cancellationToken);
-        if (inspected.ExitCode != 0) throw new InvalidOperationException("bench.context.unavailable");
+        if (inspected.ExitCode != 0)
+            throw new InvalidOperationException("bench.context.unavailable");
         using var json = JsonDocument.Parse(inspected.Output);
-        var host = json.RootElement[0].GetProperty("Endpoints").GetProperty("docker").GetProperty("Host").GetString();
-        if (host is null || !(host.StartsWith("npipe:////./pipe/", StringComparison.Ordinal) || host.StartsWith("unix:///", StringComparison.Ordinal)))
+        var host = json.RootElement[0]
+            .GetProperty("Endpoints")
+            .GetProperty("docker")
+            .GetProperty("Host")
+            .GetString();
+        if (
+            host is null
+            || !(
+                host.StartsWith("npipe:////./pipe/", StringComparison.Ordinal)
+                || host.StartsWith("unix:///", StringComparison.Ordinal)
+            )
+        )
             throw new InvalidOperationException("bench.remote-docker.forbidden");
         var bench = new OwnedDockerBench(context);
         var info = await bench.RunAsync(["info", "--format", "{{.OSType}}"], cancellationToken);
-        if (info.Trim() != "linux") throw new InvalidOperationException("bench.linux-engine.required");
+        if (info.Trim() != "linux")
+            throw new InvalidOperationException("bench.linux-engine.required");
         return bench;
     }
 
     public async Task StartAsync(string image, CancellationToken cancellationToken)
     {
-        if (resources.Count != 0) throw new InvalidOperationException("bench.mode.conflict");
+        if (resources.Count != 0)
+            throw new InvalidOperationException("bench.mode.conflict");
         // Require a local image. No unbounded pull/install steps or Docker mods in this API probe.
         _ = await RunAsync(["image", "inspect", image, "--format", "{{.Id}}"], cancellationToken);
         var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -57,12 +72,37 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
         await CreateNetworkAsync(cancellationToken);
         await CreateVolumeAsync(Volume, cancellationToken);
         resources.Add(("container", Container));
-        _ = await RunAsync(["create", "--name", Container, "--label", Label + "=" + session,
-            "--network", Network, "--publish", $"127.0.0.1:{port}:{port}",
-            "--env", "WEBUI_PORT=" + port, "--env", "PUID=1000", "--env", "PGID=1000",
-            "--mount", $"type=volume,source={Volume},target=/config",
-            "--tmpfs", "/data:rw,uid=1000,gid=1000,mode=0755",
-            "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1", image], cancellationToken);
+        _ = await RunAsync(
+            [
+                "create",
+                "--name",
+                Container,
+                "--label",
+                Label + "=" + session,
+                "--network",
+                Network,
+                "--publish",
+                $"127.0.0.1:{port}:{port}",
+                "--env",
+                "WEBUI_PORT=" + port,
+                "--env",
+                "PUID=1000",
+                "--env",
+                "PGID=1000",
+                "--mount",
+                $"type=volume,source={Volume},target=/config",
+                "--tmpfs",
+                "/data:rw,uid=1000,gid=1000,mode=0755",
+                "--log-driver",
+                "json-file",
+                "--log-opt",
+                "max-size=1m",
+                "--log-opt",
+                "max-file=1",
+                image,
+            ],
+            cancellationToken
+        );
         // A port reservation race fails container start and is cleaned up, never reassigned silently.
         _ = await RunAsync(["start", Container], cancellationToken);
         await WaitForApiAsync(cancellationToken);
@@ -74,7 +114,8 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
         // never publish raw logs or put credentials into Docker/process arguments.
         var logs = await RunAsync(["logs", Container], cancellationToken, includeError: true);
         var match = TemporaryPasswordPattern().Match(logs);
-        if (!match.Success) throw new InvalidOperationException("bench.temporary-password.unavailable");
+        if (!match.Success)
+            throw new InvalidOperationException("bench.temporary-password.unavailable");
         return match.Groups[1].Value.Trim();
     }
 
@@ -90,8 +131,17 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromSeconds(60));
-        using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false };
-        using var client = new HttpClient(handler) { BaseAddress = Endpoint, Timeout = TimeSpan.FromSeconds(3) };
+        using var handler = new HttpClientHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseProxy = false,
+        };
+        using var client = new HttpClient(handler)
+        {
+            BaseAddress = Endpoint,
+            Timeout = TimeSpan.FromSeconds(3),
+        };
         while (true)
         {
             deadline.Token.ThrowIfCancellationRequested();
@@ -100,7 +150,8 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
                 using var request = new HttpRequestMessage(HttpMethod.Get, "api/v2/app/version");
                 request.Headers.Referrer = Endpoint;
                 using var response = await client.SendAsync(request, deadline.Token);
-                if (response.StatusCode == HttpStatusCode.Forbidden) return;
+                if (response.StatusCode == HttpStatusCode.Forbidden)
+                    return;
                 if (response.StatusCode == HttpStatusCode.Unauthorized)
                     throw new InvalidOperationException("bench.http-policy.rejected");
                 if (response.StatusCode == HttpStatusCode.OK)
@@ -121,17 +172,31 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             try
             {
-                var arguments = new List<string> { kind, "ls", "--filter", "name=" + name, "--format", "{{.Name}}" };
+                var arguments = new List<string>
+                {
+                    kind,
+                    "ls",
+                    "--filter",
+                    "name=" + name,
+                    "--format",
+                    "{{.Name}}",
+                };
                 if (kind == "container")
                 {
                     arguments.Insert(2, "--all");
                     arguments[^1] = "{{.Names}}";
                 }
                 var names = await RunAsync(arguments, deadline.Token);
-                if (!names.Split('\n', StringSplitOptions.TrimEntries).Contains(name, StringComparer.Ordinal)) continue;
+                if (
+                    !names
+                        .Split('\n', StringSplitOptions.TrimEntries)
+                        .Contains(name, StringComparer.Ordinal)
+                )
+                    continue;
                 await VerifyOwnershipAsync(kind, name, deadline.Token);
                 var remove = new List<string> { kind, "rm" };
-                if (kind == "container") remove.Add("--force");
+                if (kind == "container")
+                    remove.Add("--force");
                 remove.Add(name);
                 _ = await RunAsync(remove, deadline.Token);
             }
@@ -142,43 +207,74 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
             }
         }
         CleanupSucceeded = succeeded;
-        if (succeeded) Console.WriteLine("bench.cleanup: passed");
+        if (succeeded)
+            Console.WriteLine("bench.cleanup: passed");
     }
 
-    private async Task VerifyOwnershipAsync(string kind, string name, CancellationToken cancellationToken)
+    private async Task VerifyOwnershipAsync(
+        string kind,
+        string name,
+        CancellationToken cancellationToken
+    )
     {
-        using var json = JsonDocument.Parse(await RunAsync([kind, "inspect", name], cancellationToken));
+        using var json = JsonDocument.Parse(
+            await RunAsync([kind, "inspect", name], cancellationToken)
+        );
         var root = json.RootElement[0];
-        var labels = kind == "container" ? root.GetProperty("Config").GetProperty("Labels") : root.GetProperty("Labels");
-        if (labels.GetProperty(Label).GetString() != session) throw new InvalidOperationException("bench.ownership.failed");
+        var labels =
+            kind == "container"
+                ? root.GetProperty("Config").GetProperty("Labels")
+                : root.GetProperty("Labels");
+        if (labels.GetProperty(Label).GetString() != session)
+            throw new InvalidOperationException("bench.ownership.failed");
         if (kind == "container")
         {
             foreach (var mount in root.GetProperty("Mounts").EnumerateArray())
-                if (mount.GetProperty("Type").GetString() == "bind" ||
-                    mount.GetProperty("Type").GetString() == "volume" && !volumes.Contains(mount.GetProperty("Name").GetString()!))
+                if (
+                    mount.GetProperty("Type").GetString() == "bind"
+                    || mount.GetProperty("Type").GetString() == "volume"
+                        && !volumes.Contains(mount.GetProperty("Name").GetString()!)
+                )
                     throw new InvalidOperationException("bench.mounts.foreign");
         }
     }
 
-    private async Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken cancellationToken, bool includeError = false)
+    private async Task<string> RunAsync(
+        IEnumerable<string> arguments,
+        CancellationToken cancellationToken,
+        bool includeError = false
+    )
     {
-        var result = await RunProcessAsync(new[] { "--context", context }.Concat(arguments), cancellationToken);
-        if (result.ExitCode != 0) throw new InvalidOperationException("bench.docker." + arguments.First() + ".failed");
+        var result = await RunProcessAsync(
+            new[] { "--context", context }.Concat(arguments),
+            cancellationToken
+        );
+        if (result.ExitCode != 0)
+            throw new InvalidOperationException("bench.docker." + arguments.First() + ".failed");
         return result.Output + (includeError ? result.Error : "");
     }
 
-    private static async Task<(int ExitCode, string Output, string Error)> RunProcessAsync(IEnumerable<string> arguments, CancellationToken cancellationToken,
-        Stream? input = null, TimeSpan? timeout = null)
+    private static async Task<(int ExitCode, string Output, string Error)> RunProcessAsync(
+        IEnumerable<string> arguments,
+        CancellationToken cancellationToken,
+        Stream? input = null,
+        TimeSpan? timeout = null
+    )
     {
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(timeout ?? TimeSpan.FromSeconds(45));
         var start = new ProcessStartInfo("docker")
         {
-            UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true,
-            RedirectStandardInput = input is not null
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = input is not null,
         };
-        foreach (var argument in arguments) start.ArgumentList.Add(argument);
-        using var process = Process.Start(start) ?? throw new InvalidOperationException("bench.docker.unavailable");
+        foreach (var argument in arguments)
+            start.ArgumentList.Add(argument);
+        using var process =
+            Process.Start(start) ?? throw new InvalidOperationException("bench.docker.unavailable");
         var output = process.StandardOutput.ReadToEndAsync(deadline.Token);
         var error = process.StandardError.ReadToEndAsync(deadline.Token);
         try
@@ -193,15 +289,21 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
         }
         catch
         {
-            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
             // Observe outstanding reads before disposal; never print either stream.
-            try { await Task.WhenAll(output, error); } catch (OperationCanceledException) { }
+            try
+            {
+                await Task.WhenAll(output, error);
+            }
+            catch (OperationCanceledException) { }
             throw;
         }
     }
 
     [GeneratedRegex(@"\A[A-Za-z0-9_.-]+\z", RegexOptions.CultureInvariant)]
     private static partial Regex ContextPattern();
+
     [GeneratedRegex(@"temporary password[^\r\n]*: ([^\r\n]+)", RegexOptions.CultureInvariant)]
     private static partial Regex TemporaryPasswordPattern();
 }
