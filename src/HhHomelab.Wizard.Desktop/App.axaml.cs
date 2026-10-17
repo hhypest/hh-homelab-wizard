@@ -13,6 +13,7 @@ namespace HhHomelab.Wizard.Desktop;
 public partial class App : Avalonia.Application
 {
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
+
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
@@ -23,8 +24,13 @@ public partial class App : Avalonia.Application
             services.AddSingleton<IDemoScenario, DemoScenario>();
             services.AddSingleton<IUiDispatcher, AvaloniaUiDispatcher>();
             services.AddSingleton<MainWindowViewModel>();
-            var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
-            desktop.MainWindow = new MainWindow { DataContext = provider.GetRequiredService<MainWindowViewModel>() };
+            var provider = services.BuildServiceProvider(
+                new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true }
+            );
+            desktop.MainWindow = new MainWindow
+            {
+                DataContext = provider.GetRequiredService<MainWindowViewModel>(),
+            };
             desktop.Exit += (_, _) => provider.Dispose();
         }
         base.OnFrameworkInitializationCompleted();

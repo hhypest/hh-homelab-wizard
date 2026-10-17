@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/HhHomelab.Wizard.Infrastructure/HhHomelab.Wizard.Infrastructure.csproj" />
   </ItemGroup>

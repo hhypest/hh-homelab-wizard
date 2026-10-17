@@ -33,8 +33,11 @@ public sealed partial class OwnedDockerBench
             asyncio.run(verify())
             """;
         var result = await RunAsync(["exec", Container, "python3", "-c", script], token);
-        if (result.Trim() != "synology-interactive-forms-passed") throw new InvalidOperationException("bench.ha.synology-forms.failed");
-        Console.WriteLine("ha: pinned DSM OTP/backup forms serialized with synthetic shares; unsafe OTP GET behavior verified; no DSM connection");
+        if (result.Trim() != "synology-interactive-forms-passed")
+            throw new InvalidOperationException("bench.ha.synology-forms.failed");
+        Console.WriteLine(
+            "ha: pinned DSM OTP/backup forms serialized with synthetic shares; unsafe OTP GET behavior verified; no DSM connection"
+        );
     }
 
     public async Task VerifySynologyRoleSourceAsync(CancellationToken token)
@@ -50,7 +53,8 @@ public sealed partial class OwnedDockerBench
             print('synology-role-source-passed')
             """;
         var result = await RunAsync(["exec", Container, "python3", "-c", script], token);
-        if (result.Trim() != "synology-role-source-passed") throw new InvalidOperationException("bench.ha.synology-source.failed");
+        if (result.Trim() != "synology-role-source-passed")
+            throw new InvalidOperationException("bench.ha.synology-source.failed");
         Console.WriteLine("ha: pinned DSM metric/API keys verified; no DSM connection");
     }
 }

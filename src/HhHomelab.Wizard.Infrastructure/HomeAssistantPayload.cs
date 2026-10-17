@@ -6,7 +6,9 @@ namespace HhHomelab.Wizard.Infrastructure;
 public sealed class HomeAssistantPayload
 {
     private readonly Dictionary<string, byte[]> files;
+
     internal HomeAssistantPayload(Dictionary<string, byte[]> files) => this.files = files;
+
     public IReadOnlyList<string> Paths => files.Keys.Order(StringComparer.Ordinal).ToArray();
 
     public async Task WriteTarAsync(Stream destination, CancellationToken token = default)
@@ -19,9 +21,14 @@ public sealed class HomeAssistantPayload
             var entry = new PaxTarEntry(TarEntryType.RegularFile, path)
             {
                 DataStream = content,
-                Mode = path == "secrets.yaml" ? UnixFileMode.UserRead | UnixFileMode.UserWrite :
-                    UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead,
-                ModificationTime = DateTimeOffset.UnixEpoch
+                Mode =
+                    path == "secrets.yaml"
+                        ? UnixFileMode.UserRead | UnixFileMode.UserWrite
+                        : UnixFileMode.UserRead
+                            | UnixFileMode.UserWrite
+                            | UnixFileMode.GroupRead
+                            | UnixFileMode.OtherRead,
+                ModificationTime = DateTimeOffset.UnixEpoch,
             };
             await writer.WriteEntryAsync(entry, token);
         }
