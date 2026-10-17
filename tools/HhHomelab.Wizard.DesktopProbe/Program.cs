@@ -12,16 +12,25 @@ namespace HhHomelab.Wizard.DesktopProbe;
 internal static class Program
 {
     internal static string? ExpectedBackend { get; private set; }
+
     [STAThread]
     public static int Main(string[] args)
     {
         if (args.Length != 0)
         {
-            if (args.Length != 2 || args[0] != "--expect-backend" || args[1] is not ("Win32" or "X11" or "Wayland"))
-            { Console.Error.WriteLine("Usage: DesktopProbe [--expect-backend Win32|X11|Wayland]"); return 2; }
+            if (
+                args.Length != 2
+                || args[0] != "--expect-backend"
+                || args[1] is not ("Win32" or "X11" or "Wayland")
+            )
+            {
+                Console.Error.WriteLine("Usage: DesktopProbe [--expect-backend Win32|X11|Wayland]");
+                return 2;
+            }
             ExpectedBackend = args[1];
         }
-        return DesktopPlatform.Configure(AppBuilder.Configure<ProbeApp>())
+        return DesktopPlatform
+            .Configure(AppBuilder.Configure<ProbeApp>())
             .StartWithClassicDesktopLifetime(args, ShutdownMode.OnExplicitShutdown);
     }
 }
@@ -30,6 +39,7 @@ internal static class Program
 public sealed class ProbeApp : App
 {
     private string evidenceDirectory = "artifacts/native-desktop";
+
     public override void OnFrameworkInitializationCompleted()
     {
         base.OnFrameworkInitializationCompleted();
@@ -51,58 +61,118 @@ public sealed class ProbeApp : App
                     "Avalonia.Win32" => "Win32",
                     "Avalonia.X11" => "X11",
                     "Avalonia.Wayland" => "Wayland",
-                    _ => "Unknown"
+                    _ => "Unknown",
                 };
-                Require(platform != "Unknown" && (Program.ExpectedBackend is null || platform == Program.ExpectedBackend), "native.backend");
+                Require(
+                    platform != "Unknown"
+                        && (Program.ExpectedBackend is null || platform == Program.ExpectedBackend),
+                    "native.backend"
+                );
                 evidenceDirectory = Path.Combine(evidenceDirectory, platform);
                 Directory.CreateDirectory(evidenceDirectory);
                 Capture(window, "connection");
-                vm.ContinueCommand.Execute(null); Require(vm.IsPlan, "navigate.plan"); Capture(window, "plan");
+                vm.ContinueCommand.Execute(null);
+                Require(vm.IsPlan, "navigate.plan");
+                Capture(window, "plan");
                 var run = vm.StartCommand.ExecuteAsync(null);
-                await Until(() => vm.IsWaiting); Capture(window, "confirmation");
-                Require(!vm.StartCommand.CanExecute(null) && !vm.BackCommand.CanExecute(null), "session.guards");
-                vm.ConfirmCommand.Execute(null); await run;
-                Require(vm.Progress?.State == WizardState.Succeeded, "result.success"); Capture(window, "success");
-                vm.NewDemoCommand.Execute(null); vm.ContinueCommand.Execute(null);
+                await Until(() => vm.IsWaiting);
+                Capture(window, "confirmation");
+                Require(
+                    !vm.StartCommand.CanExecute(null) && !vm.BackCommand.CanExecute(null),
+                    "session.guards"
+                );
+                vm.ConfirmCommand.Execute(null);
+                await run;
+                Require(vm.Progress?.State == WizardState.Succeeded, "result.success");
+                Capture(window, "success");
+                vm.NewDemoCommand.Execute(null);
+                vm.ContinueCommand.Execute(null);
                 var stopped = vm.StartCommand.ExecuteAsync(null);
-                await Until(() => vm.IsWaiting); vm.StopCommand.Execute(null); await stopped;
+                await Until(() => vm.IsWaiting);
+                vm.StopCommand.Execute(null);
+                await stopped;
                 Require(vm.Progress?.State == WizardState.Cancelled, "result.cancelled");
-                vm.NewDemoCommand.Execute(null); vm.SelectedDemo = vm.DemoChoices[1]; vm.ContinueCommand.Execute(null);
+                vm.NewDemoCommand.Execute(null);
+                vm.SelectedDemo = vm.DemoChoices[1];
+                vm.ContinueCommand.Execute(null);
                 await vm.StartCommand.ExecuteAsync(null);
                 Require(vm.Progress?.State == WizardState.Failed, "result.failed");
-                vm.NewDemoCommand.Execute(null); vm.SelectedDemo = vm.DemoChoices[2]; vm.ContinueCommand.Execute(null);
+                vm.NewDemoCommand.Execute(null);
+                vm.SelectedDemo = vm.DemoChoices[2];
+                vm.ContinueCommand.Execute(null);
                 var unknown = vm.StartCommand.ExecuteAsync(null);
-                await Until(() => vm.IsWaiting); vm.ConfirmCommand.Execute(null); await unknown;
-                Require(vm.Progress?.State == WizardState.OutcomeUnknown && !vm.StartCommand.CanExecute(null), "result.unknown");
-                window.RequestedThemeVariant = ThemeVariant.Dark; Capture(window, "unknown-dark");
-                vm.NewDemoCommand.Execute(null); vm.SelectedDemo = vm.DemoChoices[0]; vm.ContinueCommand.Execute(null);
+                await Until(() => vm.IsWaiting);
+                vm.ConfirmCommand.Execute(null);
+                await unknown;
+                Require(
+                    vm.Progress?.State == WizardState.OutcomeUnknown
+                        && !vm.StartCommand.CanExecute(null),
+                    "result.unknown"
+                );
+                window.RequestedThemeVariant = ThemeVariant.Dark;
+                Capture(window, "unknown-dark");
+                vm.NewDemoCommand.Execute(null);
+                vm.SelectedDemo = vm.DemoChoices[0];
+                vm.ContinueCommand.Execute(null);
                 var closingRun = vm.StartCommand.ExecuteAsync(null);
                 Require(vm.IsBusy && !closingRun.IsCompleted, "close.active-session");
-                var closed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                var closed = new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously
+                );
                 window.Closed += (_, _) => closed.TrySetResult();
                 window.Close(); // Exercise the actual native Closing handler, including its asynchronous wait.
                 await closed.Task.WaitAsync(TimeSpan.FromSeconds(10));
                 await closingRun.WaitAsync(TimeSpan.FromSeconds(10));
-                Require(vm.Progress?.State == WizardState.Cancelled && !vm.IsBusy && !window.IsVisible && window.PlatformImpl is null, "close.cancelled-and-closed");
-                Console.WriteLine($"PASS native desktop: {platform}; success/failure/cancel/unknown/active-window-close; {Environment.OSVersion.VersionString}");
+                Require(
+                    vm.Progress?.State == WizardState.Cancelled
+                        && !vm.IsBusy
+                        && !window.IsVisible
+                        && window.PlatformImpl is null,
+                    "close.cancelled-and-closed"
+                );
+                Console.WriteLine(
+                    $"PASS native desktop: {platform}; success/failure/cancel/unknown/active-window-close; {Environment.OSVersion.VersionString}"
+                );
                 exit = 0;
             }
-            catch (Exception) { Console.Error.WriteLine("FAIL native desktop probe; no NAS operations were performed."); }
-            finally { await vm.CloseAsync(); lifetime.Shutdown(exit); }
+            catch (Exception)
+            {
+                Console.Error.WriteLine(
+                    "FAIL native desktop probe; no NAS operations were performed."
+                );
+            }
+            finally
+            {
+                await vm.CloseAsync();
+                lifetime.Shutdown(exit);
+            }
         };
     }
+
     private static void Require(bool condition, string check)
-    { if (!condition) throw new InvalidOperationException(check); }
+    {
+        if (!condition)
+            throw new InvalidOperationException(check);
+    }
+
     private static async Task Until(Func<bool> condition)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        while (!condition()) await Task.Delay(10, timeout.Token);
+        while (!condition())
+            await Task.Delay(10, timeout.Token);
     }
+
     private void Capture(Window window, string name)
     {
         window.UpdateLayout();
-        using var bitmap = new RenderTargetBitmap(PixelSize.FromSize(window.Bounds.Size, window.RenderScaling), new Vector(96, 96) * window.RenderScaling);
+        using var bitmap = new RenderTargetBitmap(
+            PixelSize.FromSize(window.Bounds.Size, window.RenderScaling),
+            new Vector(96, 96) * window.RenderScaling
+        );
         bitmap.Render(window);
-        bitmap.Save(Path.Combine(evidenceDirectory, name + ".png"), PngBitmapEncoderOptions.Default);
+        bitmap.Save(
+            Path.Combine(evidenceDirectory, name + ".png"),
+            PngBitmapEncoderOptions.Default
+        );
     }
 }

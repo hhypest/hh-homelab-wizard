@@ -8,17 +8,27 @@ namespace HhHomelab.Wizard.UnitTests;
 
 public sealed class ProfileTests
 {
-    private static string Json => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "research-profile.json"));
+    private static string Json =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "research-profile.json"));
 
     [Fact]
     public void InventoryCoversEveryUpstreamStepAndNineServices()
     {
         var profile = ProfileReader.Parse(Json);
-        Assert.Equal(55, profile.Coverage.Count(s => s.Id.StartsWith("media.", StringComparison.Ordinal)));
-        Assert.Equal(63, profile.Coverage.Count(s => s.Id.StartsWith("ha.", StringComparison.Ordinal)));
+        Assert.Equal(
+            55,
+            profile.Coverage.Count(s => s.Id.StartsWith("media.", StringComparison.Ordinal))
+        );
+        Assert.Equal(
+            63,
+            profile.Coverage.Count(s => s.Id.StartsWith("ha.", StringComparison.Ordinal))
+        );
         Assert.Equal(9, profile.Services.Length);
         Assert.All(profile.Coverage, s => Assert.Equal("NotImplemented", s.Status));
-        Assert.Equal("ghcr.io/vuetorrent/vuetorrent-lsio-mod:2.36.1", Assert.Single(profile.Services.Single(s => s.Id == "qbittorrent").DockerMods));
+        Assert.Equal(
+            "ghcr.io/vuetorrent/vuetorrent-lsio-mod:2.36.1",
+            Assert.Single(profile.Services.Single(s => s.Id == "qbittorrent").DockerMods)
+        );
         Assert.Equal("1.20b3", Assert.Single(profile.Components).ManifestVersion);
     }
 
@@ -53,7 +63,7 @@ public sealed class ProfileTests
         var invalid = profile with
         {
             Services = [profile.Services[0], profile.Services[0]],
-            Coverage = [profile.Coverage[0] with { SourcePath = "unknown.html" }]
+            Coverage = [profile.Coverage[0] with { SourcePath = "unknown.html" }],
         };
         var errors = ResearchProfileValidator.Validate(invalid);
         Assert.Contains("service.id.invalid", errors);
@@ -67,7 +77,8 @@ public sealed class ProfileTests
     [InlineData("config\\secret")]
     [InlineData("config//secret")]
     [InlineData("config/./secret")]
-    public void RejectsPathsOutsideCanonicalRelativeFormat(string value) => Assert.False(ResearchProfileValidator.IsRelativePath(value));
+    public void RejectsPathsOutsideCanonicalRelativeFormat(string value) =>
+        Assert.False(ResearchProfileValidator.IsRelativePath(value));
 
     [Theory]
     [InlineData("image:latest")]
@@ -84,7 +95,8 @@ public sealed class ProfileTests
     [InlineData("image:1.*")]
     [InlineData("image@sha256:invalid")]
     [InlineData("image")]
-    public void RejectsFloatingAndMissingTags(string value) => Assert.False(ResearchProfileValidator.IsPinnedImage(value));
+    public void RejectsFloatingAndMissingTags(string value) =>
+        Assert.False(ResearchProfileValidator.IsPinnedImage(value));
 
     [Theory]
     [InlineData("image:2.36.1")]
@@ -95,7 +107,8 @@ public sealed class ProfileTests
     [InlineData("image:12.2ubu2604-ls53")]
     [InlineData("image:v1.2.3-rc.1")]
     [InlineData("registry.example:5000/image:1.2.3")]
-    public void AcceptsExplicitVersionAndPackagingFormats(string value) => Assert.True(ResearchProfileValidator.IsPinnedImage(value));
+    public void AcceptsExplicitVersionAndPackagingFormats(string value) =>
+        Assert.True(ResearchProfileValidator.IsPinnedImage(value));
 
     [Theory]
     [InlineData(false)]
@@ -103,15 +116,20 @@ public sealed class ProfileTests
     public void ParserRejectsMovingTagsInImagesAndDockerMods(bool mod)
     {
         var node = JsonNode.Parse(Json)!;
-        if (mod) node["services"]![0]!["dockerMods"]![0] = "image:stable2026";
-        else node["services"]![0]!["image"] = "image:latest2";
+        if (mod)
+            node["services"]![0]!["dockerMods"]![0] = "image:stable2026";
+        else
+            node["services"]![0]!["image"] = "image:latest2";
         Assert.Throws<InvalidDataException>(() => ProfileReader.Parse(node.ToJsonString()));
     }
 
     [Fact]
     public async Task CanonicalHashesPermitCrLfButDetectChangedAndMissingContent()
     {
-        var root = Path.Combine(Path.GetTempPath(), "hh-wizard-tests-" + Guid.NewGuid().ToString("N"));
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "hh-wizard-tests-" + Guid.NewGuid().ToString("N")
+        );
         Directory.CreateDirectory(root);
         try
         {
@@ -119,17 +137,43 @@ public sealed class ProfileTests
             var profile = ProfileReader.Parse(Json) with
             {
                 Artifacts = [new("example.yaml", hash)],
-                Coverage = [new("test", "example.yaml", "test", "Automatic", "test", "NotImplemented")]
+                Coverage =
+                [
+                    new("test", "example.yaml", "test", "Automatic", "test", "NotImplemented"),
+                ],
             };
             var file = Path.Combine(root, "example.yaml");
             await File.WriteAllTextAsync(file, "abc\r\n", TestContext.Current.CancellationToken);
-            Assert.Empty(await ProfileReader.VerifySourceAsync(profile, root, TestContext.Current.CancellationToken));
+            Assert.Empty(
+                await ProfileReader.VerifySourceAsync(
+                    profile,
+                    root,
+                    TestContext.Current.CancellationToken
+                )
+            );
             await File.WriteAllTextAsync(file, "changed\n", TestContext.Current.CancellationToken);
-            Assert.Contains("changed:example.yaml", await ProfileReader.VerifySourceAsync(profile, root, TestContext.Current.CancellationToken));
+            Assert.Contains(
+                "changed:example.yaml",
+                await ProfileReader.VerifySourceAsync(
+                    profile,
+                    root,
+                    TestContext.Current.CancellationToken
+                )
+            );
             File.Delete(file);
-            Assert.Contains("missing:example.yaml", await ProfileReader.VerifySourceAsync(profile, root, TestContext.Current.CancellationToken));
+            Assert.Contains(
+                "missing:example.yaml",
+                await ProfileReader.VerifySourceAsync(
+                    profile,
+                    root,
+                    TestContext.Current.CancellationToken
+                )
+            );
         }
-        finally { Directory.Delete(root, recursive: true); }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
@@ -138,6 +182,11 @@ public sealed class ProfileTests
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            ProfileReader.VerifySourceAsync(ProfileReader.Parse(Json), Path.GetTempPath(), cancellation.Token));
+            ProfileReader.VerifySourceAsync(
+                ProfileReader.Parse(Json),
+                Path.GetTempPath(),
+                cancellation.Token
+            )
+        );
     }
 }

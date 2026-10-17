@@ -58,7 +58,10 @@ public sealed partial class OwnedDockerBench
             asyncio.run(verify())
             """;
         var result = await RunAsync(["exec", Container, "python3", "-c", script], token);
-        if (result.Trim() != "native-discovery-contract-passed") throw new InvalidOperationException("bench.ha.discovery-source.failed");
-        Console.WriteLine("ha: native discovery forms/progress serializer and Cast/Android identity constructors verified with synthetic metadata; no device registered or connected");
+        if (result.Trim() != "native-discovery-contract-passed")
+            throw new InvalidOperationException("bench.ha.discovery-source.failed");
+        Console.WriteLine(
+            "ha: native discovery forms/progress serializer and Cast/Android identity constructors verified with synthetic metadata; no device registered or connected"
+        );
     }
 }
