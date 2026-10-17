@@ -35,6 +35,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 - [Карта задач](docs/ISSUE_ROADMAP.md) и [правила Project](docs/PROJECT.md).
 - [Сведения об источнике аудита](docs/audit/2026-10-11-independent-review.md) и [решения по каждой находке](docs/audit/2026-10-11-follow-up.md).
 - [CONTRIBUTING](CONTRIBUTING.md), [AGENTS](AGENTS.md), [CHANGELOG](CHANGELOG.md).
+- [Правила написания кода](docs/CODE_STYLE.md).
 - [Архитектура](docs/adr/0001-architecture.md), [журнал и секреты](docs/adr/0002-journal-and-secrets.md), [интерфейс «Фокус»](docs/adr/0005-focus-ui.md), [клиентские платформы](docs/adr/0007-client-platforms.md).
 
 ## Лицензии
