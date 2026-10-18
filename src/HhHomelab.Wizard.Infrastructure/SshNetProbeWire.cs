@@ -6,7 +6,7 @@ using Renci.SshNet.Common;
 
 namespace HhHomelab.Wizard.Infrastructure;
 
-internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire
+internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire, INasPreflightWire
 {
     internal const string IdentityCommand = "printf 'hh-homelab-wizard:ssh-probe:v1\\n'; uname -s; id -u";
 
@@ -28,6 +28,12 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
     {
         var result = await ExecuteAsync(IdentityCommand, retainOutput: true, token).ConfigureAwait(false);
         return ParseIdentity(result.ExitCode, result.Output);
+    }
+
+    public async Task<NasPreflightFacts> ReadPreflightAsync(CancellationToken token)
+    {
+        var result = await ExecuteAsync(NasPreflightProtocol.Command, retainOutput: true, token).ConfigureAwait(false);
+        return NasPreflightProtocol.Parse(result.ExitCode, result.Output);
     }
 
     internal static SshProbeIdentity ParseIdentity(int? exitCode, string output)

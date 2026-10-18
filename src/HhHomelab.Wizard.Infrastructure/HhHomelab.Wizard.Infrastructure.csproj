@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
     <PackageReference Include="SSH.NET" />
+    <EmbeddedResource Include="nas-preflight.sh" LogicalName="nas-preflight.sh" />
     <InternalsVisibleTo Include="HhHomelab.Wizard.UnitTests" />
     <ProjectReference Include="../HhHomelab.Wizard.Application/HhHomelab.Wizard.Application.csproj" />
     <EmbeddedResource
