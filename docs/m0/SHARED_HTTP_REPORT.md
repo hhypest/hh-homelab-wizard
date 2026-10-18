@@ -8,7 +8,7 @@
 
 `ContractException` — общий безопасный базовый тип с Code/StatusCode/Kind. `QbittorrentContractException`, `ArrContractException` и `MediaContractException` сохранены как специализированные типы с прежними кодами. `Contract` не означает Rejected и не разрешает повтор; модель исходов установки и ErrorCode/Kind Domain остаются в #99. WebSocket HA сохраняет отдельный протокол и собственные deadlines; переустройство HA и разделение обязанностей остаются в #102.
 
-Общий HTTP exchange используется qBittorrent (preflight/login/version/preferences/categories), Arr API и form login, Jellyfin, Seerr, HA onboarding/auth/token/обычными HTTP-запросами и отзывом refresh token. Загрузка пакета Monitor Docker является отдельной операцией доставки с существующим пределом 90 секунд; она не становится API-обменом сервисов.
+Общий HTTP exchange используется qBittorrent (preflight/login/version/preferences/categories), Arr API и form login, Jellyfin, Seerr, HA onboarding/auth/token/обычными HTTP-запросами и отзывом refresh token. Загрузка пакета Monitor Docker остаётся отдельным потоковым путём доставки с ограничениями размера и caller token; конечные бюджеты API-обмена на неё не распространяются.
 
 ## Политика ожидания
 
