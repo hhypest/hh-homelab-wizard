@@ -66,7 +66,13 @@ public sealed partial class OwnedDockerBench
         var build = await RunProcessAsync(["--context", context, "build", "--pull=false", "--label", SshDefinitionLabel + "=" + definition,
             "--tag", image, "-"], token, archive, TimeSpan.FromMinutes(4));
         if (build.ExitCode != 0)
+        {
+            // Only embedded public build files exist at this point; credentials are created later.
+            // Runtime/authentication process streams must never use this diagnostic path.
+            var diagnostic = build.Output + build.Error;
+            Console.Error.WriteLine("ssh-fixture.public-build: " + diagnostic[..Math.Min(diagnostic.Length, 12000)]);
             throw new InvalidOperationException("bench.ssh.build.failed");
+        }
         using var inspected = JsonDocument.Parse(await RunAsync(["image", "inspect", image], token));
         var root = inspected.RootElement[0];
         if (root.GetProperty("Config").GetProperty("Labels").GetProperty(SshDefinitionLabel).GetString() != definition)
