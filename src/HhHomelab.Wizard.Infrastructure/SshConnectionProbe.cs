@@ -56,8 +56,8 @@ public sealed class SshConnectionProbe : ISshConnectionProbe
 
     private async Task<SshProbeResult> RunAsync(SshHostKey? approvedKey, CancellationToken caller, CancellationToken budget)
     {
-        var trust = new HostKeyCheck(target.EndpointFingerprint, approvedKey);
-        var sftpTrust = new HostKeyCheck(target.EndpointFingerprint, approvedKey);
+        var trust = new SshHostKeyCheck(target.EndpointFingerprint, approvedKey);
+        var sftpTrust = new SshHostKeyCheck(target.EndpointFingerprint, approvedKey);
         var checkingSftp = false;
         try
         {
@@ -93,7 +93,7 @@ public sealed class SshConnectionProbe : ISshConnectionProbe
         }
     }
 
-    private static SshProbeStatus Classify(Exception exception, bool checkingSftp) => exception switch
+    internal static SshProbeStatus Classify(Exception exception, bool checkingSftp) => exception switch
     {
         SshAuthenticationException => SshProbeStatus.AuthenticationRequired,
         SshOperationTimeoutException or TimeoutException => SshProbeStatus.TimedOut,
@@ -104,31 +104,6 @@ public sealed class SshConnectionProbe : ISshConnectionProbe
         _ => SshProbeStatus.TransportFailure,
     };
 
-    private sealed class HostKeyCheck(string endpointFingerprint, SshHostKey? approvedKey)
-    {
-        public bool Accepted { get; private set; }
-
-        public SshProbeResult? Failure { get; private set; }
-
-        public bool Accept(string algorithm, byte[] publicKey)
-        {
-            Accepted = false;
-            if (Failure is not null || publicKey.Length is <= 0 or > 65536)
-                return false;
-            var observed = SshHostKey.FromPublicKey(endpointFingerprint, algorithm, publicKey);
-            if (!observed.IsValid)
-                return false;
-            if (approvedKey != observed)
-            {
-                Failure = SshProbeResult.Failed(approvedKey is null
-                    ? SshProbeStatus.HostKeyApprovalRequired
-                    : SshProbeStatus.HostKeyChanged, observed);
-                return false;
-            }
-            Accepted = true;
-            return true;
-        }
-    }
 }
 
 internal sealed record SshProbeIdentity(int UserId);

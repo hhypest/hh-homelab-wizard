@@ -8,6 +8,6 @@ RUN apk add --no-cache openssh-server=10.3_p1-r1 openssh-sftp-server=10.3_p1-r1 
     && printf 'wizard ALL=(root) NOPASSWD: /bin/true\n' > /etc/sudoers.d/wizard \
     && chmod 440 /etc/sudoers.d/wizard
 
-COPY sshd_config entrypoint.sh dispatch.sh /fixture/
+COPY sshd_config entrypoint.sh dispatch.sh preflight.sh /fixture/
 RUN chmod 755 /fixture/entrypoint.sh /fixture/dispatch.sh
 ENTRYPOINT ["/fixture/entrypoint.sh"]

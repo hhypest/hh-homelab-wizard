@@ -69,6 +69,7 @@ internal static class SshScenarios
         Expect("wrong-key", await new SshConnectionProbe(bench.SshTarget, rejectedKey).ProbeAsync(pin, token), SshProbeStatus.AuthenticationRequired);
         Console.WriteLine("ssh-runtime.password-key-sftp: passed");
 
+        await PreflightScenarios.RunAsync(bench, credentials, keyCredentials, pin, token);
         await VerifyFaultsAsync(bench, credentials, pin, token);
         await VerifyCancellationAsync(bench, credentials, pin, token);
         await VerifyKeyRotationAsync(bench, credentials, pin, token);

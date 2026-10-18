@@ -6,6 +6,8 @@
 
 ### Added
 
+- Первый preflight-инкремент #48: Domain facts/snapshot/assessment и Application порт, SSH-сбор фиксированных read-only сведений об OS/architecture/time, кандидатных DSM/Container Manager версиях, Docker server/Compose и bounded container IDs. Snapshot привязан к SSH principal/host key/profile/локальному интервалу; свежесть и environment drift проверяются отдельно от readiness. Неполные/повреждённые ответы не дают частичного success; версии остаются Unverified, недостающие проверки — NotChecked. Добавлены fixtures и preflight-сценарии в одноразовом OpenSSH-стенде; hardware и положительные Docker-through-SSH branches остаются открытыми.
+
 - Одноразовый OpenSSH/SFTP Docker-стенд #46: синтетический пароль и зашифрованный приватный ключ, независимая сверка публичного host key, первый trust/смена ключа, неверные credentials, повреждённый/избыточный ответ, недоступный SFTP, sudo-list denial, Busy, отмена, timeout, обрыв и повторное подключение. Новая SSH runtime job запускает сценарии дважды на свежих контейнерах; база закреплена digest, прямые пакеты — версиями. Доказательства и ограничения — в [протоколе](docs/testing/2026-10-19-ssh-runtime.md).
 
 - Первый SSH-инкремент #46: Domain typed read-only evidence, Application порт и Infrastructure на закреплённой SSH.NET 2026.0.0. Явный host/port-bound SHA-256 pin до авторизации, отдельная проверка SFTP, memory-only password/private key/passphrase, фиксированные команды чтения и stat, конечный budget/cancel, bounded output и защита от второго запуска; fixtures и локальные TCP timeout/cancel тесты. Живой SSH/SFTP/DSM smoke остаётся открытым. Владелец полностью принял клиентскую матрицу PR #110 на Windows 11 26H1 / Ubuntu 24.04.4 LTS GNOME X11 и Wayland; #42–#45 выполнены.
