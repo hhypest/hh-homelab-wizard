@@ -1,6 +1,5 @@
 using System.Net;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using HhHomelab.Wizard.Domain;
 
@@ -13,6 +12,8 @@ public sealed class ArrContractClient
     private readonly HttpClient http;
     private readonly ArrService service;
     private readonly string apiKey;
+    private readonly ContractHttpTransport transport;
+    private readonly ContractHttpTimeouts timeouts;
     private string Prefix => service == ArrService.Prowlarr ? "api/v1/" : "api/v3/";
     public string PinnedVersion =>
         service switch
@@ -23,7 +24,12 @@ public sealed class ArrContractClient
             _ => throw new ArgumentOutOfRangeException(nameof(service)),
         };
 
-    public ArrContractClient(HttpClient http, ArrService service, string apiKey)
+    public ArrContractClient(
+        HttpClient http,
+        ArrService service,
+        string apiKey,
+        ContractHttpTimeouts? timeouts = null
+    )
     {
         ArgumentNullException.ThrowIfNull(http);
         ValidateEndpoint(http.BaseAddress);
@@ -34,6 +40,8 @@ public sealed class ArrContractClient
         this.http = http;
         this.service = service;
         this.apiKey = apiKey;
+        this.timeouts = timeouts ?? ContractHttpTimeouts.Default;
+        transport = new(http, Failure, this.timeouts);
     }
 
     public async Task<string> GetVersionAsync(CancellationToken token)
@@ -94,7 +102,7 @@ public sealed class ArrContractClient
             )
                 throw new ArrContractException("arr.authentication.not-applied");
         }
-        await VerifyUiLoginAsync(freshUi, username, password, token);
+        await VerifyUiLoginAsync(freshUi, username, password, timeouts, token);
         return changed;
     }
 
@@ -350,28 +358,13 @@ public sealed class ArrContractClient
     private async Task<JsonNode?> ReadAsync(string route, CancellationToken token)
     {
         using var request = CreateRequest(HttpMethod.Get, route);
-        token.ThrowIfCancellationRequested();
-        try
+        return await transport.ExchangeAsync(request, "arr.read", async (response, readToken) =>
         {
-            using var response = await http.SendAsync(request, token);
             if (response.StatusCode != HttpStatusCode.OK)
                 throw new ArrContractException("arr.read.http-error", response.StatusCode);
-            await using var stream = await response.Content.ReadAsStreamAsync(token);
-            return await JsonNode.ParseAsync(stream, cancellationToken: token);
-        }
-        catch (JsonException)
-        {
-            throw new ArrContractException("arr.response-invalid");
-        }
-        catch (Exception exception) when (exception is HttpRequestException or IOException)
-        {
-            throw new ArrContractException("arr.read.transport-failed", kind: ContractFailureKind.Transport);
-        }
-        catch (OperationCanceledException)
-        {
-            token.ThrowIfCancellationRequested();
-            throw new ArrContractException("arr.read.transport-failed", kind: ContractFailureKind.Transport);
-        }
+            await using var stream = await response.Content.ReadAsStreamAsync(readToken);
+            return await JsonNode.ParseAsync(stream, cancellationToken: readToken);
+        }, token, invalidResponseCode: "arr.response-invalid");
     }
 
     private async Task SendAsync(
@@ -388,24 +381,15 @@ public sealed class ArrContractClient
             Encoding.UTF8,
             "application/json"
         );
-        token.ThrowIfCancellationRequested();
-        try
+        await transport.ExchangeAsync(request, code, (response, _) =>
         {
-            using var response = await http.SendAsync(request, token);
             if (
                 response.StatusCode
                 is not (HttpStatusCode.OK or HttpStatusCode.Created or HttpStatusCode.Accepted)
             )
                 throw new ArrContractException(code + ".http-error", response.StatusCode);
-        }
-        catch (Exception exception) when (exception is HttpRequestException or IOException)
-        {
-            throw new ArrContractException(code + ".result-unknown", kind: ContractFailureKind.Unknown);
-        }
-        catch (OperationCanceledException)
-        {
-            throw new ArrContractException(code + ".result-unknown", kind: ContractFailureKind.Unknown);
-        }
+            return Task.FromResult(true);
+        }, token);
     }
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string route)
@@ -463,12 +447,13 @@ public sealed class ArrContractClient
         HttpClient ui,
         string username,
         string password,
+        ContractHttpTimeouts timeouts,
         CancellationToken token
     )
     {
         using var beforeRequest = new HttpRequestMessage(HttpMethod.Get, "");
-        using var before = await SendUiAsync(ui, beforeRequest, token);
-        var location = before.Headers.Location;
+        var before = await SendUiAsync(ui, beforeRequest, timeouts, token);
+        var location = before.Location;
         if (
             before.StatusCode != HttpStatusCode.Found
             || location is null
@@ -487,65 +472,41 @@ public sealed class ArrContractClient
                 }
             ),
         };
-        using var login = await SendUiAsync(ui, request, token);
+        var login = await SendUiAsync(ui, request, timeouts, token);
         if (
             login.StatusCode != HttpStatusCode.Found
-            || login.Headers.Location is null
-            || new Uri(ui.BaseAddress!, login.Headers.Location) != ui.BaseAddress
+            || login.Location is null
+            || new Uri(ui.BaseAddress!, login.Location) != ui.BaseAddress
         )
             throw new ArrContractException("arr.ui.authentication.rejected", login.StatusCode);
         using var afterRequest = new HttpRequestMessage(HttpMethod.Get, "");
-        using var after = await SendUiAsync(ui, afterRequest, token);
+        var after = await SendUiAsync(ui, afterRequest, timeouts, token);
         if (after.StatusCode != HttpStatusCode.OK)
             throw new ArrContractException("arr.ui.authentication.not-confirmed", after.StatusCode);
     }
 
-    private static async Task<HttpResponseMessage> SendUiAsync(
+    private static async Task<(HttpStatusCode StatusCode, Uri? Location)> SendUiAsync(
         HttpClient ui,
         HttpRequestMessage request,
+        ContractHttpTimeouts timeouts,
         CancellationToken token
     )
     {
-        token.ThrowIfCancellationRequested();
-        var isRead = request.Method == HttpMethod.Get;
-        try
-        {
-            return await ui.SendAsync(request, token);
-        }
-        catch (Exception exception) when (exception is HttpRequestException or IOException)
-        {
-            throw UiFailure(isRead);
-        }
-        catch (OperationCanceledException)
-        {
-            if (isRead)
-                token.ThrowIfCancellationRequested();
-            throw UiFailure(isRead);
-        }
+        var exchange = new ContractHttpTransport(ui, Failure, timeouts);
+        return await exchange.ExchangeAsync(request, "arr.ui", static (response, _) =>
+            Task.FromResult((response.StatusCode, response.Headers.Location)), token);
     }
 
-    private static ArrContractException UiFailure(bool isRead) => new(
-        "arr.ui" + (isRead ? ".transport-failed" : ".result-unknown"),
-        kind: isRead ? ContractFailureKind.Transport : ContractFailureKind.Unknown
-    );
+    private static ArrContractException Failure(string code, HttpStatusCode? status, ContractFailureKind kind) =>
+        new(code, status, kind);
 }
 
-public sealed class ArrContractException : InvalidOperationException
+public sealed class ArrContractException : ContractException
 {
-    public string Code { get; }
-    public HttpStatusCode? StatusCode { get; }
-
-    public ContractFailureKind Kind { get; }
-
     internal ArrContractException(
         string code,
         HttpStatusCode? statusCode = null,
         ContractFailureKind kind = ContractFailureKind.Contract
     )
-        : base(code)
-    {
-        Code = code;
-        StatusCode = statusCode;
-        Kind = kind;
-    }
+        : base(code, statusCode, kind) { }
 }

@@ -16,6 +16,8 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
     private const string ClientId = "http://hh-homelab-wizard.local/";
     private static readonly string[] Steps = ["user", "core_config", "analytics", "integration"];
     private readonly HttpClient http;
+    private readonly ContractHttpTransport httpTransport;
+    private readonly ContractHttpTransport revocationTransport;
     private readonly Func<IHomeAssistantSocket> socketFactory;
     private HomeAssistantConnection? connection;
     private string? accessToken;
@@ -33,10 +35,14 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
     public string? SessionCleanupFailure { get; private set; }
     public bool SessionRevocationConfirmed => refreshToken is null;
 
-    public HomeAssistantContractClient(HttpClient http)
-        : this(http, () => new HomeAssistantSocket()) { }
+    public HomeAssistantContractClient(HttpClient http, ContractHttpTimeouts? timeouts = null)
+        : this(http, () => new HomeAssistantSocket(), timeouts) { }
 
-    internal HomeAssistantContractClient(HttpClient http, Func<IHomeAssistantSocket> socketFactory)
+    internal HomeAssistantContractClient(
+        HttpClient http,
+        Func<IHomeAssistantSocket> socketFactory,
+        ContractHttpTimeouts? timeouts = null
+    )
     {
         ArgumentNullException.ThrowIfNull(http);
         ArrContractClient.ValidateEndpoint(http.BaseAddress);
@@ -44,6 +50,12 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
             throw new ArgumentException("ha.authentication-context.invalid");
         this.http = http;
         this.socketFactory = socketFactory;
+        // HA flows retain their established caller-cancellation/session cleanup contract.
+        // The stateful adapter, not a generic HTTP exchange, owns pending/unknown intent.
+        httpTransport = new(http, HttpFailure, timeouts ?? ContractHttpTimeouts.HomeAssistant,
+            preserveCallerCancellation: true);
+        revocationTransport = new(http, HttpFailure, ContractHttpTimeouts.Revocation,
+            preserveCallerCancellation: true);
     }
 
     private Uri SocketEndpoint =>
@@ -807,8 +819,6 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
         CancellationToken token
     )
     {
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(30));
         using var request = new HttpRequestMessage(method, path) { Content = content };
         if (authenticated)
         {
@@ -816,33 +826,17 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
                 throw new MediaContractException("ha.session.required");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         }
-        try
+        return await httpTransport.ExchangeAsync(request, code, async (response, readToken) =>
         {
-            using var response = await http.SendAsync(request, deadline.Token);
             if (response.StatusCode != HttpStatusCode.OK)
                 throw new MediaContractException(code + ".http-error", response.StatusCode);
-            await using var stream = await response.Content.ReadAsStreamAsync(deadline.Token);
-            return await JsonNode.ParseAsync(stream, cancellationToken: deadline.Token);
-        }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested)
-        {
-            throw new MediaContractException(
-                code + (method == HttpMethod.Get ? ".transport-failed" : ".result-unknown")
-            );
-        }
-        catch (HttpRequestException)
-        {
-            throw new MediaContractException(
-                code + (method == HttpMethod.Get ? ".transport-failed" : ".result-unknown")
-            );
-        }
-        catch (JsonException)
-        {
-            throw new MediaContractException(
-                code + (method == HttpMethod.Get ? ".response-invalid" : ".result-unknown")
-            );
-        }
+            await using var stream = await response.Content.ReadAsStreamAsync(readToken);
+            return await JsonNode.ParseAsync(stream, cancellationToken: readToken);
+        }, token);
     }
+
+    private static MediaContractException HttpFailure(string code, HttpStatusCode? status, ContractFailureKind kind) =>
+        new(code, status, kind);
 
     private static string? NullableText(JsonObject obj, string key) =>
         obj[key] is null ? null : Text(obj, key);
@@ -865,8 +859,6 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
             SessionCleanupFailure = null;
             return;
         }
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-        deadline.CancelAfter(TimeSpan.FromSeconds(10));
         using var request = new HttpRequestMessage(HttpMethod.Post, "auth/revoke")
         {
             Content = new FormUrlEncodedContent(
@@ -875,12 +867,12 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
         };
         try
         {
-            using var response = await http.SendAsync(request, deadline.Token);
-            if (response.StatusCode != HttpStatusCode.OK)
-                throw new MediaContractException(
-                    "ha.session.revoke.http-error",
-                    response.StatusCode
-                );
+            await revocationTransport.ExchangeAsync(request, "ha.session.revoke", static (response, _) =>
+            {
+                if (response.StatusCode != HttpStatusCode.OK)
+                    throw new MediaContractException("ha.session.revoke.http-error", response.StatusCode);
+                return Task.FromResult(true);
+            }, token);
             refreshToken = null;
             ownerName = null;
             SessionCleanupFailure = null;
@@ -889,11 +881,6 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
         {
             SessionCleanupFailure = "ha.session.revoke.result-unknown";
             throw;
-        }
-        catch (Exception e) when (e is OperationCanceledException or HttpRequestException)
-        {
-            SessionCleanupFailure = "ha.session.revoke.result-unknown";
-            throw new MediaContractException(SessionCleanupFailure);
         }
         catch (MediaContractException e)
         {

@@ -190,9 +190,9 @@ public sealed partial class QbittorrentContractClient
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         request.Headers.Referrer = client.BaseAddress;
         request.Content = new FormUrlEncodedContent(fields);
-        using var response = await SendRequestAsync(request, code, cancellationToken);
-        if (response.StatusCode != HttpStatusCode.OK)
-            throw new QbittorrentContractException(code + ".http-error", response.StatusCode);
+        var status = await ReadStatusAsync(request, code, cancellationToken);
+        if (status != HttpStatusCode.OK)
+            throw new QbittorrentContractException(code + ".http-error", status);
     }
 
     private async Task<JsonDocument> ReadJsonAsync(
@@ -203,26 +203,12 @@ public sealed partial class QbittorrentContractClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.Referrer = client.BaseAddress;
-        using var response = await SendRequestAsync(request, code, cancellationToken);
-        if (response.StatusCode != HttpStatusCode.OK)
-            throw new QbittorrentContractException(code + ".http-error", response.StatusCode);
-        try
+        return await transport.ExchangeAsync(request, code, async (response, readToken) =>
         {
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-            return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
-        }
-        catch (JsonException)
-        {
-            throw new QbittorrentContractException(code + ".response-invalid");
-        }
-        catch (Exception exception) when (exception is HttpRequestException or IOException)
-        {
-            throw ReadFailure(code);
-        }
-        catch (OperationCanceledException)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            throw ReadFailure(code);
-        }
+            if (response.StatusCode != HttpStatusCode.OK)
+                throw new QbittorrentContractException(code + ".http-error", response.StatusCode);
+            await using var stream = await response.Content.ReadAsStreamAsync(readToken);
+            return await JsonDocument.ParseAsync(stream, cancellationToken: readToken);
+        }, cancellationToken);
     }
 }

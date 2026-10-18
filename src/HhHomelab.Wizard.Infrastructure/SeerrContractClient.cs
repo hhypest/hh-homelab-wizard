@@ -15,13 +15,13 @@ public sealed class SeerrContractClient
     private JellyfinLibraryIdentity[]? verifiedLibraries;
     private readonly Dictionary<ArrService, JsonObject> verifiedConnections = [];
 
-    public SeerrContractClient(HttpClient http)
+    public SeerrContractClient(HttpClient http, ContractHttpTimeouts? timeouts = null)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArrContractClient.ValidateEndpoint(http.BaseAddress);
         if (http.DefaultRequestHeaders.Any())
             throw new ArgumentException("seerr.authentication-context.invalid");
-        api = new(http, "seerr");
+        api = new(http, "seerr", timeouts: timeouts);
     }
 
     public async Task<string> GetVersionAsync(CancellationToken token)
@@ -57,7 +57,8 @@ public sealed class SeerrContractClient
         catch (MediaContractException e)
             when (e.Code == "seerr.read.http-error"
                 && e.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
-            ) { }
+            )
+        { }
         var state = Object(await api.ReadAsync("api/v1/settings/public", token));
         var type = Int(state, "mediaServerType");
         if (type is not (2 or 4))
