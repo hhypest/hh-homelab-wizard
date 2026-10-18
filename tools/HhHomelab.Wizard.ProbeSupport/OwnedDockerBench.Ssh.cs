@@ -1,4 +1,5 @@
 using System.Formats.Tar;
+using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
@@ -82,10 +83,14 @@ public sealed partial class OwnedDockerBench
         if (root.GetProperty("Architecture").GetString() != "amd64")
             throw new InvalidOperationException("bench.ssh.architecture.unsupported");
         var immutableImage = root.GetProperty("Id").GetString()!;
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
         await CreateNetworkAsync(token);
         resources.Add(("container", Container));
         _ = await RunAsync(["create", "--name", Container, "--label", Label + "=" + session,
-            "--network", Network, "--publish", "127.0.0.1::2222", "--pids-limit", "64", "--memory", "128m", "--cpus", "1",
+            "--network", Network, "--publish", $"127.0.0.1:{port}:2222", "--pids-limit", "64", "--memory", "128m", "--cpus", "1",
             "--tmpfs", "/run/sshd:rw,mode=0700", "--tmpfs", "/fixture-state:rw,uid=1000,gid=1000,mode=0700",
             "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1", immutableImage], token);
         sshMode = true;
@@ -191,6 +196,9 @@ public sealed partial class OwnedDockerBench
     {
         await RequireSshOwnershipAsync(token);
         _ = await RunAsync(["start", Container], token);
+        var binding = await ReadBindingAsync(Container, 2222, token);
+        if (binding.Port != SshTarget.Port)
+            throw new InvalidOperationException("bench.ssh.endpoint.changed");
         Console.WriteLine("ssh-runtime.fixture-restart: started");
         await WaitForSshAsync(token);
     }
