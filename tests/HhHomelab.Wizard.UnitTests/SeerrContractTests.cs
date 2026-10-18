@@ -176,9 +176,11 @@ public sealed class SeerrContractTests
         using var h = f.Client();
         var seerr = new SeerrContractClient(h);
         await Login(seerr);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        var error = await Assert.ThrowsAsync<MediaContractException>(() =>
             seerr.EnsureArrAsync(Connection(), Key, Token)
         );
+        Assert.Equal("seerr.arr.result-unknown", error.Code);
+        Assert.Equal(ContractFailureKind.Unknown, error.Kind);
         Assert.False(await seerr.EnsureArrAsync(Connection(), Key, Token));
         Assert.Equal(1, f.ArrCreates);
     }

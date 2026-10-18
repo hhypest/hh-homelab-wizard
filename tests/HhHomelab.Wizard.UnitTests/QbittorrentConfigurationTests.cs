@@ -243,18 +243,20 @@ public sealed class QbittorrentConfigurationTests
     }
 
     [Fact]
-    public async Task CancellationDuringWriteDoesNotRetry()
+    public async Task CancellationDuringWriteHasUnknownResultAndDoesNotRetry()
     {
         using var fixture = new ApiFixture { CancelCategoryWrite = true };
         using var http = fixture.CreateClient();
         var api = await LoginAsync(http);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        var error = await Assert.ThrowsAsync<QbittorrentContractException>(() =>
             api.EnsureCategoryAsync(
                 "tv",
                 "/data/torrents/tv",
                 TestContext.Current.CancellationToken
             )
         );
+        Assert.Equal("qb.category.result-unknown", error.Code);
+        Assert.Equal(ContractFailureKind.Unknown, error.Kind);
         Assert.Equal(1, fixture.CategoryWrites);
     }
 

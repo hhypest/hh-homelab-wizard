@@ -10,11 +10,18 @@ public sealed class MediaContractException : InvalidOperationException
     public string Code { get; }
     public HttpStatusCode? StatusCode { get; }
 
-    internal MediaContractException(string code, HttpStatusCode? status = null)
+    public ContractFailureKind Kind { get; }
+
+    internal MediaContractException(
+        string code,
+        HttpStatusCode? status = null,
+        ContractFailureKind kind = ContractFailureKind.Contract
+    )
         : base(code)
     {
         Code = code;
         StatusCode = status;
+        Kind = kind;
     }
 }
 
@@ -63,6 +70,8 @@ internal sealed class MediaContractTransport(
                 Encoding.UTF8,
                 "application/json"
             );
+        token.ThrowIfCancellationRequested();
+        var isRead = method == HttpMethod.Get;
         try
         {
             using var response = await http.SendAsync(request, token);
@@ -73,20 +82,30 @@ internal sealed class MediaContractTransport(
             await using var stream = await response.Content.ReadAsStreamAsync(token);
             return await JsonNode.ParseAsync(stream, cancellationToken: token);
         }
-        catch (HttpRequestException)
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
-            throw new MediaContractException(
-                code + (method == HttpMethod.Get ? ".transport-failed" : ".result-unknown")
-            );
+            throw TransportFailure(code, isRead);
+        }
+        catch (OperationCanceledException)
+        {
+            if (isRead && token.IsCancellationRequested)
+                throw new OperationCanceledException(token);
+            throw TransportFailure(code, isRead);
         }
         catch (JsonException)
         {
             throw new MediaContractException(
-                code + (method == HttpMethod.Get ? ".response-invalid" : ".result-unknown")
+                code + (isRead ? ".response-invalid" : ".result-unknown"),
+                kind: isRead ? ContractFailureKind.Contract : ContractFailureKind.Unknown
             );
         }
-        // Cancellation is not a rollback; writes may have reached the server.
     }
+
+    // Once SendAsync is entered, cancellation cannot prove that the server did not apply a write.
+    private static MediaContractException TransportFailure(string code, bool isRead) => new(
+        code + (isRead ? ".transport-failed" : ".result-unknown"),
+        kind: isRead ? ContractFailureKind.Transport : ContractFailureKind.Unknown
+    );
 }
 
 internal static class MediaJson
