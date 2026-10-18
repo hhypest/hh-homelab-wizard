@@ -17,6 +17,8 @@
 
 Используется [прежний изолированный стенд](2026-10-19-ssh-runtime.md): локальный Linux Docker, loopback, собственные labels/resources, без bind mounts и доступа к Docker socket хоста. К четырём публичным файлам build context добавлена пятая embedded-копия того же `nas-preflight.sh`, который вызывает production adapter. ForceCommand сравнивает полный текст и исполняет только собственную копию; клиентский текст не передаётся eval.
 
+Только в disposable sshd отключены `PerSourcePenalties`: серия намеренных auth/trust failures не должна временно блокировать следующие проверки с того же loopback-источника. [OpenSSH](https://man.openbsd.org/sshd_config#PerSourcePenalties) по умолчанию накапливает такие штрафы; исходный расширенный прогон остановился до changed-key evidence с TransportFailure. Полный повтор проверяет изменение fixture policy; retry и ослабление настроек реального сервера в production adapter не добавлены.
+
 Проба проверяет:
 
 1. First-use/changed-key/wrong-password отказывают с typed результатом без снимка.

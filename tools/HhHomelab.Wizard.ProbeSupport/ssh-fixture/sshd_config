@@ -8,6 +8,8 @@ PasswordAuthentication yes
 PubkeyAuthentication yes
 KbdInteractiveAuthentication no
 PermitEmptyPasswords no
+# This loopback fixture deliberately accumulates rejected auth/trust attempts.
+PerSourcePenalties no
 AllowUsers wizard
 AuthorizedKeysFile .ssh/authorized_keys
 AllowTcpForwarding no
