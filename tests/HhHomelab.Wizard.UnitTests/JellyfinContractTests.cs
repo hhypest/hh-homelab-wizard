@@ -76,9 +76,11 @@ public sealed class JellyfinContractTests
         using var f = new Fixture { CancelPasswordWrite = true };
         using var h = f.Client();
         var jf = new JellyfinContractClient(h);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        var error = await Assert.ThrowsAsync<MediaContractException>(() =>
             jf.BootstrapAsync("wizard", "synthetic-password", Token)
         );
+        Assert.Equal("jellyfin.startup-user.result-unknown", error.Code);
+        Assert.Equal(ContractFailureKind.Unknown, error.Kind);
         Assert.True(await jf.BootstrapAsync("wizard", "synthetic-password", Token));
         Assert.Equal(1, f.PasswordWrites);
     }

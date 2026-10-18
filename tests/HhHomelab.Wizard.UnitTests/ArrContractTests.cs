@@ -250,9 +250,11 @@ public sealed class ArrContractTests
         using var f = new Fixture { CancelWrite = true };
         using var h = f.Client();
         var api = new ArrContractClient(h, ArrService.Radarr, Key);
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+        var error = await Assert.ThrowsAsync<ArrContractException>(() =>
             api.EnsureRootFolderAsync("/data/media/movies", Token)
         );
+        Assert.Equal("arr.root.result-unknown", error.Code);
+        Assert.Equal(ContractFailureKind.Unknown, error.Kind);
         Assert.False(await api.EnsureRootFolderAsync("/data/media/movies", Token));
         Assert.Equal(1, f.Writes);
     }

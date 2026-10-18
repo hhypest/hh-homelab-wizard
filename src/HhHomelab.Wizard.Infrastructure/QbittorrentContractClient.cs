@@ -38,7 +38,11 @@ public sealed partial class QbittorrentContractClient
         using (var preflight = new HttpRequestMessage(HttpMethod.Get, "api/v2/app/version"))
         {
             preflight.Headers.Referrer = client.BaseAddress;
-            using var access = await client.SendAsync(preflight, cancellationToken);
+            using var access = await SendRequestAsync(
+                preflight,
+                "qb.authentication.preflight",
+                cancellationToken
+            );
             if (access.StatusCode == HttpStatusCode.OK)
                 throw new QbittorrentContractException(
                     "qb.authentication.context-preauthenticated",
@@ -56,7 +60,7 @@ public sealed partial class QbittorrentContractClient
         request.Content = new FormUrlEncodedContent(
             new Dictionary<string, string> { ["username"] = username, ["password"] = password }
         );
-        using var response = await client.SendAsync(request, cancellationToken);
+        using var response = await SendRequestAsync(request, "qb.authentication", cancellationToken);
         // Contract of the pinned 5.2.4 source: 204 on success, 401 on wrong credentials.
         // An older documented 200/"Ok." response is not accepted as this version's contract.
         if (response.StatusCode != HttpStatusCode.NoContent)
@@ -77,12 +81,55 @@ public sealed partial class QbittorrentContractClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, "api/v2/app/version");
         request.Headers.Referrer = client.BaseAddress;
-        using var response = await client.SendAsync(request, cancellationToken);
+        using var response = await SendRequestAsync(request, "qb.version", cancellationToken);
         if (response.StatusCode != HttpStatusCode.OK)
             throw new QbittorrentContractException("qb.version.unavailable", response.StatusCode);
-        var version = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim();
+        string version;
+        try
+        {
+            version = (await response.Content.ReadAsStringAsync(cancellationToken)).Trim();
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            throw ReadFailure("qb.version");
+        }
+        catch (OperationCanceledException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw ReadFailure("qb.version");
+        }
         if (version != "v5.2.4")
             throw new QbittorrentContractException("qb.version.unsupported");
         return version;
     }
+
+    private async Task<HttpResponseMessage> SendRequestAsync(
+        HttpRequestMessage request,
+        string code,
+        CancellationToken token
+    )
+    {
+        token.ThrowIfCancellationRequested();
+        var isRead = request.Method == HttpMethod.Get;
+        try
+        {
+            return await client.SendAsync(request, token);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            throw isRead ? ReadFailure(code) : UnknownFailure(code);
+        }
+        catch (OperationCanceledException)
+        {
+            if (isRead && token.IsCancellationRequested)
+                throw new OperationCanceledException(token);
+            throw isRead ? ReadFailure(code) : UnknownFailure(code);
+        }
+    }
+
+    private static QbittorrentContractException ReadFailure(string code) =>
+        new(code + ".transport-failed", kind: ContractFailureKind.Transport);
+
+    private static QbittorrentContractException UnknownFailure(string code) =>
+        new(code + ".result-unknown", kind: ContractFailureKind.Unknown);
 }

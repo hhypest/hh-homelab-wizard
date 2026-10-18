@@ -190,16 +190,9 @@ public sealed partial class QbittorrentContractClient
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         request.Headers.Referrer = client.BaseAddress;
         request.Content = new FormUrlEncodedContent(fields);
-        try
-        {
-            using var response = await client.SendAsync(request, cancellationToken);
-            if (response.StatusCode != HttpStatusCode.OK)
-                throw new QbittorrentContractException(code + ".http-error", response.StatusCode);
-        }
-        catch (HttpRequestException)
-        {
-            throw new QbittorrentContractException(code + ".result-unknown");
-        }
+        using var response = await SendRequestAsync(request, code, cancellationToken);
+        if (response.StatusCode != HttpStatusCode.OK)
+            throw new QbittorrentContractException(code + ".http-error", response.StatusCode);
     }
 
     private async Task<JsonDocument> ReadJsonAsync(
@@ -210,7 +203,7 @@ public sealed partial class QbittorrentContractClient
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.Referrer = client.BaseAddress;
-        using var response = await client.SendAsync(request, cancellationToken);
+        using var response = await SendRequestAsync(request, code, cancellationToken);
         if (response.StatusCode != HttpStatusCode.OK)
             throw new QbittorrentContractException(code + ".http-error", response.StatusCode);
         try
@@ -221,6 +214,15 @@ public sealed partial class QbittorrentContractClient
         catch (JsonException)
         {
             throw new QbittorrentContractException(code + ".response-invalid");
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            throw ReadFailure(code);
+        }
+        catch (OperationCanceledException)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw ReadFailure(code);
         }
     }
 }

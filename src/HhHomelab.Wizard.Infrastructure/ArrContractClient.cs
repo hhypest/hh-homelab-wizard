@@ -350,6 +350,7 @@ public sealed class ArrContractClient
     private async Task<JsonNode?> ReadAsync(string route, CancellationToken token)
     {
         using var request = CreateRequest(HttpMethod.Get, route);
+        token.ThrowIfCancellationRequested();
         try
         {
             using var response = await http.SendAsync(request, token);
@@ -362,9 +363,14 @@ public sealed class ArrContractClient
         {
             throw new ArrContractException("arr.response-invalid");
         }
-        catch (HttpRequestException)
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
-            throw new ArrContractException("arr.read.transport-failed");
+            throw new ArrContractException("arr.read.transport-failed", kind: ContractFailureKind.Transport);
+        }
+        catch (OperationCanceledException)
+        {
+            token.ThrowIfCancellationRequested();
+            throw new ArrContractException("arr.read.transport-failed", kind: ContractFailureKind.Transport);
         }
     }
 
@@ -382,6 +388,7 @@ public sealed class ArrContractClient
             Encoding.UTF8,
             "application/json"
         );
+        token.ThrowIfCancellationRequested();
         try
         {
             using var response = await http.SendAsync(request, token);
@@ -391,9 +398,13 @@ public sealed class ArrContractClient
             )
                 throw new ArrContractException(code + ".http-error", response.StatusCode);
         }
-        catch (HttpRequestException)
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
         {
-            throw new ArrContractException(code + ".result-unknown");
+            throw new ArrContractException(code + ".result-unknown", kind: ContractFailureKind.Unknown);
+        }
+        catch (OperationCanceledException)
+        {
+            throw new ArrContractException(code + ".result-unknown", kind: ContractFailureKind.Unknown);
         }
     }
 
@@ -455,24 +466,8 @@ public sealed class ArrContractClient
         CancellationToken token
     )
     {
-        try
-        {
-            await VerifyUiLoginCoreAsync(ui, username, password, token);
-        }
-        catch (HttpRequestException)
-        {
-            throw new ArrContractException("arr.ui.transport-failed");
-        }
-    }
-
-    private static async Task VerifyUiLoginCoreAsync(
-        HttpClient ui,
-        string username,
-        string password,
-        CancellationToken token
-    )
-    {
-        using var before = await ui.GetAsync("", token);
+        using var beforeRequest = new HttpRequestMessage(HttpMethod.Get, "");
+        using var before = await SendUiAsync(ui, beforeRequest, token);
         var location = before.Headers.Location;
         if (
             before.StatusCode != HttpStatusCode.Found
@@ -492,17 +487,47 @@ public sealed class ArrContractClient
                 }
             ),
         };
-        using var login = await ui.SendAsync(request, token);
+        using var login = await SendUiAsync(ui, request, token);
         if (
             login.StatusCode != HttpStatusCode.Found
             || login.Headers.Location is null
             || new Uri(ui.BaseAddress!, login.Headers.Location) != ui.BaseAddress
         )
             throw new ArrContractException("arr.ui.authentication.rejected", login.StatusCode);
-        using var after = await ui.GetAsync("", token);
+        using var afterRequest = new HttpRequestMessage(HttpMethod.Get, "");
+        using var after = await SendUiAsync(ui, afterRequest, token);
         if (after.StatusCode != HttpStatusCode.OK)
             throw new ArrContractException("arr.ui.authentication.not-confirmed", after.StatusCode);
     }
+
+    private static async Task<HttpResponseMessage> SendUiAsync(
+        HttpClient ui,
+        HttpRequestMessage request,
+        CancellationToken token
+    )
+    {
+        token.ThrowIfCancellationRequested();
+        var isRead = request.Method == HttpMethod.Get;
+        try
+        {
+            return await ui.SendAsync(request, token);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException)
+        {
+            throw UiFailure(isRead);
+        }
+        catch (OperationCanceledException)
+        {
+            if (isRead)
+                token.ThrowIfCancellationRequested();
+            throw UiFailure(isRead);
+        }
+    }
+
+    private static ArrContractException UiFailure(bool isRead) => new(
+        "arr.ui" + (isRead ? ".transport-failed" : ".result-unknown"),
+        kind: isRead ? ContractFailureKind.Transport : ContractFailureKind.Unknown
+    );
 }
 
 public sealed class ArrContractException : InvalidOperationException
@@ -510,10 +535,17 @@ public sealed class ArrContractException : InvalidOperationException
     public string Code { get; }
     public HttpStatusCode? StatusCode { get; }
 
-    internal ArrContractException(string code, HttpStatusCode? statusCode = null)
+    public ContractFailureKind Kind { get; }
+
+    internal ArrContractException(
+        string code,
+        HttpStatusCode? statusCode = null,
+        ContractFailureKind kind = ContractFailureKind.Contract
+    )
         : base(code)
     {
         Code = code;
         StatusCode = statusCode;
+        Kind = kind;
     }
 }
