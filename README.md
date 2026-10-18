@@ -38,7 +38,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 - [Правила написания кода](docs/CODE_STYLE.md).
 - [Архитектура](docs/adr/0001-architecture.md), [журнал и секреты](docs/adr/0002-journal-and-secrets.md), [интерфейс «Фокус»](docs/adr/0005-focus-ui.md), [клиентские платформы](docs/adr/0007-client-platforms.md).
 - [Локальный файловый журнал](docs/adr/0011-local-file-journal.md) и [проба перезапуска процессов](docs/testing/2026-10-18-file-journal.md); remote lock/ownership остаются отдельной работой.
-- [Выбор SSH.NET и read-only порт подключения](docs/adr/0012-ssh-connection-probe.md), [fixture/TCP протокол](docs/testing/2026-10-18-ssh-probe.md); успешное подключение к живому SSH/SFTP и DSM ещё требует отдельной проверки.
+- [Выбор SSH.NET и read-only порт подключения](docs/adr/0012-ssh-connection-probe.md), [fixture/TCP протокол](docs/testing/2026-10-18-ssh-probe.md) и [одноразовый OpenSSH-стенд](docs/testing/2026-10-19-ssh-runtime.md). Аппаратная DSM проверяется отдельно.
 
 ## Лицензии
 
