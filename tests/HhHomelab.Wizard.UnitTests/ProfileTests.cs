@@ -33,7 +33,7 @@ public sealed class ProfileTests
     }
 
     [Theory]
-    [InlineData("schemaVersion", "2")]
+    [InlineData("schemaVersion", "3")]
     [InlineData("source", "null")]
     [InlineData("artifacts", "null")]
     [InlineData("services", "[]")]

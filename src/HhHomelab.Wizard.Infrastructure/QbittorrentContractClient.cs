@@ -90,7 +90,7 @@ public sealed partial class QbittorrentContractClient
                 throw new QbittorrentContractException("qb.version.unavailable", response.StatusCode);
             return (await response.Content.ReadAsStringAsync(readToken)).Trim();
         }, cancellationToken);
-        if (version != "v5.2.4")
+        if (version != PinnedRuntimeProfile.Version("qbittorrent"))
             throw new QbittorrentContractException("qb.version.unsupported");
         return version;
     }

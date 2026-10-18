@@ -18,9 +18,9 @@ public sealed class ArrContractClient
     public string PinnedVersion =>
         service switch
         {
-            ArrService.Radarr => "6.4.4.10685",
-            ArrService.Sonarr => "4.0.20.3014",
-            ArrService.Prowlarr => "2.6.5.5623",
+            ArrService.Radarr => PinnedRuntimeProfile.Version("radarr"),
+            ArrService.Sonarr => PinnedRuntimeProfile.Version("sonarr"),
+            ArrService.Prowlarr => PinnedRuntimeProfile.Version("prowlarr"),
             _ => throw new ArgumentOutOfRangeException(nameof(service)),
         };
 

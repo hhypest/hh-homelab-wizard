@@ -22,7 +22,8 @@ public sealed record ServiceContract(
     string Image,
     string[] DockerMods,
     string ApiFamily,
-    string Evidence
+    string Evidence,
+    string? RuntimeVersion = null
 );
 
 public sealed record ComponentReference(
@@ -66,7 +67,7 @@ public static partial class ResearchProfileValidator
     public static IReadOnlyList<string> Validate(ResearchProfile profile)
     {
         var errors = new List<string>();
-        if (profile.SchemaVersion != 1)
+        if (profile.SchemaVersion is not (1 or 2))
             errors.Add("schema.unsupported");
         if (string.IsNullOrWhiteSpace(profile.Id))
             errors.Add("profile.id.required");
@@ -108,6 +109,7 @@ public static partial class ResearchProfileValidator
                     || !Evidence.Contains(service.Evidence ?? "")
                 )
                     errors.Add("service.invalid");
+            ValidateRuntimeVersions(profile, errors);
         }
 
         if (profile.Components is null)
@@ -151,6 +153,30 @@ public static partial class ResearchProfileValidator
         return errors;
     }
 
+    private static void ValidateRuntimeVersions(ResearchProfile profile, List<string> errors)
+    {
+        foreach (var service in profile.Services.Where(service => service is not null))
+        {
+            if (profile.SchemaVersion == 1)
+            {
+                if (service.RuntimeVersion is not null)
+                    errors.Add("service.runtime.schema-unsupported");
+                continue;
+            }
+
+            var requiresVersion = service.Id is
+                "qbittorrent" or "radarr" or "sonarr" or "prowlarr"
+                or "jellyfin" or "seerr" or "homeassistant";
+            if (requiresVersion && service.RuntimeVersion is null)
+                errors.Add("service.runtime.required");
+            if (service.RuntimeVersion is not null)
+            {
+                if (!RuntimeVersionPattern().IsMatch(service.RuntimeVersion))
+                    errors.Add("service.runtime.invalid");
+            }
+        }
+    }
+
     public static bool IsRelativePath(string? path) =>
         !string.IsNullOrEmpty(path)
         && !path.StartsWith('/')
@@ -186,6 +212,9 @@ public static partial class ResearchProfileValidator
 
     [GeneratedRegex("^[a-f0-9]{64}$", RegexOptions.CultureInvariant)]
     private static partial Regex Sha256Pattern();
+
+    [GeneratedRegex(@"\Av?[0-9]+(?:\.[0-9]+){1,3}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex RuntimeVersionPattern();
 
     [GeneratedRegex(
         @"\Av?[0-9]+(?:\.[0-9]+){1,3}(?:-(?:alpha|beta|rc)\.?[0-9]+|(?:ubu[0-9]{4})?(?:_v[0-9]+\.[0-9]+\.[0-9]+)?(?:-ls[0-9]+)?)\z",

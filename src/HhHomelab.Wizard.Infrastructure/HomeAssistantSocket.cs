@@ -92,7 +92,7 @@ internal sealed class HomeAssistantConnection : IDisposable
             var hello = await socket.ReceiveAsync(deadline.Token);
             if (Text(hello, "type") != "auth_required")
                 throw new MediaContractException("ha.ws.authentication-context.invalid");
-            if (Text(hello, "ha_version") != "2026.10.0")
+            if (Text(hello, "ha_version") != PinnedRuntimeProfile.Version("homeassistant"))
                 throw new MediaContractException("ha.version.unsupported");
             await socket.SendAsync(
                 new() { ["type"] = "auth", ["access_token"] = secret },
@@ -101,7 +101,7 @@ internal sealed class HomeAssistantConnection : IDisposable
             var answer = await socket.ReceiveAsync(deadline.Token);
             if (Text(answer, "type") != "auth_ok")
                 throw new MediaContractException("ha.ws.authentication-rejected");
-            if (Text(answer, "ha_version") != "2026.10.0")
+            if (Text(answer, "ha_version") != PinnedRuntimeProfile.Version("homeassistant"))
                 throw new MediaContractException("ha.version.unsupported");
             ready = true;
         }

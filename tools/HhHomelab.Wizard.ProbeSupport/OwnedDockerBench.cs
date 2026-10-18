@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using HhHomelab.Wizard.Infrastructure;
 
 namespace HhHomelab.Wizard.ProbeSupport;
 
@@ -60,6 +61,8 @@ public sealed partial class OwnedDockerBench : IAsyncDisposable
 
     public async Task StartAsync(string image, CancellationToken cancellationToken)
     {
+        if (image != PinnedRuntimeProfile.Service("qbittorrent").Image)
+            throw new InvalidOperationException("bench.profile.unsupported");
         if (resources.Count != 0)
             throw new InvalidOperationException("bench.mode.conflict");
         // Require a local image. No unbounded pull/install steps or Docker mods in this API probe.

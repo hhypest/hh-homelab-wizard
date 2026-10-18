@@ -75,7 +75,7 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
             var hello = await socket.ReceiveAsync(deadline.Token);
             if (Text(hello, "type") != "auth_required")
                 throw new MediaContractException("ha.ws.authentication-context.invalid");
-            if (Text(hello, "ha_version") != "2026.10.0")
+            if (Text(hello, "ha_version") != PinnedRuntimeProfile.Version("homeassistant"))
                 throw new MediaContractException("ha.version.unsupported");
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
@@ -361,7 +361,7 @@ public sealed partial class HomeAssistantContractClient : IAsyncDisposable
             if (OwnerId is not null && id != OwnerId)
                 throw new MediaContractException("ha.owner.identity-mismatch");
             var config = Object(await next.CommandAsync("get_config", null, false, token));
-            if (Text(config, "version") != "2026.10.0" || Bool(config, "safe_mode"))
+            if (Text(config, "version") != PinnedRuntimeProfile.Version("homeassistant") || Bool(config, "safe_mode"))
                 throw new MediaContractException("ha.config.unsupported");
             OwnerId = id;
             connection = next;

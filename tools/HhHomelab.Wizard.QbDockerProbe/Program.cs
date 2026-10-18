@@ -4,7 +4,7 @@ using HhHomelab.Wizard.Domain;
 using HhHomelab.Wizard.Infrastructure;
 using HhHomelab.Wizard.ProbeSupport;
 
-const string pinnedImage = "lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479";
+var pinnedImage = PinnedRuntimeProfile.Service("qbittorrent").Image;
 if (args.Length != 1)
 {
     Console.Error.WriteLine(
@@ -25,12 +25,7 @@ var exitCode = 1;
 try
 {
     var profile = ProfileReader.Parse(await File.ReadAllTextAsync(args[0], token));
-    if (
-        profile.Source.Tag != "v1.3.0"
-        || profile.Source.Commit != "b05047b081f3543520582315002e359ef1d93e59"
-        || profile.Services.Single(s => s.Id == "qbittorrent").Image != pinnedImage
-    )
-        throw new InvalidOperationException("bench.profile.unsupported");
+    PinnedRuntimeProfile.EnsureCompatible(profile);
     bench = await OwnedDockerBench.ConnectAsync(token);
     await bench.StartAsync(pinnedImage, token);
     var temporaryPassword = await bench.ReadTemporaryPasswordAsync(token);
@@ -45,7 +40,7 @@ try
     {
         var api = new QbittorrentContractClient(http);
         await api.LoginAsync("admin", temporaryPassword, token);
-        Console.WriteLine("temporary-login: passed; v5.2.4");
+        Console.WriteLine("temporary-login: passed; " + PinnedRuntimeProfile.Version("qbittorrent"));
         await AssertInvalidHostPortAsync(bench.Endpoint, token);
 
         if (
@@ -61,7 +56,8 @@ try
             throw new InvalidOperationException("bench.response-loss.not-injected");
         }
         catch (QbittorrentContractException exception)
-            when (exception.Code == "qb.category.result-unknown") { }
+            when (exception.Code == "qb.category.result-unknown")
+        { }
         // Observe the server after a deliberately dropped response; never repeat POST blindly.
         if (await api.EnsureCategoryAsync("movies", "/data/torrents/movies", token))
             throw new InvalidOperationException("bench.category.reconciliation.failed");
@@ -76,7 +72,8 @@ try
             throw new InvalidOperationException("bench.category.conflict.not-detected");
         }
         catch (QbittorrentContractException exception)
-            when (exception.Code == "qb.category.conflict") { }
+            when (exception.Code == "qb.category.conflict")
+        { }
         Console.WriteLine(
             "categories: movies/tv verified; response loss reconciled; conflict preserved"
         );
@@ -97,7 +94,8 @@ try
         catch (QbittorrentContractException exception)
             when (exception.Code == "qb.authentication.rejected"
                 && exception.StatusCode == HttpStatusCode.Unauthorized
-            ) { }
+            )
+        { }
     }
     await VerifyConfiguredStateAsync(bench.Endpoint, permanentPassword, settings, token);
     Console.WriteLine("credentials: new login passed; old credentials rejected");

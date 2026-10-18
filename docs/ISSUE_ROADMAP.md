@@ -43,7 +43,6 @@
 
 | Очередь | Issue / Milestone | Результат |
 | --- | --- | --- |
-| P1, следующий PR | [#97](https://github.com/hhypest/hh-homelab-wizard/issues/97) / M0 | Исправить B1/B2 с регрессиями timeout/read/write/caller cancellation; затем общий транспорт |
 | P1 | [#99](https://github.com/hhypest/hh-homelab-wizard/issues/99) / M3 | Операции, ErrorCode/Kind и порты Application; первые образцы Qb/Arr |
 | P1 | [#100](https://github.com/hhypest/hh-homelab-wizard/issues/100) / M0 | Единственный источник pins/roles и проверка clients/probes/CI |
 | P1, после фундамента | [#101](https://github.com/hhypest/hh-homelab-wizard/issues/101) / M3 | Вертикаль qBittorrent на одноразовом SSH/Docker стенде и resume в новом процессе |

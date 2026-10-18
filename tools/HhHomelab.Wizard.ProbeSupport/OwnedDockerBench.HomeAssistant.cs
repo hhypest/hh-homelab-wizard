@@ -1,3 +1,4 @@
+using HhHomelab.Wizard.Infrastructure;
 using System.Net;
 
 namespace HhHomelab.Wizard.ProbeSupport;
@@ -7,7 +8,7 @@ public sealed partial class OwnedDockerBench
     /// <summary>Only a fresh owned fixture. No host socket, host paths, devices or .storage edits.</summary>
     public async Task StartHomeAssistantAsync(string image, CancellationToken token)
     {
-        if (image != "ghcr.io/home-assistant/home-assistant:2026.10.0" || resources.Count != 0)
+        if (image != PinnedRuntimeProfile.Service("homeassistant").Image || resources.Count != 0)
             throw new InvalidOperationException("bench.profile.unsupported");
         _ = await RunAsync(["image", "inspect", image, "--format", "{{.Id}}"], token);
         await CreateNetworkAsync(token);
@@ -83,7 +84,7 @@ public sealed partial class OwnedDockerBench
     public async Task StartHomeAssistantJellyfinPeerAsync(string image, CancellationToken token)
     {
         if (
-            image != "lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53"
+            image != PinnedRuntimeProfile.Service("jellyfin").Image
             || Endpoint is null
             || services.Count != 0
         )

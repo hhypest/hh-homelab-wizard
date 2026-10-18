@@ -37,7 +37,7 @@ public sealed class JellyfinContractClient
     public async Task<bool> GetStartupCompletedAsync(CancellationToken token)
     {
         var info = Object(await api.ReadAsync("System/Info/Public", token));
-        if (Text(info, "Version") != "12.2.0")
+        if (Text(info, "Version") != PinnedRuntimeProfile.Version("jellyfin"))
             throw new MediaContractException("jellyfin.version.unsupported");
         var id = Text(info, "Id");
         if (ServerId is not null && ServerId != id)

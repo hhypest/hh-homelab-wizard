@@ -23,8 +23,8 @@ public sealed partial class OwnedDockerBench
         CancellationToken token
     )
     {
-        const string image = "ghcr.io/home-assistant/home-assistant:2026.10.0";
-        const string proxyImage = "ghcr.io/tecnativa/docker-socket-proxy:v0.5.0";
+        var image = PinnedRuntimeProfile.Service("homeassistant").Image;
+        var proxyImage = PinnedRuntimeProfile.Service("dockerproxy").Image;
         if (resources.Count != 0)
             throw new InvalidOperationException("bench.profile.unsupported");
         foreach (var pinned in new[] { image, proxyImage })

@@ -6,6 +6,7 @@
 
 ### Added
 
+- Первый инкремент #100: схема 2 research profile с ожидаемыми версиями API, неизменяемый PinnedRuntimeProfile для клиентов/проб, проверка совместимости полного внешнего профиля и выбор образов CI через ProfileCheck. Pins/source hashes сохранены; схема 1 читается только как прежний каталог. Monitor Docker сверяет metadata с профилем и lock; роли/transforms/paths остаются отдельной работой.
 - Общий HTTP exchange сервисных адаптеров, базовый безопасный ContractException и конечная политика ContractHttpTimeouts. Специализированные исключения/коды и HA caller-cancellation/session cleanup сохранены; меньший client timeout действует на получение и обработку ответа. Регрессии бесконечного HttpClient.Timeout, budgets, response disposal и совместимости адаптеров.
 - Протокол первичной проверки владельцем сборки e8902bd на Windows и Linux X11/Wayland: все демонстрационные исходы без замечаний; клавиатура, темы, масштабирование и полная матрица остаются открытыми.
 
