@@ -95,7 +95,12 @@ public sealed partial class OwnedDockerBench
         await WaitForSshAsync(token);
         Console.WriteLine("ssh-fixture.definition: " + definition);
         Console.WriteLine("ssh-fixture.base: " + baseImage);
-        Console.WriteLine("ssh-fixture.packages: " + (await RunAsync(["exec", Container, "apk", "info", "-v", "openssh-server", "openssh-sftp-server", "sudo"], token)).Trim().Replace('\n', ' '));
+        var installed = await RunAsync(["exec", Container, "apk", "info", "-v"], token);
+        var directPackages = installed.Split('\n', StringSplitOptions.TrimEntries).Where(package =>
+            package.StartsWith("openssh-server-10.", StringComparison.Ordinal)
+            || package.StartsWith("openssh-sftp-server-10.", StringComparison.Ordinal)
+            || package.StartsWith("sudo-1.", StringComparison.Ordinal));
+        Console.WriteLine("ssh-fixture.packages: " + string.Join(' ', directPackages));
     }
 
     public async Task ConfigureSshCredentialsAsync(string password, string publicKey, CancellationToken token)
@@ -184,6 +189,7 @@ public sealed partial class OwnedDockerBench
     {
         await RequireSshOwnershipAsync(token);
         _ = await RunAsync(["start", Container], token);
+        Console.WriteLine("ssh-runtime.fixture-restart: started");
         await WaitForSshAsync(token);
     }
 

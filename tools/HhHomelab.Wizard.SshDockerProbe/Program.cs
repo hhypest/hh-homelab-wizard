@@ -167,6 +167,7 @@ internal static class SshScenarios
             await bench.WaitForSshCommandAsync(token);
             await bench.KillSshFixtureAsync(token);
             Expect("connection-loss", await pending.WaitAsync(TimeSpan.FromSeconds(6), token), SshProbeStatus.TransportFailure);
+            Console.WriteLine("ssh-runtime.connection-loss: passed");
         }
         finally
         {
