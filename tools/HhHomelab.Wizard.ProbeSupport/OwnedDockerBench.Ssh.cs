@@ -54,12 +54,13 @@ public sealed partial class OwnedDockerBench
         var baseImage = dockerfile.Split('\n')[0]["FROM ".Length..].Trim();
         _ = await RunAsync(["image", "inspect", baseImage], token);
         using var archive = new MemoryStream();
-        using (var writer = new TarWriter(archive, leaveOpen: true))
+        // Docker's stdin archive detection does not recognize a leading PAX extended header.
+        using (var writer = new TarWriter(archive, TarEntryFormat.Ustar, leaveOpen: true))
         {
             foreach (var name in SshFixtureFiles)
             {
                 using var contents = new MemoryStream(ReadSshFixture(name));
-                writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, name) { DataStream = contents });
+                writer.WriteEntry(new UstarTarEntry(TarEntryType.RegularFile, name) { DataStream = contents });
             }
         }
         archive.Position = 0;
@@ -69,8 +70,9 @@ public sealed partial class OwnedDockerBench
         {
             // Only embedded public build files exist at this point; credentials are created later.
             // Runtime/authentication process streams must never use this diagnostic path.
-            var diagnostic = build.Output + build.Error;
-            Console.Error.WriteLine("ssh-fixture.public-build: " + diagnostic[..Math.Min(diagnostic.Length, 12000)]);
+            var publicOutput = build.Output + build.Error;
+            var diagnostic = new string(publicOutput.Where(character => !char.IsControl(character) || character is '\r' or '\n' or '\t').Take(12000).ToArray());
+            Console.Error.WriteLine("ssh-fixture.public-build: " + diagnostic);
             throw new InvalidOperationException("bench.ssh.build.failed");
         }
         using var inspected = JsonDocument.Parse(await RunAsync(["image", "inspect", image], token));
