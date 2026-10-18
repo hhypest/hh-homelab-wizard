@@ -7,11 +7,12 @@ namespace HhHomelab.Wizard.Infrastructure;
 /// <summary>Verified upstream bytes, not an installer or a compatibility guarantee.</summary>
 public sealed class MonitorDockerPackage
 {
-    public const string Commit = "78abdc40d96871be44bd965202de59fe2e5b10d3";
-    public const string ManifestVersion = "1.20b3";
+    public static string Commit => PinnedRuntimeProfile.Component("monitor_docker").Commit;
+
+    public static string ManifestVersion => PinnedRuntimeProfile.Component("monitor_docker").ManifestVersion;
     private const int MaximumArchiveBytes = 4 * 1024 * 1024;
     private const int MaximumFileBytes = 512 * 1024;
-    private const string Prefix = "monitor_docker-" + Commit + "/";
+    private static string Prefix => "monitor_docker-" + Commit + "/";
     private const string ComponentPrefix = "custom_components/monitor_docker/";
     private readonly Dictionary<string, byte[]> files;
     internal IReadOnlyDictionary<string, byte[]> Files => files;
@@ -22,6 +23,7 @@ public sealed class MonitorDockerPackage
     /// <summary>Fixed HTTPS source; redirects are rejected, responses and expanded files bounded.</summary>
     public static async Task<MonitorDockerPackage> FetchAsync(CancellationToken token = default)
     {
+        _ = ReadLock();
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(90) };
         using var response = await client.GetAsync(
@@ -120,6 +122,9 @@ public sealed class MonitorDockerPackage
 
     internal static Dictionary<string, string> ReadLock()
     {
+        var component = PinnedRuntimeProfile.Component("monitor_docker");
+        if (component.Repository != "https://github.com/ualex73/monitor_docker")
+            throw new InvalidDataException("monitor-docker.lock.invalid");
         using var stream =
             typeof(MonitorDockerPackage).Assembly.GetManifestResourceStream(
                 "monitor-docker.lock.json"
@@ -132,12 +137,12 @@ public sealed class MonitorDockerPackage
             throw new InvalidDataException("monitor-docker.lock.invalid");
         if (
             root.GetProperty("repository").GetString()
-            != "https://github.com/ualex73/monitor_docker"
+            != component.Repository
         )
             throw new InvalidDataException("monitor-docker.lock.invalid");
         if (root.GetProperty("manifestVersion").GetString() != ManifestVersion)
             throw new InvalidDataException("monitor-docker.lock.invalid");
-        if (root.GetProperty("license").GetString() != "Apache-2.0")
+        if (root.GetProperty("license").GetString() != component.License)
             throw new InvalidDataException("monitor-docker.lock.invalid");
         return root.GetProperty("files")
             .EnumerateArray()

@@ -24,6 +24,10 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: bash .github/scripts/test-pull-image.sh
+      - name: Verify profile selection rejects drift before image acquisition
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash .github/scripts/test-pull-profile-images.sh
       - name: Restore locked dependencies
         run: dotnet restore HhHomelab.Wizard.slnx --locked-mode
       - name: Build
@@ -119,7 +123,7 @@ jobs:
       - name: Build probe
         run: dotnet build tools/HhHomelab.Wizard.QbDockerProbe --no-restore --configuration Release
       - name: Pull pinned research image
-        run: bash .github/scripts/pull-image.sh lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479
+        run: bash .github/scripts/pull-profile-images.sh qbittorrent
       - name: Verify bootstrap twice on fresh containers
         shell: bash
         run: |
@@ -144,10 +148,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/radarr:6.4.4.10685-ls319
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/sonarr:4.0.20.3014-ls326
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/prowlarr:2.6.5.5623-ls163
+          bash .github/scripts/pull-profile-images.sh qbittorrent radarr sonarr prowlarr
       - name: Verify Arr bootstrap twice on fresh configurations
         shell: bash
         run: |
@@ -172,8 +173,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash .github/scripts/pull-image.sh ghcr.io/home-assistant/home-assistant:2026.10.0
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53
+          bash .github/scripts/pull-profile-images.sh homeassistant jellyfin
       - name: Verify HA onboarding and configuration twice on fresh containers
         shell: bash
         run: |
@@ -201,7 +201,7 @@ jobs:
       - name: Build profile probe
         run: dotnet build tools/HhHomelab.Wizard.HaProfileProbe --no-restore --configuration Release
       - name: Pull pinned HA image
-        run: bash .github/scripts/pull-image.sh ghcr.io/home-assistant/home-assistant:2026.10.0
+        run: bash .github/scripts/pull-profile-images.sh homeassistant
       - name: Verify local YAML, component imports and TV templates twice
         shell: bash
         run: |
@@ -232,8 +232,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash .github/scripts/pull-image.sh ghcr.io/home-assistant/home-assistant:2026.10.0
-          bash .github/scripts/pull-image.sh ghcr.io/tecnativa/docker-socket-proxy:v0.5.0
+          bash .github/scripts/pull-profile-images.sh homeassistant dockerproxy
       - name: Verify full HA server and accelerated action fixtures twice
         shell: bash
         run: |
@@ -258,10 +257,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/radarr:6.4.4.10685-ls319
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/sonarr:4.0.20.3014-ls326
-          bash .github/scripts/pull-image.sh lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53
-          bash .github/scripts/pull-image.sh ghcr.io/seerr-team/seerr:v3.5.0
+          bash .github/scripts/pull-profile-images.sh radarr sonarr jellyfin seerr
       - name: Verify Jellyfin and Seerr twice on fresh configurations
         shell: bash
         run: |

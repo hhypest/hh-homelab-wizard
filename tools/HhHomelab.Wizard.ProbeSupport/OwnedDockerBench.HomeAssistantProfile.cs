@@ -11,7 +11,7 @@ public sealed partial class OwnedDockerBench
         CancellationToken token
     )
     {
-        const string image = "ghcr.io/home-assistant/home-assistant:2026.10.0";
+        var image = PinnedRuntimeProfile.Service("homeassistant").Image;
         if (resources.Count != 0)
             throw new InvalidOperationException("bench.profile.unsupported");
         _ = await RunAsync(["image", "inspect", image, "--format", "{{.Id}}"], token);

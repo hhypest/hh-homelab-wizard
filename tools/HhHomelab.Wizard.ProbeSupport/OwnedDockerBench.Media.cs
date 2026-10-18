@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Xml;
+using HhHomelab.Wizard.Infrastructure;
 
 namespace HhHomelab.Wizard.ProbeSupport;
 
@@ -38,6 +39,8 @@ public sealed partial class OwnedDockerBench
             || port is < 1 or > 65535
         )
             throw new InvalidOperationException("bench.service.invalid");
+        if (image != PinnedRuntimeProfile.Service(id).Image)
+            throw new InvalidOperationException("bench.profile.unsupported");
         if (resources.Count != 0 && services.Count == 0)
             throw new InvalidOperationException("bench.mode.conflict");
         _ = await RunAsync(["image", "inspect", image, "--format", "{{.Id}}"], token);

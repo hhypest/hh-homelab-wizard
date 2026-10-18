@@ -8,7 +8,7 @@ namespace HhHomelab.Wizard.UnitTests;
 
 public sealed class HomeAssistantProfileTests
 {
-    private const string Root = "monitor_docker-" + MonitorDockerPackage.Commit + "/";
+    private static string Root => "monitor_docker-" + MonitorDockerPackage.Commit + "/";
 
     [Fact]
     public void LockContainsComponentLicenseAndRawHashes()

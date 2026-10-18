@@ -24,20 +24,13 @@ try
 {
     var images = new Dictionary<string, (string Image, int Port)>
     {
-        ["qbittorrent"] = ("lscr.io/linuxserver/qbittorrent:5.2.4_v2.0.15-ls479", 9080),
-        ["radarr"] = ("lscr.io/linuxserver/radarr:6.4.4.10685-ls319", 7878),
-        ["sonarr"] = ("lscr.io/linuxserver/sonarr:4.0.20.3014-ls326", 8989),
-        ["prowlarr"] = ("lscr.io/linuxserver/prowlarr:2.6.5.5623-ls163", 9696),
+        ["qbittorrent"] = (PinnedRuntimeProfile.Service("qbittorrent").Image, 9080),
+        ["radarr"] = (PinnedRuntimeProfile.Service("radarr").Image, 7878),
+        ["sonarr"] = (PinnedRuntimeProfile.Service("sonarr").Image, 8989),
+        ["prowlarr"] = (PinnedRuntimeProfile.Service("prowlarr").Image, 9696),
     };
     var profile = ProfileReader.Parse(await File.ReadAllTextAsync(args[0], token));
-    if (
-        profile.Source.Tag != "v1.3.0"
-        || profile.Source.Commit != "b05047b081f3543520582315002e359ef1d93e59"
-        || images.Any(pair =>
-            profile.Services.Single(s => s.Id == pair.Key).Image != pair.Value.Image
-        )
-    )
-        throw new InvalidOperationException("bench.profile.unsupported");
+    PinnedRuntimeProfile.EnsureCompatible(profile);
     bench = await OwnedDockerBench.ConnectAsync(token);
     foreach (var (id, spec) in images)
         await bench.StartMediaServiceAsync(id, spec.Image, spec.Port, token);

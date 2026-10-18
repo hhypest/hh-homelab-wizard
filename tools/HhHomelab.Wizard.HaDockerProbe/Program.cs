@@ -24,15 +24,9 @@ var exit = 1;
 try
 {
     var profile = ProfileReader.Parse(await File.ReadAllTextAsync(args[0], token));
-    const string image = "ghcr.io/home-assistant/home-assistant:2026.10.0";
-    const string jellyfinImage = "lscr.io/linuxserver/jellyfin:12.2ubu2604-ls53";
-    if (
-        profile.Source.Tag != "v1.3.0"
-        || profile.Source.Commit != "b05047b081f3543520582315002e359ef1d93e59"
-        || profile.Services.Single(s => s.Id == "homeassistant").Image != image
-        || profile.Services.Single(s => s.Id == "jellyfin").Image != jellyfinImage
-    )
-        throw new InvalidOperationException("bench.profile.unsupported");
+    var image = PinnedRuntimeProfile.Service("homeassistant").Image;
+    var jellyfinImage = PinnedRuntimeProfile.Service("jellyfin").Image;
+    PinnedRuntimeProfile.EnsureCompatible(profile);
     bench = await OwnedDockerBench.ConnectAsync(token);
     await bench.StartHomeAssistantAsync(image, token);
     await bench.StartHomeAssistantJellyfinPeerAsync(jellyfinImage, token);
@@ -117,7 +111,8 @@ try
             throw new InvalidOperationException("bench.ha.wrong-password.accepted");
         }
         catch (MediaContractException e)
-            when (e.Code == "ha.login.rejected-or-interaction-required") { }
+            when (e.Code == "ha.login.rejected-or-interaction-required")
+        { }
     }
     using (var rejectedHttp = Client(bench.Endpoint))
     await using (var rejected = new HomeAssistantContractClient(rejectedHttp))
@@ -513,7 +508,8 @@ static async Task ReconnectUntilTrialAsync(HomeAssistantContractClient ha, Cance
                         or "ha.token.transport-failed"
                         or "ha.token.result-unknown"
                         or "ha.token.http-error"
-            ) { }
+            )
+        { }
     }
 }
 

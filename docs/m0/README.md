@@ -6,6 +6,7 @@
 
 - [Покрытие инструкции](COVERAGE.md): все 55 Media + 63 HA шага, режим и будущая операция. Все операции установки имеют `NotImplemented`.
 - [Research profile](../../profiles/hh-homelab/1.3.0/research-profile.json): 9 контейнеров, VueTorrent mod **2.36.1**, Monitor Docker с реальным значением manifest, 19 fingerprints исходных файлов.
+- [Согласованность pins и версий API](PROFILE_CONSISTENCY_REPORT.md): схема 2, встроенный неизменяемый снимок для клиентов/probes/CI; чтение прежней схемы 1 и границы описаны в [ADR 0009](../adr/0009-pinned-runtime-profile.md).
 - [Архитектура](../adr/0001-architecture.md), [журнал и секреты](../adr/0002-journal-and-secrets.md), [компоненты и функции](../adr/0003-components-and-features.md).
 - [Протокол локальных проб](PROBE_REPORT.md): подтверждённые операции, неудачные пробы и ограничения.
 - QbDockerProbe на C#: повторяемая настройка qBittorrent 5.2.4 в собственном временном контейнере, включая смену credentials, каталоги, категории, наблюдение после потери ответа и перезапуск.

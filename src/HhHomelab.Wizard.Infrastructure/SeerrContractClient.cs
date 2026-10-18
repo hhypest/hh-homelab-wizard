@@ -27,7 +27,7 @@ public sealed class SeerrContractClient
     public async Task<string> GetVersionAsync(CancellationToken token)
     {
         var version = Text(Object(await api.ReadAsync("api/v1/status", token)), "version");
-        if (version != "3.5.0")
+        if (version != PinnedRuntimeProfile.Version("seerr"))
             throw new MediaContractException("seerr.version.unsupported");
         return version;
     }

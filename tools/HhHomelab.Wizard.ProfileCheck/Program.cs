@@ -1,5 +1,29 @@
 using HhHomelab.Wizard.Infrastructure;
 
+if (args.Length > 0 && args[0] == "--images")
+{
+    if (args.Length < 3)
+    {
+        Console.Error.WriteLine("Usage: ProfileCheck --images <research-profile.json> <service-id> [...]");
+        return 2;
+    }
+    try
+    {
+        var requested = ProfileReader.Parse(await File.ReadAllTextAsync(args[1]));
+        PinnedRuntimeProfile.EnsureCompatible(requested);
+        // Validate every selection before emitting anything that a caller could use for a pull.
+        var images = args.Skip(2).Select(id => PinnedRuntimeProfile.Service(id).Image).ToArray();
+        foreach (var image in images.Distinct(StringComparer.Ordinal))
+            Console.WriteLine(image);
+        return 0;
+    }
+    catch (Exception exception) when (exception is System.Text.Json.JsonException or InvalidDataException or IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine("Runtime image selection rejected: incompatible profile, service or file.");
+        return 1;
+    }
+}
+
 if (args.Length is < 1 or > 2)
 {
     Console.Error.WriteLine("Usage: ProfileCheck <research-profile.json> [upstream-checkout]");

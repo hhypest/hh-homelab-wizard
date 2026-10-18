@@ -193,7 +193,7 @@ public sealed partial class HomeAssistantContractClient
             .Where(d => Array(d["config_entries"]).Any(e => e?.GetValue<string>() == entryId))
             .ToArray();
         var serverDeviceFound = devices.Any(d =>
-            HasServerIdentifier(d, serverId) && Text(d, "sw_version") == "12.2.0"
+            HasServerIdentifier(d, serverId) && Text(d, "sw_version") == PinnedRuntimeProfile.Version("jellyfin")
         );
         if (!serverDeviceFound)
             throw new MediaContractException("ha.jellyfin.server-identity-mismatch");
