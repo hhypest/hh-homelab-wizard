@@ -49,22 +49,34 @@ public sealed partial class OwnedDockerBench
     {
         if (resources.Count != 0)
             throw new InvalidOperationException("bench.mode.conflict");
+        var immutableImage = await BuildSshFixtureAsync(token);
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+
+        await CreateNetworkAsync(token);
+        resources.Add(("container", Container));
+        _ = await RunAsync(["create", "--name", Container, "--label", Label + "=" + session,
+            "--network", Network, "--publish", $"127.0.0.1:{port}:2222", "--pids-limit", "64", "--memory", "128m", "--cpus", "1",
+            "--tmpfs", "/run/sshd:rw,mode=0700", "--tmpfs", "/fixture-state:rw,uid=1000,gid=1000,mode=0700",
+            "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1", immutableImage], token);
+        sshMode = true;
+        _ = await RunAsync(["start", Container], token);
+        var binding = await ReadBindingAsync(Container, 2222, token);
+        SshTarget = new("127.0.0.1", binding.Port, "wizard");
+        await WaitForSshAsync(token);
+        await ReportSshPackagesAsync(token);
+    }
+
+    private async Task<string> BuildSshFixtureAsync(CancellationToken token)
+    {
         var definition = SshDefinitionHash();
         var image = "hh-homelab-wizard/ssh-fixture:" + definition;
         var dockerfile = Encoding.UTF8.GetString(ReadSshFixture("Dockerfile"));
         var baseImage = dockerfile.Split('\n')[0]["FROM ".Length..].Trim();
         _ = await RunAsync(["image", "inspect", baseImage], token);
-        using var archive = new MemoryStream();
-        // Docker's stdin archive detection does not recognize a leading PAX extended header.
-        using (var writer = new TarWriter(archive, TarEntryFormat.Ustar, leaveOpen: true))
-        {
-            foreach (var name in SshFixtureFiles)
-            {
-                using var contents = new MemoryStream(ReadSshFixture(name));
-                writer.WriteEntry(new UstarTarEntry(TarEntryType.RegularFile, name) { DataStream = contents });
-            }
-        }
-        archive.Position = 0;
+        using var archive = CreateSshBuildArchive();
         var build = await RunProcessAsync(["--context", context, "build", "--pull=false", "--label", SshDefinitionLabel + "=" + definition,
             "--tag", image, "-"], token, archive, TimeSpan.FromMinutes(4));
         if (build.ExitCode != 0)
@@ -82,29 +94,33 @@ public sealed partial class OwnedDockerBench
             throw new InvalidOperationException("bench.ssh.image.invalid");
         if (root.GetProperty("Architecture").GetString() != "amd64")
             throw new InvalidOperationException("bench.ssh.architecture.unsupported");
-        var immutableImage = root.GetProperty("Id").GetString()!;
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
-        listener.Stop();
-        await CreateNetworkAsync(token);
-        resources.Add(("container", Container));
-        _ = await RunAsync(["create", "--name", Container, "--label", Label + "=" + session,
-            "--network", Network, "--publish", $"127.0.0.1:{port}:2222", "--pids-limit", "64", "--memory", "128m", "--cpus", "1",
-            "--tmpfs", "/run/sshd:rw,mode=0700", "--tmpfs", "/fixture-state:rw,uid=1000,gid=1000,mode=0700",
-            "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1", immutableImage], token);
-        sshMode = true;
-        _ = await RunAsync(["start", Container], token);
-        var binding = await ReadBindingAsync(Container, 2222, token);
-        SshTarget = new("127.0.0.1", binding.Port, "wizard");
-        await WaitForSshAsync(token);
         Console.WriteLine("ssh-fixture.definition: " + definition);
         Console.WriteLine("ssh-fixture.base: " + baseImage);
+        return root.GetProperty("Id").GetString()!;
+    }
+
+    private static MemoryStream CreateSshBuildArchive()
+    {
+        var archive = new MemoryStream();
+        // Docker's stdin archive detection does not recognize a leading PAX extended header.
+        using (var writer = new TarWriter(archive, TarEntryFormat.Ustar, leaveOpen: true))
+        {
+            foreach (var name in SshFixtureFiles)
+            {
+                using var contents = new MemoryStream(ReadSshFixture(name));
+                writer.WriteEntry(new UstarTarEntry(TarEntryType.RegularFile, name) { DataStream = contents });
+            }
+        }
+        archive.Position = 0;
+        return archive;
+    }
+
+    private async Task ReportSshPackagesAsync(CancellationToken token)
+    {
         var installed = await RunAsync(["exec", Container, "apk", "info", "-v"], token);
+        string[] expectedPrefixes = ["openssh-server-10.", "openssh-sftp-server-10.", "sudo-1."];
         var directPackages = installed.Split('\n', StringSplitOptions.TrimEntries).Where(package =>
-            package.StartsWith("openssh-server-10.", StringComparison.Ordinal)
-            || package.StartsWith("openssh-sftp-server-10.", StringComparison.Ordinal)
-            || package.StartsWith("sudo-1.", StringComparison.Ordinal)).ToArray();
+            expectedPrefixes.Any(prefix => package.StartsWith(prefix, StringComparison.Ordinal))).ToArray();
         if (directPackages.Length != 3)
             throw new InvalidOperationException("bench.ssh.packages.unavailable");
         Console.WriteLine("ssh-fixture.packages: " + string.Join(' ', directPackages));
