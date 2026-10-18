@@ -60,7 +60,7 @@
 
 ## 4. Архитектура и будущая структура
 
-Созданы Domain, Application, Infrastructure, Desktop, UnitTests и DesktopTests (headless UI). Application пока содержит искусственный сценарий M1; ContractTests и следующие сценарии установки ещё не созданы. Developer tools расположены в `tools/`, исследовательский профиль — в `profiles/`.
+Созданы Domain, Application, Infrastructure, Desktop, UnitTests и DesktopTests (headless UI). Application содержит искусственный сценарий M1 и однооперационный Observe/Apply/Verify с обязательными journal/ownership портами по [ADR 0010](adr/0010-operation-boundaries.md). Образцы qBittorrent/Radarr проверяются на fixtures; production journal/ownership, ContractTests и интегрированная установка ещё не созданы. Developer tools расположены в `tools/`, исследовательский профиль — в `profiles/`.
 
 ```text
 src/

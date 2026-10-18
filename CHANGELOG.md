@@ -6,6 +6,8 @@
 
 ### Added
 
+- Модели identity/resource/observation/verification и типизированные исходы операций; однооперационный Application Observe/Apply/Verify с обязательными journal lease/ownership портами. Pending intent запрещает слепой Apply; независимая проверка предшествует confirm. Образцы qB category и Radarr root за портами, привязка фактического API endpoint, безопасный Desktop code/kind presenter. Долговечный журнал, NAS/SSH и экранное подключение остаются отдельными задачами.
+
 - Первый инкремент #100: схема 2 research profile с ожидаемыми версиями API, неизменяемый PinnedRuntimeProfile для клиентов/проб, проверка совместимости полного внешнего профиля и выбор образов CI через ProfileCheck. Pins/source hashes сохранены; схема 1 читается только как прежний каталог. Monitor Docker сверяет metadata с профилем и lock; роли/transforms/paths остаются отдельной работой.
 - Общий HTTP exchange сервисных адаптеров, базовый безопасный ContractException и конечная политика ContractHttpTimeouts. Специализированные исключения/коды и HA caller-cancellation/session cleanup сохранены; меньший client timeout действует на получение и обработку ответа. Регрессии бесконечного HttpClient.Timeout, budgets, response disposal и совместимости адаптеров.
 - Протокол первичной проверки владельцем сборки e8902bd на Windows и Linux X11/Wayland: все демонстрационные исходы без замечаний; клавиатура, темы, масштабирование и полная матрица остаются открытыми.
@@ -87,6 +89,8 @@
 - Уточнена обязательная клиентская матрица первого выпуска: Windows 11 x64 и Ubuntu 24.04 LTS x64 / X11 и Wayland. Требования к приёмке и испытаниям обновлены; совместимость приложения пока не проверена.
 
 ### Fixed
+
+- Восстановлен текст ADR 0001 после ошибочной замены отдельных букв; добавлена точная ссылка на описание схемы профиля в ADR 0009.
 
 - B1/B2, первый инкремент #97: deadline/IO чтения qBittorrent/Arr/Jellyfin/Seerr нормализованы в безопасные ошибки Transport; отмена/потеря ответа после начала записи даёт Unknown без автоматического повтора. Добавлены typed Kind, регрессии ожидания/тела ответа и form login Arr; qBittorrent preflight/login/version/preferences/categories не выпускают raw сетевые исключения. Объединение транспорта и общие политики остаются открытыми.
 
