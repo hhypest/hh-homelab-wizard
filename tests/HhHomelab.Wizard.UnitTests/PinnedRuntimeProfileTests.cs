@@ -105,7 +105,13 @@ public sealed class PinnedRuntimeProfileTests
         Assert.NotEmpty(sourceRefs);
         foreach (Match sourceRef in sourceRefs)
             Assert.Equal(PinnedRuntimeProfile.Source.Commit, sourceRef.Groups[1].Value);
-        Assert.DoesNotContain("bash .github/scripts/pull-image.sh ", workflow);
+        // The disposable SSH server has its own digest-pinned fixture, outside the install profile.
+        var sshFixture = Regex.Match(workflow, @"(?ms)^  ssh-runtime:\r?\n.*?(?=^  [a-z][a-z0-9-]*:|\z)");
+        Assert.True(sshFixture.Success);
+        Assert.Contains("ssh-fixture/Dockerfile", sshFixture.Value);
+        Assert.Contains("^alpine:[0-9.]+@sha256:[a-f0-9]{64}$", sshFixture.Value);
+        Assert.Contains("bash .github/scripts/pull-image.sh \"$base_image\"", sshFixture.Value);
+        Assert.DoesNotContain("bash .github/scripts/pull-image.sh ", workflow.Remove(sshFixture.Index, sshFixture.Length));
         Assert.Contains("bash .github/scripts/pull-profile-images.sh ", workflow);
     }
 

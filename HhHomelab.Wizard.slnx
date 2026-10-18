@@ -10,6 +10,8 @@
     <Project Path="tests/HhHomelab.Wizard.UnitTests/HhHomelab.Wizard.UnitTests.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/HhHomelab.Wizard.SshDockerProbe/HhHomelab.Wizard.SshDockerProbe.csproj" />
+    <Project Path="tools/HhHomelab.Wizard.JournalProbe/HhHomelab.Wizard.JournalProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.HaRuntimeProbe/HhHomelab.Wizard.HaRuntimeProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.HaProfileProbe/HhHomelab.Wizard.HaProfileProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.ArrDockerProbe/HhHomelab.Wizard.ArrDockerProbe.csproj" />

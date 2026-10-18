@@ -13,6 +13,9 @@
 | SkiaSharp и native assets | 3.119.4, NuGet | SkiaSharp-LICENSE.txt, SkiaSharp-NOTICES.txt |
 | HarfBuzzSharp и native assets | 8.3.1.3, NuGet | HarfBuzzSharp-LICENSE.txt, HarfBuzzSharp-NOTICES.txt |
 | ANGLE Windows native assets | 2.1.27548.20260419, NuGet | ANGLE-LICENSE.txt |
+| SSH.NET | 2026.0.0, sshnet/SSH.NET tag 2026.0.0 / NuGet | SSH.NET-LICENSE.txt |
+| BouncyCastle.Cryptography | 2.7.0, NuGet, транзитивная зависимость SSH.NET | BouncyCastle-LICENSE.md |
+| Microsoft.Extensions.Logging.Abstractions | 8.0.3, NuGet, транзитивная зависимость SSH.NET | MSLogging-LICENSE.txt, MSLogging-NOTICES.txt |
 
 Точные транзитивные версии и хэши находятся в `src/HhHomelab.Wizard.Desktop/packages.lock.json`. BuildServices и тестовые зависимости используются при разработке, не являются частью пользовательского сценария. При изменении пакетов нужно сверять и обновлять эти уведомления. Материалы сторонних авторов сохраняют свои условия использования.
 

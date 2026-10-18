@@ -4,5 +4,9 @@
     <EmbeddedResource Include="ha-profile-probe.py" LogicalName="ha-profile-probe.py" />
     <EmbeddedResource Include="docker-api-fixture.py" LogicalName="docker-api-fixture.py" />
     <EmbeddedResource Include="ha-actions-fixture.py" LogicalName="ha-actions-fixture.py" />
+    <EmbeddedResource Include="ssh-fixture/Dockerfile" LogicalName="ssh-fixture.Dockerfile" />
+    <EmbeddedResource Include="ssh-fixture/sshd_config" LogicalName="ssh-fixture.sshd_config" />
+    <EmbeddedResource Include="ssh-fixture/entrypoint.sh" LogicalName="ssh-fixture.entrypoint.sh" />
+    <EmbeddedResource Include="ssh-fixture/dispatch.sh" LogicalName="ssh-fixture.dispatch.sh" />
   </ItemGroup>
 </Project>
