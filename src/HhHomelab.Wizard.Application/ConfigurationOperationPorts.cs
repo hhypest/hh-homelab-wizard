@@ -38,7 +38,8 @@ public sealed class OperationLeaseUnavailableException() : InvalidOperationExcep
 /// <summary>Mandatory execution boundary. Production implementation (#51) must atomically persist
 /// intent before returning, reject a different descriptor, and hold exclusive installation/resource
 /// locks through execution. Confirm is atomic and follows independent verification. No credentials.
-/// This increment supplies no production or fallback in-memory implementation.</summary>
+/// The local file adapter supplies process-restart persistence; remote locks/ownership and host
+/// durability prerequisites remain separate. There is no fallback in-memory implementation.</summary>
 public interface IOperationJournal
 {
     /// <summary>Acquire exclusive installation/resource ownership until disposal. Every method below

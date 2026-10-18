@@ -36,7 +36,7 @@ Application определяет `IConfigurationOperation`, `IOperationJournal`,
 5. Адаптер Apply повторяет чтение baseline/version/auth перед POST. Изменившаяся baseline блокирует запись. Это не remote CAS: API не обеспечивает общей транзакции с ручными действиями других клиентов.
 6. После acknowledgement проверить ownership, выполнить независимый Verify, ещё раз проверить ownership и атомарно confirm. Исключение/отмена при незавершённом intent оставляет Unknown, включая отмену повторного baseline read внутри Apply до POST. Lease освобождается при любом исходе.
 
-`IOperationJournal` требует атомарность, привязку к descriptor и исключительную lease, но production implementation, schema/hash envelope, filesystem locks и восстановление между процессами реализуются в #51/#52. У сценария нет fallback journal. Тестовая реализация находится только в тестах. Предыдущий незавершённый intent нельзя очищать для повтора через этот API; решение recovery требует отдельного проверенного сценария #52.
+`IOperationJournal` требует атомарность, привязку к descriptor и исключительную lease. Первый локальный schema/hash envelope, filesystem lock и process-restart implementation описан в [ADR 0011](0011-local-file-journal.md); remote ownership/locks и полная durability/recovery остаются #51/#52. У сценария нет fallback journal. In-memory fake находится только в тестах. Предыдущий незавершённый intent нельзя очищать для повтора через этот API; решение recovery требует отдельного проверенного сценария #52.
 
 ## Образцы и ограничения
 
