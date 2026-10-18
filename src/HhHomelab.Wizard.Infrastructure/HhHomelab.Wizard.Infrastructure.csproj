@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="SSH.NET" />
+    <InternalsVisibleTo Include="HhHomelab.Wizard.UnitTests" />
     <ProjectReference Include="../HhHomelab.Wizard.Application/HhHomelab.Wizard.Application.csproj" />
     <EmbeddedResource
       Include="../../profiles/hh-homelab/1.3.0/research-profile.json"

@@ -6,6 +6,8 @@
 
 ### Added
 
+- Первый SSH-инкремент #46: Domain typed read-only evidence, Application порт и Infrastructure на закреплённой SSH.NET 2026.0.0. Явный host/port-bound SHA-256 pin до авторизации, отдельная проверка SFTP, memory-only password/private key/passphrase, фиксированные команды чтения и stat, конечный budget/cancel, bounded output и защита от второго запуска; fixtures и локальные TCP timeout/cancel тесты. Живой SSH/SFTP/DSM smoke остаётся открытым. Владелец полностью принял клиентскую матрицу PR #110 на Windows 11 26H1 / Ubuntu 24.04.4 LTS GNOME X11 и Wayland; #42–#45 выполнены.
+
 - Первый файловый инкремент #51: явные Create/Open, versioned session/profile journal с hash и bounded validation, atomic intent/confirm и локальная межпроцессная lease. JournalProbe проверяет принудительное завершение процесса и продолжение без повторного Apply; включён в Windows/Linux core CI. Remote lock/ownership и power-loss durability остаются открытыми. Протокол M1 дополнен полной проверкой клавиатуры/тем/масштабирования владельцем на 1a42f4b, Windows 11 26H1 и Ubuntu 24.04.4 LTS GNOME X11/Wayland.
 
 - Модели identity/resource/observation/verification и типизированные исходы операций; однооперационный Application Observe/Apply/Verify с обязательными journal lease/ownership портами. Pending intent запрещает слепой Apply; независимая проверка предшествует confirm. Образцы qB category и Radarr root за портами, привязка фактического API endpoint, безопасный Desktop code/kind presenter. Долговечный журнал, NAS/SSH и экранное подключение остаются отдельными задачами.
