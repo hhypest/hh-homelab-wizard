@@ -99,7 +99,9 @@ public sealed partial class OwnedDockerBench
         var directPackages = installed.Split('\n', StringSplitOptions.TrimEntries).Where(package =>
             package.StartsWith("openssh-server-10.", StringComparison.Ordinal)
             || package.StartsWith("openssh-sftp-server-10.", StringComparison.Ordinal)
-            || package.StartsWith("sudo-1.", StringComparison.Ordinal));
+            || package.StartsWith("sudo-1.", StringComparison.Ordinal)).ToArray();
+        if (directPackages.Length != 3)
+            throw new InvalidOperationException("bench.ssh.packages.unavailable");
         Console.WriteLine("ssh-fixture.packages: " + string.Join(' ', directPackages));
     }
 
