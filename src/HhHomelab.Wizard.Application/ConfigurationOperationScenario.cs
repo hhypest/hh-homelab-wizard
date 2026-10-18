@@ -25,18 +25,18 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
             await using var lease = await journal.AcquireAsync(descriptor, token).ConfigureAwait(false);
             return await ExecuteCoreAsync(operation, descriptor, state, token).ConfigureAwait(false);
         }
-        catch (OperationLeaseUnavailableException) when (!state.HasIntent)
+        catch (OperationLeaseUnavailableException) when (!state.HasPendingIntent)
         {
             return Failure(OperationOutcomeKind.Conflict, OperationErrorCode.OperationInProgress);
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested && !state.HasIntent)
+        catch (OperationCanceledException) when (token.IsCancellationRequested && !state.HasPendingIntent)
         {
             return Failure(OperationOutcomeKind.Cancelled, OperationErrorCode.Cancelled);
         }
         catch (Exception)
         {
             // Ports never leak raw exception text, endpoints or credentials to the presentation layer.
-            return Failure(state.HasIntent ? OperationOutcomeKind.Unknown : OperationOutcomeKind.Transport, state.FailureCode);
+            return Failure(state.HasPendingIntent ? OperationOutcomeKind.Unknown : OperationOutcomeKind.Transport, state.FailureCode);
         }
         finally
         {
@@ -52,16 +52,16 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
     )
     {
         var entry = await journal.ReadAsync(descriptor, token).ConfigureAwait(false);
-        state.HasIntent = entry is not null;
+        state.HasPendingIntent = entry is { Confirmation: null };
         if (entry is not null && !ValidEntry(entry, descriptor))
             return Failure(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch);
-        state.FailureCode = state.HasIntent ? OperationErrorCode.WriteUncertain : OperationErrorCode.ReadFailed;
+        state.FailureCode = state.HasPendingIntent ? OperationErrorCode.WriteUncertain : OperationErrorCode.ReadFailed;
         var access = await CheckOwnershipAsync(descriptor, token).ConfigureAwait(false);
         if (access is not null)
-            return UncertainIfPending(access, state.HasIntent);
+            return UncertainIfPending(access, state.HasPendingIntent);
         var read = await operation.ObserveAsync(token).ConfigureAwait(false);
         if (read.Failure is not null)
-            return UncertainIfPending(read.Failure, state.HasIntent);
+            return UncertainIfPending(read.Failure, state.HasPendingIntent);
         var observed = read.Value!;
         if (!observed.IsValidFor(descriptor))
             return Failure(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch);
@@ -70,7 +70,9 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
         if (observed.State == ObservedResourceState.Satisfied)
             return await VerifyAndConfirmAsync(operation, descriptor, entry?.Confirmation is null ? entry?.Intent : null, observed, state, token).ConfigureAwait(false);
         if (entry is not null)
-            return Failure(OperationOutcomeKind.Unknown, OperationErrorCode.WriteUncertain);
+            return state.HasPendingIntent
+                ? Failure(OperationOutcomeKind.Unknown, OperationErrorCode.WriteUncertain)
+                : Failure(OperationOutcomeKind.Conflict, OperationErrorCode.ObservationChanged);
         return await ApplyFreshAsync(operation, descriptor, observed, state, token).ConfigureAwait(false);
     }
 
@@ -87,7 +89,7 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
             return access;
         token.ThrowIfCancellationRequested();
         var intent = new OperationIntent(descriptor, observed);
-        state.HasIntent = true;
+        state.HasPendingIntent = true;
         state.FailureCode = OperationErrorCode.JournalUnavailable;
         await journal.RecordIntentAsync(intent, token).ConfigureAwait(false);
         state.FailureCode = OperationErrorCode.WriteUncertain;
@@ -97,7 +99,9 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
             return UncertainIfPending(access, true);
         var write = await operation.ApplyAsync(observed, token).ConfigureAwait(false);
         if (write.Failure is not null)
-            return write.Failure;
+            return write.Failure.Kind == OperationOutcomeKind.Cancelled
+                ? UncertainIfPending(write.Failure, state.HasPendingIntent)
+                : write.Failure;
         return await VerifyAndConfirmAsync(operation, descriptor, intent, null, state, token).ConfigureAwait(false);
     }
 
@@ -112,21 +116,22 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
     {
         var access = await CheckOwnershipAsync(descriptor, token).ConfigureAwait(false);
         if (access is not null)
-            return UncertainIfPending(access, state.HasIntent);
+            return UncertainIfPending(access, state.HasPendingIntent);
         var read = await operation.VerifyAsync(token).ConfigureAwait(false);
         if (read.Failure is not null)
-            return UncertainIfPending(read.Failure, state.HasIntent);
+            return UncertainIfPending(read.Failure, state.HasPendingIntent);
         var verified = read.Value!;
         var revisionChanged = observed is not null && verified.Revision != observed.Revision;
         if (!verified.IsSatisfiedFor(descriptor) || revisionChanged)
-            return Failure(state.HasIntent ? OperationOutcomeKind.Unknown : OperationOutcomeKind.Conflict, OperationErrorCode.VerificationFailed);
+            return Failure(state.HasPendingIntent ? OperationOutcomeKind.Unknown : OperationOutcomeKind.Conflict, OperationErrorCode.VerificationFailed);
         access = await CheckOwnershipAsync(descriptor, token).ConfigureAwait(false);
         if (access is not null)
-            return UncertainIfPending(access, state.HasIntent);
+            return UncertainIfPending(access, state.HasPendingIntent);
         if (intent is not null)
         {
             state.FailureCode = OperationErrorCode.JournalUnavailable;
             await journal.ConfirmAsync(intent, verified, token).ConfigureAwait(false);
+            state.HasPendingIntent = false;
         }
         return OperationResult.Completed(intent is not null);
     }
@@ -159,7 +164,7 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
 
     private sealed class ExecutionState
     {
-        public bool HasIntent { get; set; }
+        public bool HasPendingIntent { get; set; }
 
         public OperationErrorCode FailureCode { get; set; } = OperationErrorCode.JournalUnavailable;
     }

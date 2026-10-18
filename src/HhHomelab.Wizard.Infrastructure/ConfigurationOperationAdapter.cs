@@ -90,7 +90,7 @@ public abstract class ConfigurationOperationAdapter : IConfigurationOperation
         if (exception.Kind == ContractFailureKind.Transport)
             return OperationResult.Failed(OperationOutcomeKind.Transport, OperationErrorCode.ReadFailed);
         var authenticationDenied = exception.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden;
-        var authenticationRead = exception.Code is "qb.version.unavailable" or "arr.read.http-error";
+        var authenticationRead = exception.Code is "qb.version.unavailable" or "qb.categories.http-error" or "arr.read.http-error";
         if (authenticationDenied && authenticationRead)
             return OperationResult.Failed(OperationOutcomeKind.Invalid, OperationErrorCode.AuthenticationRequired);
         return exception.Code switch

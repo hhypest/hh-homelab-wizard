@@ -50,6 +50,40 @@ public sealed class ConfigurationOperationTests
         Assert.Equal(1, fixture.ApplyCount);
     }
 
+    [Fact]
+    public async Task ConfirmedOwnershipLossIsAConflictWithoutAReconciliationPrompt()
+    {
+        var fixture = new OperationFixture();
+        await fixture.RunAsync(TestContext.Current.CancellationToken);
+        fixture.Ownership = ResourceOwnership.Foreign;
+        var result = await fixture.RunAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Kind);
+        Assert.Equal(OperationErrorCode.OwnershipNotProven, result.Code);
+        Assert.Equal(1, fixture.ApplyCount);
+    }
+
+    [Fact]
+    public async Task ConfirmedConfigurationRemovedLaterRequiresPlanReviewRatherThanAnotherApply()
+    {
+        var fixture = new OperationFixture();
+        await fixture.RunAsync(TestContext.Current.CancellationToken);
+        fixture.State = ObservedResourceState.Missing;
+        var result = await fixture.RunAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Kind);
+        Assert.Equal(OperationErrorCode.ObservationChanged, result.Code);
+        Assert.Equal(1, fixture.ApplyCount);
+    }
+
+    [Fact]
+    public async Task ConfirmedReadFailureDoesNotImplyAnUnconfirmedWrite()
+    {
+        var fixture = new OperationFixture();
+        await fixture.RunAsync(TestContext.Current.CancellationToken);
+        fixture.ReadFailure = OperationResult.Failed(OperationOutcomeKind.Transport, OperationErrorCode.ReadFailed);
+        Assert.Equal(OperationOutcomeKind.Transport, (await fixture.RunAsync(TestContext.Current.CancellationToken)).Kind);
+        Assert.Equal(1, fixture.ApplyCount);
+    }
+
     [Theory]
     [InlineData(ResourceOwnership.Foreign, OperationOutcomeKind.Conflict)]
     [InlineData(ResourceOwnership.Unproven, OperationOutcomeKind.Invalid)]

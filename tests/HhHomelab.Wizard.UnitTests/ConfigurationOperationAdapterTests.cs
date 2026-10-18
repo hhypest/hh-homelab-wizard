@@ -85,6 +85,40 @@ public sealed class ConfigurationOperationAdapterTests
     [Theory]
     [InlineData("qbittorrent")]
     [InlineData("radarr")]
+    public async Task CancellationDuringApplyBaselineRereadAfterIntentIsUnknown(string service)
+    {
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        using var fixture = new ApiFixture(service) { CancelOnSecondResourceRead = cancellation };
+        await fixture.LoginAsync();
+        var owner = new OperationFixture();
+        var request = OperationFixture.NewRequest(service);
+        var result = await new ConfigurationOperationScenario(owner.Journal, owner).ExecuteAsync(fixture.Operation(request), cancellation.Token);
+        Assert.Equal(OperationOutcomeKind.Unknown, result.Kind);
+        Assert.Equal(0, fixture.Writes);
+        Assert.NotNull(owner.Journal.Entry);
+        Assert.Null(owner.Journal.Entry.Confirmation);
+        Assert.Equal(OperationOutcomeKind.Unknown,
+            (await new ConfigurationOperationScenario(owner.Journal, owner).ExecuteAsync(fixture.Operation(request), Token)).Kind);
+        Assert.Equal(0, fixture.Writes);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task SessionExpiryBetweenVersionAndCategoryReadsRequestsAuthentication(HttpStatusCode status)
+    {
+        using var fixture = new ApiFixture("qbittorrent");
+        await fixture.LoginAsync();
+        fixture.CategoryReadStatus = status;
+        var read = await fixture.Operation(OperationFixture.NewRequest()).ObserveAsync(Token);
+        Assert.Equal(OperationErrorCode.AuthenticationRequired, read.Failure!.Code);
+        Assert.Equal(OperationOutcomeKind.Invalid, read.Failure.Kind);
+        Assert.Equal(0, fixture.Writes);
+    }
+
+    [Theory]
+    [InlineData("qbittorrent")]
+    [InlineData("radarr")]
     public async Task VersionAuthAndProfileFailuresAreReadOnly(string service)
     {
         using var fixture = new ApiFixture(service);
@@ -222,6 +256,10 @@ public sealed class ConfigurationOperationAdapterTests
 
         public CancellationTokenSource? CancelOnWrite { get; set; }
 
+        public CancellationTokenSource? CancelOnSecondResourceRead { get; set; }
+
+        public HttpStatusCode? CategoryReadStatus { get; set; }
+
         public int Writes { get; private set; }
 
         public int Requests { get; private set; }
@@ -256,6 +294,13 @@ public sealed class ConfigurationOperationAdapterTests
                 if (path == "/api/v3/system/status")
                     return Text(new JsonObject { ["version"] = WrongVersion ? "9.9.9" : "6.4.4.10685" }.ToJsonString());
                 ResourceReads++;
+                if (ResourceReads == 2 && CancelOnSecondResourceRead is not null)
+                {
+                    CancelOnSecondResourceRead.Cancel();
+                    throw new OperationCanceledException(token);
+                }
+                if (service == "qbittorrent" && CategoryReadStatus is not null)
+                    return new(CategoryReadStatus.Value);
                 if (service == "qbittorrent")
                     return Text(ExistingPath is null ? "{}" : new JsonObject { ["movies"] = new JsonObject { ["savePath"] = ExistingPath } }.ToJsonString());
                 if (ReplaceRootOnSecondRead && ResourceReads == 2)

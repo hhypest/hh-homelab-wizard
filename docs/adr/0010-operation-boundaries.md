@@ -31,10 +31,10 @@ Application определяет `IConfigurationOperation`, `IOperationJournal`,
 
 1. Проверить descriptor и получить исключительную journal lease. Блокировка экземпляра сценария дополняет её, не заменяет межпроцессные locks.
 2. Прочитать существующий intent/confirm, проверить identity/параметры, затем свежие ownership и Observe.
-3. При существующем intent никогда не вызывать Apply. Satisfied → независимый Verify → confirm при незавершённом intent. Missing/неполное доказательство → Unknown; конфликт не исправляется автоматически.
+3. При существующем intent никогда не вызывать Apply. Satisfied → независимый Verify → confirm при незавершённом intent. Для pending intent Missing/неполное доказательство → Unknown. Ранее подтверждённая запись не является pending: смена владения на Foreign или исчезновение подтверждённой настройки → Conflict, сбой чтения → Transport. Конфликт не исправляется автоматически.
 4. Для новой Missing baseline заново проверить ownership, атомарно записать intent, снова проверить ownership и вызвать Apply не более одного раза.
 5. Адаптер Apply повторяет чтение baseline/version/auth перед POST. Изменившаяся baseline блокирует запись. Это не remote CAS: API не обеспечивает общей транзакции с ручными действиями других клиентов.
-6. После acknowledgement проверить ownership, выполнить независимый Verify, ещё раз проверить ownership и атомарно confirm. Исключение/отмена после intent оставляет Unknown. Lease освобождается при любом исходе.
+6. После acknowledgement проверить ownership, выполнить независимый Verify, ещё раз проверить ownership и атомарно confirm. Исключение/отмена при незавершённом intent оставляет Unknown, включая отмену повторного baseline read внутри Apply до POST. Lease освобождается при любом исходе.
 
 `IOperationJournal` требует атомарность, привязку к descriptor и исключительную lease, но production implementation, schema/hash envelope, filesystem locks и восстановление между процессами реализуются в #51/#52. У сценария нет fallback journal. Тестовая реализация находится только в тестах. Предыдущий незавершённый intent нельзя очищать для повтора через этот API; решение recovery требует отдельного проверенного сценария #52.
 

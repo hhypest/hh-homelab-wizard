@@ -23,6 +23,8 @@
 - недоступный journal/confirm, неуспешный Verify и raw transport errors не становятся успешным результатом и не раскрывают тексты исключений;
 - Desktop выбирает действие по typed result; для любого code при Unknown предлагает Observe или восстановление журнала, без предложения повторить запись.
 
+Регрессии замечаний Codex в PR: отмена во втором baseline read после сохранения intent даёт Unknown без POST; 401/403 категории qBittorrent после успешного version read требуют SignIn; confirmed entry отдельно от pending сохраняет Conflict при Foreign/исчезновении настройки и Transport при отказе чтения.
+
 `TestOperationJournal` и ownership fixture искусственные, расположены только в UnitTests. Повторный объект сценария в тесте не является перезапуском приложения с дисковым журналом. HTTP bindings проверены синтетическим handler без сети. Прежние version/auth/conflict и runtime-пробы клиентов сохраняются и выполняются CI; они не объявляются runtime-проверкой нового сценария с durable journal.
 
 ## Непроверенные уровни
