@@ -7,7 +7,7 @@ namespace HhHomelab.Wizard.Infrastructure;
 
 /// <summary>M0 contracts for owned fresh installations. Caller supplies an exclusively owned,
 /// redirect-disabled HTTP transport and serializes operations; no automatic retries or journal.</summary>
-public sealed class ArrContractClient
+public sealed partial class ArrContractClient
 {
     private readonly HttpClient http;
     private readonly ArrService service;
@@ -317,14 +317,17 @@ public sealed class ArrContractClient
         }
     }
 
-    private async Task<bool> ObserveRootAsync(string path, CancellationToken token)
+    private async Task<bool> ObserveRootAsync(string path, CancellationToken token) =>
+        await ReadRootIdentityAsync(path, token) is not null;
+
+    private async Task<int?> ReadRootIdentityAsync(string path, CancellationToken token)
     {
         var roots = Array(await ReadAsync("rootfolder", token)).Select(Object).ToArray();
         if (roots.Any(r => Text(r, "path").TrimEnd('/') != path.TrimEnd('/')) || roots.Length > 1)
             throw new ArrContractException("arr.root.conflict");
         if (roots.Length == 0)
-            return false;
-        _ = Id(roots[0]);
+            return null;
+        var identity = Id(roots[0]);
         if (
             roots[0]["accessible"] is not JsonValue accessible
             || !accessible.TryGetValue<bool>(out var value)
@@ -332,7 +335,7 @@ public sealed class ArrContractClient
             throw new ArrContractException("arr.response-invalid");
         if (!value)
             throw new ArrContractException("arr.root.inaccessible");
-        return true;
+        return identity;
     }
 
     private static Dictionary<string, JsonObject> GetFields(JsonObject provider)
