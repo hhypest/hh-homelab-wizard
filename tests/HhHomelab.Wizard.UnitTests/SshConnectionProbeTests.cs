@@ -137,6 +137,15 @@ public sealed class SshConnectionProbeTests
     }
 
     [Fact]
+    public async Task ConnectionLossDuringSftpRemainsATransportFailure()
+    {
+        var wire = new ProbeWire { SftpFailure = new SshConnectionException("synthetic-secret") };
+        var result = await Probe(wire).ProbeAsync(Pin, Token);
+        Assert.Equal(SshProbeStatus.TransportFailure, result.Status);
+        Assert.Null(result.Capabilities);
+    }
+
+    [Fact]
     public async Task ATransportThatSkipsHostKeyEvidenceCannotBeReady()
     {
         var wire = new ProbeWire { SkipHostKey = true };
@@ -171,7 +180,7 @@ public sealed class SshConnectionProbeTests
         var cancelledWire = new ProbeWire { WaitForCancellation = true };
         using var caller = CancellationTokenSource.CreateLinkedTokenSource(Token);
         var running = Probe(cancelledWire).ProbeAsync(Pin, caller.Token);
-        await cancelledWire.Started.Task.WaitAsync(Token);
+        await cancelledWire.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
         caller.Cancel();
         Assert.Equal(SshProbeStatus.Cancelled, (await running).Status);
         Assert.Equal("dispose", cancelledWire.Events.Last());
@@ -184,7 +193,7 @@ public sealed class SshConnectionProbeTests
         var probe = Probe(wire);
         using var caller = CancellationTokenSource.CreateLinkedTokenSource(Token);
         var running = probe.ProbeAsync(Pin, caller.Token);
-        await wire.Started.Task.WaitAsync(Token);
+        await wire.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), Token);
         Assert.Equal(SshProbeStatus.Busy, (await probe.ProbeAsync(Pin, Token)).Status);
         caller.Cancel();
         await running;
@@ -296,7 +305,7 @@ public sealed class SshConnectionProbeTests
         using var credentials = SshProbeCredentials.Password("synthetic-secret");
         var probe = new SshConnectionProbe(new("127.0.0.1", port, "synthetic-user"), credentials, TimeSpan.FromMilliseconds(200));
         var pending = probe.ProbeAsync(null, Token);
-        using var peer = await listener.AcceptTcpClientAsync(Token);
+        using var peer = await listener.AcceptTcpClientAsync(Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5), Token);
         var result = await pending.WaitAsync(TimeSpan.FromSeconds(5), Token);
         Assert.Equal(SshProbeStatus.TimedOut, result.Status);
     }
@@ -311,7 +320,7 @@ public sealed class SshConnectionProbeTests
         using var caller = CancellationTokenSource.CreateLinkedTokenSource(Token);
         var probe = new SshConnectionProbe(new("127.0.0.1", port, "synthetic-user"), credentials);
         var pending = probe.ProbeAsync(null, caller.Token);
-        using var peer = await listener.AcceptTcpClientAsync(Token);
+        using var peer = await listener.AcceptTcpClientAsync(Token).AsTask().WaitAsync(TimeSpan.FromSeconds(5), Token);
         caller.Cancel();
         Assert.Equal(SshProbeStatus.Cancelled, (await pending.WaitAsync(TimeSpan.FromSeconds(5), Token)).Status);
     }

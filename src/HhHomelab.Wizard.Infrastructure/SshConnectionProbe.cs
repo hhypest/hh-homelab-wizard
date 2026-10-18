@@ -97,6 +97,7 @@ public sealed class SshConnectionProbe : ISshConnectionProbe
     {
         SshAuthenticationException => SshProbeStatus.AuthenticationRequired,
         SshOperationTimeoutException or TimeoutException => SshProbeStatus.TimedOut,
+        SshConnectionException => SshProbeStatus.TransportFailure,
         InvalidDataException => SshProbeStatus.InvalidResponse,
         ArgumentException or ObjectDisposedException => SshProbeStatus.InvalidInput,
         SshException when checkingSftp => SshProbeStatus.SftpUnavailable,
