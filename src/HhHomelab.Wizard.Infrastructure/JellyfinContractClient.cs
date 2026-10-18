@@ -14,7 +14,7 @@ public sealed class JellyfinContractClient
     public string? ServerId { get; private set; }
     public string? AdministratorId { get; private set; }
 
-    public JellyfinContractClient(HttpClient http)
+    public JellyfinContractClient(HttpClient http, ContractHttpTimeouts? timeouts = null)
     {
         ArgumentNullException.ThrowIfNull(http);
         ArrContractClient.ValidateEndpoint(http.BaseAddress);
@@ -29,7 +29,8 @@ public sealed class JellyfinContractClient
                 if (accessToken is not null)
                     header += ", Token=\"" + accessToken + "\"";
                 request.Headers.TryAddWithoutValidation("Authorization", header);
-            }
+            },
+            timeouts
         );
     }
 
@@ -125,7 +126,8 @@ public sealed class JellyfinContractClient
             catch (MediaContractException e)
                 when (e.Code == "jellyfin.login.http-error"
                     && e.StatusCode == HttpStatusCode.Unauthorized
-                ) { }
+                )
+            { }
             if (!authenticated)
             {
                 // Once a password exists, anonymous Startup/User is also protected. Login must
