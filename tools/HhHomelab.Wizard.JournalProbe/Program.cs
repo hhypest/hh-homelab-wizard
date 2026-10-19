@@ -46,6 +46,15 @@ internal static class JournalProbe
             await HoldThenKillAsync(input, "hold-confirm", token);
             await ExpectWorkerAsync(input, "satisfied", "already-satisfied:0", token);
             Console.WriteLine("journal.probe.restart-and-exclusive-lock.passed");
+            var planDirectory = Path.Combine(directory, "plan");
+            Directory.CreateDirectory(planDirectory);
+            var planInput = input with { Directory = planDirectory };
+            FileOperationJournal.Create(planDirectory, input.Scope);
+            await HoldThenKillAsync(planInput, "plan-hold", token);
+            await ExpectWorkerAsync(planInput, "plan-missing", "plan:Unknown:0:0", token);
+            await ExpectWorkerAsync(planInput, "plan-present", "plan:Applied:0:1", token);
+            await ExpectWorkerAsync(planInput, "plan-changed", "plan:Conflict:0:0", token);
+            Console.WriteLine("journal.probe.plan-recovery.passed");
         }
         finally
         {
@@ -142,6 +151,8 @@ internal static class JournalProbe
         }
         if (mode == "lock")
             throw new InvalidOperationException("probe.lock.not-exclusive");
+        if (mode.StartsWith("plan-", StringComparison.Ordinal))
+            return await PlanWorkerAsync(input, mode, journal, token);
         if (mode.StartsWith("hold-", StringComparison.Ordinal))
         {
             if (mode == "hold-confirm")
@@ -172,6 +183,55 @@ internal static class JournalProbe
         };
         Console.WriteLine($"{outcome}:{operation.ApplyCount}");
         return 0;
+    }
+
+    private static async Task<int> PlanWorkerAsync(ProbeInput input, string mode, FileOperationJournal journal, CancellationToken token)
+    {
+        var secondDescriptor = input.Descriptor with
+        {
+            Identity = input.Descriptor.Identity with { OperationId = Guid.Parse("82e4f997-48c4-46e9-9ff3-d9c899f8c457") },
+            SpecificationHash = ConfigurationRequest.Fingerprint("synthetic-dependent-category"),
+        };
+        var first = new PlanOperation(input.Descriptor, mode == "plan-present", mode == "plan-hold");
+        var second = new PlanOperation(secondDescriptor, satisfied: false, hold: false);
+        var plan = new ConfigurationOperationPlan([
+            new(second.Descriptor, mode == "plan-changed" ? [] : [first.Descriptor.Identity.OperationId], TimeSpan.FromSeconds(30)),
+            new(first.Descriptor, [], TimeSpan.FromSeconds(30)),
+        ]);
+        var ownership = new SyntheticOperation(input.Descriptor, satisfied: true);
+        var result = await new ConfigurationPlanScenario(journal, ownership).ExecuteAsync(plan, [first, second], token);
+        Console.WriteLine($"plan:{result.Result.Kind}:{first.ApplyCount}:{second.ApplyCount}");
+        return 0;
+    }
+
+    private sealed class PlanOperation(OperationDescriptor descriptor, bool satisfied, bool hold) : IConfigurationOperation
+    {
+        private bool present = satisfied;
+
+        public OperationDescriptor Descriptor { get; } = descriptor;
+
+        public int ApplyCount { get; private set; }
+
+        public Task<OperationRead<OperationObservation>> ObserveAsync(CancellationToken token) => Task.FromResult(
+            OperationRead<OperationObservation>.Observed(new(Descriptor,
+                present ? ObservedResourceState.Satisfied : ObservedResourceState.Missing, new string('b', 64))));
+
+        public async Task<OperationWriteAttempt> ApplyAsync(OperationObservation baseline, CancellationToken token)
+        {
+            ApplyCount++;
+            if (hold)
+            {
+                Console.WriteLine("ready");
+                await Console.Out.FlushAsync(token);
+                await Task.Delay(Timeout.Infinite, token);
+            }
+            present = true;
+            return OperationWriteAttempt.Acknowledged();
+        }
+
+        public Task<OperationRead<OperationVerification>> VerifyAsync(CancellationToken token) => Task.FromResult(
+            OperationRead<OperationVerification>.Observed(new(Descriptor,
+                present ? ObservedResourceState.Satisfied : ObservedResourceState.Missing, new string('b', 64))));
     }
 
     private static void Require(bool condition)

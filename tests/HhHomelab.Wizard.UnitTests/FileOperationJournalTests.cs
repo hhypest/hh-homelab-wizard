@@ -191,7 +191,7 @@ public sealed class FileOperationJournalTests
                 if (failure == "hash")
                     node["Hash"] = new string('0', 64);
                 if (failure == "schema")
-                    node["Data"]!["SchemaVersion"] = 2;
+                    node["Data"]!["SchemaVersion"] = 3;
                 if (failure == "unknown")
                     node["password"] = "synthetic-token";
                 File.WriteAllText(fixture.SnapshotPath, node.ToJsonString());

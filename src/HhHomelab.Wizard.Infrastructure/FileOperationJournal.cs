@@ -7,7 +7,7 @@ namespace HhHomelab.Wizard.Infrastructure;
 /// <summary>Bounded local file journal for one installation in a private, existing directory.
 /// Cooperating processes must use the same directory on a local filesystem. Never copy/delete its
 /// lock file while in use. This is not a remote NAS lock, ownership proof or power-loss guarantee.</summary>
-public sealed class FileOperationJournal : IOperationJournal
+public sealed class FileOperationJournal : IOperationPlanJournal
 {
     private readonly object gate = new();
 
@@ -55,6 +55,31 @@ public sealed class FileOperationJournal : IOperationJournal
         });
     }
 
+    public Task BindPlanAsync(ConfigurationOperationPlan plan, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        return RunAsync(() =>
+        {
+            if (activeLease is not null)
+                throw new OperationLeaseUnavailableException();
+            using var fileLock = OpenLock(FileMode.Open);
+            var snapshot = Load();
+            var binding = OperationPlanBinding.From(plan);
+            binding.Validate(scope);
+            if (snapshot.Data.Plan is { } previous)
+            {
+                if (previous.Fingerprint != binding.Fingerprint)
+                    throw new OperationPlanMismatchException();
+                return true;
+            }
+            // An existing single-operation history cannot be silently adopted into a new graph.
+            if (snapshot.Data.Entries.Length != 0)
+                throw new OperationJournalException("journal.plan-history");
+            Save(OperationJournalSnapshot.Create(scope, checked(snapshot.Data.Generation + 1), [], binding), replace: true);
+            return true;
+        }, token);
+    }
+
     public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token)
     {
         return RunAsync<IAsyncDisposable>(() =>
@@ -74,6 +99,7 @@ public sealed class FileOperationJournal : IOperationJournal
         try
         {
             var snapshot = Load();
+            snapshot.Data.Plan?.RequireMember(descriptor);
             FindEntry(snapshot, descriptor);
             return new Lease(this, descriptor, fileLock, snapshot.Hash);
         }
@@ -187,7 +213,7 @@ public sealed class FileOperationJournal : IOperationJournal
 
     private void Commit(OperationJournalSnapshot previous, OperationJournalEntry[] entries)
     {
-        var next = OperationJournalSnapshot.Create(scope, checked(previous.Data.Generation + 1), entries);
+        var next = OperationJournalSnapshot.Create(scope, checked(previous.Data.Generation + 1), entries, previous.Data.Plan);
         Save(next, replace: true);
         activeLease!.Hash = next.Hash;
     }

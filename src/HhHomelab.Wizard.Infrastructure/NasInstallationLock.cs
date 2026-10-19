@@ -178,11 +178,16 @@ public sealed class NasInstallationLock
 /// lock, held for the whole Observe/Apply/Verify/confirm and released before the local lease. Any
 /// result other than holding the lock is a lease conflict for the scenario, so no step runs.</summary>
 public sealed class RemoteLockedOperationJournal(IOperationJournal inner, NasInstallationLock remote, MediaPathLayout layout,
-    InstallationOwner owner, Guid session, SshHostKey pin) : IOperationJournal
+    InstallationOwner owner, Guid session, SshHostKey pin) : IOperationPlanJournal
 {
     public InstallationLockResult? LastAcquire { get; private set; }
 
     public InstallationLockResult? LastRelease { get; private set; }
+
+    public Task BindPlanAsync(ConfigurationOperationPlan plan, CancellationToken token) =>
+        inner is IOperationPlanJournal plans
+            ? plans.BindPlanAsync(plan, token)
+            : throw new InvalidOperationException("journal.plan-unavailable");
 
     public async Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token)
     {

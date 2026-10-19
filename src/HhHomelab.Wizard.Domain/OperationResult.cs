@@ -31,6 +31,7 @@ public enum OperationErrorCode
     JournalUnavailable,
     OperationInProgress,
     Cancelled,
+    DeadlineExceeded,
 }
 
 public sealed record OperationResult
