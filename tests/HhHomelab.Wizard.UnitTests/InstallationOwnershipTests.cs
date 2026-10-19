@@ -57,6 +57,16 @@ public sealed class InstallationOwnershipTests
     }
 
     [Fact]
+    public void OwnerFromAJournalOfAnotherProfileNeverMatchesEvenWithItsOwnMarker()
+    {
+        var oldProfile = new string('c', 64);
+        var oldOwner = new InstallationOwner(Installation, oldProfile);
+        var output = PathData.Output(configuration: OwnedConfiguration, marker: MarkerLines(Json(Installation, oldProfile)));
+        Assert.Equal(new PreflightCheck("ownership.profile-changed", PreflightCheckStatus.Blocking), Evaluate(output, oldOwner));
+        Assert.Equal(new PreflightCheck("ownership.profile-changed", PreflightCheckStatus.Blocking), Evaluate(PathData.Output(), oldOwner));
+    }
+
+    [Fact]
     public void NonEmptyRootWithoutMarkerIsUnmarkedContentsEvenForTheExpectedOwner()
     {
         var output = PathData.Output(configuration: OwnedConfiguration);

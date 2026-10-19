@@ -49,7 +49,8 @@ staged_temporary_entry() {
 # trailing newlines and NUL bytes. The file is size-checked first so a huge file is never read.
 same_marker_bytes() {
     [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] || return 1
-    [ $(( $(wc -c < "$1") )) -le 4096 ] || return 1
+    size="$(stat -c '%s' "$1" 2>/dev/null)" || return 1
+    [ $((size)) -le 4096 ] || return 1
     [ "$(od -An -v -tx1 "$1" | tr -d ' \n')" = "$(printf '%s' "$2" | od -An -v -tx1 | tr -d ' \n')" ]
 }
 
