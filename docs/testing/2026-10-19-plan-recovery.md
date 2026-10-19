@@ -20,7 +20,7 @@ dotnet run --project tools/HhHomelab.Wizard.ProfileCheck --no-build -c Release -
 
 MSBuild здесь запускался последовательно: параллельная оценка solution в ограниченной среде завершалась без сообщения об ошибке. Это параметр локального запуска, CI workflow не менялся.
 
-Locked restore и Release build прошли: 0 warnings / 0 errors. Полный набор: 1035 unit/fixture (включая 28 новых plan tests) и 18 Desktop tests пройдены, без пропусков.
+Locked restore и Release build прошли: 0 warnings / 0 errors. Полный набор: 1038 unit/fixture (включая 31 новый plan test) и 18 Desktop tests пройдены, без пропусков.
 
 | Сценарий | Наблюдаемый результат |
 | --- | --- |
@@ -28,6 +28,7 @@ Locked restore и Release build прошли: 0 warnings / 0 errors. Полны�
 | Потеря ответа после Apply | Unknown, потребитель даже не наблюдается; новый журнал открывается с тем же планом |
 | Pending и результат уже присутствует | Observe/Verify подтверждают прежний intent, затем разрешается зависимый шаг |
 | Pending и результат отсутствует | Unknown, Apply не повторяется; зависимые шаги не запускаются |
+| Pending второго шага того же ресурса | Первая зависимость снова наблюдается (в том числе первоначально AlreadySatisfied без intent); второй pending intent не создаётся |
 | Подтверждённая зависимость исчезла / утрачено владение | Conflict; запись из журнала не разрешает продолжение |
 | Изменены dependency, budget, specification, endpoint, добавлен/убран шаг | Conflict/IdentityMismatch до Observe и до intent, в том числе при ещё пустой истории |
 | Адаптер отсутствует или не совпадает | Отказ до привязки плана и первой операции |
@@ -41,7 +42,7 @@ Locked restore и Release build прошли: 0 warnings / 0 errors. Полны�
 | Повреждение плана при пересчитанном внешнем checksum | Семантическая проверка отвергает файл |
 | Journal schema 1 | Отклонён; исходные байты не изменены |
 
-JournalProbe дополнительно создаёт graph journal, запускает дочерний процесс через **настоящий ConfigurationPlanScenario** и принудительно завершает его внутри первого Apply после durable intent. Второй процесс с прежним планом и Missing получает `plan:Unknown:0:0`; следующий процесс с Satisfied подтверждает первый шаг без его Apply и выполняет второй (`plan:Applied:0:1`). Изменение dependencies в новом процессе — `plan:Conflict:0:0`. Старая process-restart/exclusive-lock проба также сохранена. Вывод: `journal.probe.plan-recovery.passed`, затем `journal.probe.passed`.
+JournalProbe дополнительно создаёт graph journal, запускает дочерний процесс через **настоящий ConfigurationPlanScenario** и принудительно завершает его внутри первого Apply после durable intent. Второй процесс с прежним планом и Missing получает `plan:Unknown:0:0`; следующий процесс с Satisfied подтверждает первый шаг без его Apply и выполняет второй (`plan:Applied:0:1`). Изменение dependencies в новом процессе — `plan:Conflict:0:0`. Дополнительный процесс прерывается на втором шаге того же ресурса, когда первый изначально AlreadySatisfied и не имеет intent: новый процесс проверяет первый и подтверждает второй без Apply (`plan:Applied:0:0`). Старая process-restart/exclusive-lock проба также сохранена. Вывод: `journal.probe.plan-recovery.passed`, затем `journal.probe.passed`.
 
 ProfileCheck прошёл; это проверка исследовательского каталога, а не установка. Markdown-ссылки и `git diff --check` проверяются перед публикацией.
 

@@ -100,7 +100,7 @@ public sealed class FileOperationJournal : IOperationPlanJournal
         {
             var snapshot = Load();
             snapshot.Data.Plan?.RequireMember(descriptor);
-            FindEntry(snapshot, descriptor);
+            FindEntry(snapshot, descriptor, observePlanStep: true);
             return new Lease(this, descriptor, fileLock, snapshot.Hash);
         }
         catch
@@ -112,7 +112,7 @@ public sealed class FileOperationJournal : IOperationPlanJournal
 
     public Task<OperationJournalEntry?> ReadAsync(OperationDescriptor descriptor, CancellationToken token)
     {
-        return RunAsync(() => FindEntry(Current(descriptor), descriptor), token);
+        return RunAsync(() => FindEntry(Current(descriptor), descriptor, observePlanStep: true), token);
     }
 
     public Task RecordIntentAsync(OperationIntent intent, CancellationToken token)
@@ -186,7 +186,7 @@ public sealed class FileOperationJournal : IOperationPlanJournal
         return snapshot;
     }
 
-    private static OperationJournalEntry? FindEntry(OperationJournalSnapshot snapshot, OperationDescriptor descriptor)
+    private static OperationJournalEntry? FindEntry(OperationJournalSnapshot snapshot, OperationDescriptor descriptor, bool observePlanStep = false)
     {
         OperationJournalEntry? found = null;
         foreach (var entry in snapshot.Data.Entries)
@@ -198,7 +198,10 @@ public sealed class FileOperationJournal : IOperationPlanJournal
                     throw new OperationJournalException("journal.identity");
                 var differentPendingOperation = entry.Confirmation is null
                     && identity.OperationId != descriptor.Identity.OperationId;
-                if (differentPendingOperation)
+                // A bound graph must reobserve earlier steps even when a later step of the same
+                // resource is pending. This is read permission only: RecordIntent still uses the
+                // strict path and cannot create another pending write for that resource.
+                if (differentPendingOperation && !(observePlanStep && snapshot.Data.Plan is not null))
                     throw new OperationJournalException("journal.pending-conflict");
             }
             if (identity.OperationId == descriptor.Identity.OperationId)

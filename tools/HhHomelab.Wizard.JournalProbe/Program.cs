@@ -54,6 +54,12 @@ internal static class JournalProbe
             await ExpectWorkerAsync(planInput, "plan-missing", "plan:Unknown:0:0", token);
             await ExpectWorkerAsync(planInput, "plan-present", "plan:Applied:0:1", token);
             await ExpectWorkerAsync(planInput, "plan-changed", "plan:Conflict:0:0", token);
+            var laterDirectory = Path.Combine(directory, "plan-later");
+            Directory.CreateDirectory(laterDirectory);
+            var laterInput = input with { Directory = laterDirectory };
+            FileOperationJournal.Create(laterDirectory, input.Scope);
+            await HoldThenKillAsync(laterInput, "plan-later-hold", token);
+            await ExpectWorkerAsync(laterInput, "plan-later-present", "plan:Applied:0:0", token);
             Console.WriteLine("journal.probe.plan-recovery.passed");
         }
         finally
@@ -192,8 +198,9 @@ internal static class JournalProbe
             Identity = input.Descriptor.Identity with { OperationId = Guid.Parse("82e4f997-48c4-46e9-9ff3-d9c899f8c457") },
             SpecificationHash = ConfigurationRequest.Fingerprint("synthetic-dependent-category"),
         };
-        var first = new PlanOperation(input.Descriptor, mode == "plan-present", mode == "plan-hold");
-        var second = new PlanOperation(secondDescriptor, satisfied: false, hold: false);
+        var firstPresent = mode is "plan-present" or "plan-later-hold" or "plan-later-present";
+        var first = new PlanOperation(input.Descriptor, firstPresent, mode == "plan-hold");
+        var second = new PlanOperation(secondDescriptor, mode == "plan-later-present", mode == "plan-later-hold");
         var plan = new ConfigurationOperationPlan([
             new(second.Descriptor, mode == "plan-changed" ? [] : [first.Descriptor.Identity.OperationId], TimeSpan.FromSeconds(30)),
             new(first.Descriptor, [], TimeSpan.FromSeconds(30)),

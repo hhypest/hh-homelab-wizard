@@ -44,6 +44,41 @@ public sealed class ConfigurationPlanTests
         Assert.Equal(published ? 1 : 0, fixture.Second.ApplyCount);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PendingLaterStepAllowsReobservingTheSameResourceWithoutRepeatingEitherApply(bool firstWasAlreadySatisfied)
+    {
+        using var fixture = new PlanFixture(sameResource: true);
+        if (firstWasAlreadySatisfied)
+            fixture.First.State = ObservedResourceState.Satisfied;
+        fixture.Second.LoseResponse = true;
+        Assert.Equal(OperationOutcomeKind.Unknown, (await fixture.RunAsync(Token)).Result.Kind);
+        fixture.Events.Clear();
+        fixture.Second.LoseResponse = false;
+        var resumed = await fixture.RunAsync(Token);
+        Assert.Equal(OperationOutcomeKind.Applied, resumed.Result.Kind);
+        Assert.Equal(new[] { "first.observe", "first.verify", "second.observe", "second.verify" }, fixture.Events);
+        Assert.Equal(firstWasAlreadySatisfied ? 0 : 1, fixture.First.ApplyCount);
+        Assert.Equal(1, fixture.Second.ApplyCount);
+    }
+
+    [Fact]
+    public async Task ReadPermissionWithinABoundPlanCannotCreateASecondPendingIntentForTheSameResource()
+    {
+        using var fixture = new PlanFixture(sameResource: true);
+        fixture.First.State = ObservedResourceState.Satisfied;
+        fixture.Second.LoseResponse = true;
+        Assert.Equal(OperationOutcomeKind.Unknown, (await fixture.RunAsync(Token)).Result.Kind);
+        fixture.First.State = ObservedResourceState.Missing;
+        var before = File.ReadAllBytes(fixture.SnapshotPath);
+        var resumed = await fixture.RunAsync(Token);
+        Assert.False(resumed.Result.IsSuccess);
+        Assert.Equal(0, fixture.First.ApplyCount);
+        Assert.Equal(1, fixture.Second.ApplyCount);
+        Assert.Equal(before, File.ReadAllBytes(fixture.SnapshotPath));
+    }
+
     [Fact]
     public async Task APreviouslyConfirmedDependencyThatDisappearsBlocksTheRemainingPlan()
     {
@@ -290,10 +325,13 @@ public sealed class ConfigurationPlanTests
     {
         private readonly JournalDirectory directory = new();
 
-        public PlanFixture(TimeSpan? timeout = null)
+        public PlanFixture(TimeSpan? timeout = null, bool sameResource = false)
         {
             First = new(directory.Descriptor, "first", Events);
-            Second = new(NewDescriptor(), "second", Events);
+            var secondDescriptor = NewDescriptor();
+            if (sameResource)
+                secondDescriptor = secondDescriptor with { Identity = secondDescriptor.Identity with { Resource = First.Descriptor.Identity.Resource } };
+            Second = new(secondDescriptor, "second", Events);
             Plan = new([
                 new(Second.Descriptor, [First.Descriptor.Identity.OperationId], TimeSpan.FromSeconds(30)),
                 new(First.Descriptor, [], timeout ?? TimeSpan.FromSeconds(30)),
