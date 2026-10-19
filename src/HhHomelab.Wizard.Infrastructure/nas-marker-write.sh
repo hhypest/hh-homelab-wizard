@@ -32,7 +32,8 @@ marker_directory_entry() {
     [ "${1##*/}" = .hh-homelab-wizard ] && [ -d "$1" ] && [ ! -L "$1" ]
 }
 
-# Only this wizard's own regular temporary files; a symlink or anything else is foreign content.
+# Only this wizard's own regular temporary files, either never written (empty) or holding exactly the
+# requested marker; another installation's leftover, a symlink or anything else is foreign content.
 staged_temporary_entry() {
     name="${1##*/}"
     case "$name" in
@@ -42,7 +43,8 @@ staged_temporary_entry() {
     case "${name#.installation.json.tmp-}" in
         '' | *[!0-9]*) return 1 ;;
     esac
-    [ -f "$1" ] && [ ! -L "$1" ]
+    [ -f "$1" ] && [ ! -L "$1" ] || return 1
+    [ ! -s "$1" ] || same_marker_bytes "$1" "$marker"
 }
 
 # Exact byte comparison through the same hex encoder on both sides: shell variables would drop

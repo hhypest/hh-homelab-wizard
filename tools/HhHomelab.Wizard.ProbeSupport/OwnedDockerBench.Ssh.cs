@@ -208,16 +208,20 @@ public sealed partial class OwnedDockerBench
     }
 
     /// <summary>A directory owned by the SSH user for marker creation, a staged leftover of an
-    /// interrupted creation inside it, a "staged" directory whose temporary name is a symlink, and a
-    /// root-owned directory the SSH user cannot write.</summary>
-    public async Task PrepareSshMarkerWriteTreeAsync(CancellationToken token)
+    /// interrupted creation inside it, a staged leftover of another installation (its JSON arrives on
+    /// stdin), a "staged" directory whose temporary name is a symlink, and a root-owned directory the
+    /// SSH user cannot write.</summary>
+    public async Task PrepareSshMarkerWriteTreeAsync(string foreignMarker, CancellationToken token)
     {
         await RequireSshOwnershipAsync(token);
-        _ = await RunAsync(["exec", Container, "sh", "-c",
-            "set -eu; mkdir -p /volume1/apps/staged/.hh-homelab-wizard /volume1/apps/linked-tmp/.hh-homelab-wizard /volume1/readonly; "
+        var script = "set -eu; IFS= read -r foreign; "
+            + "mkdir -p /volume1/apps/staged/.hh-homelab-wizard /volume1/apps/foreign-staged/.hh-homelab-wizard "
+            + "/volume1/apps/linked-tmp/.hh-homelab-wizard /volume1/readonly; "
             + ": > /volume1/apps/staged/.hh-homelab-wizard/.installation.json.tmp-1; "
+            + "printf '%s' \"$foreign\" > /volume1/apps/foreign-staged/.hh-homelab-wizard/.installation.json.tmp-1; "
             + ": > /volume1/apps/victim; ln -s /volume1/apps/victim /volume1/apps/linked-tmp/.hh-homelab-wizard/.installation.json.tmp-1; "
-            + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly; ln -sfn /volume1/apps /volume1/apps-link"], token);
+            + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly; ln -sfn /volume1/apps /volume1/apps-link";
+        await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], foreignMarker + "\n", token);
     }
 
     /// <summary>Simulates a tampered lock of /volume1/apps/created: the holder holds the given session

@@ -52,6 +52,8 @@ public sealed class NasOwnershipMarkerOperation : IConfigurationOperation, IOper
         {
             MarkerWriteOutcome.Created or MarkerWriteOutcome.AlreadyPresent => OperationWriteAttempt.Acknowledged(),
             MarkerWriteOutcome.Rejected => Write(OperationOutcomeKind.Rejected, OperationErrorCode.WriteRejected),
+            // The write connection presented another host key than the pin: same handling as a read.
+            MarkerWriteOutcome.IdentityChanged => Write(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch),
             // The connection failed before the command left the client: nothing was sent.
             MarkerWriteOutcome.NotSent when token.IsCancellationRequested => Write(OperationOutcomeKind.Cancelled, OperationErrorCode.Cancelled),
             MarkerWriteOutcome.NotSent => Write(OperationOutcomeKind.Transport, OperationErrorCode.ReadFailed),

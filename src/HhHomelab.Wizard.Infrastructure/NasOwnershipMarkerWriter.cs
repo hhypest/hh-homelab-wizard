@@ -3,14 +3,16 @@ using HhHomelab.Wizard.Domain;
 
 namespace HhHomelab.Wizard.Infrastructure;
 
-/// <summary>Result of one marker write. Only Created/AlreadyPresent acknowledge the command; Rejected
-/// and NotSent prove that nothing changed; Unknown means the NAS may have changed and must be observed.</summary>
+/// <summary>Result of one marker write. Only Created/AlreadyPresent acknowledge the command; Rejected,
+/// NotSent and IdentityChanged (the host key no longer matches the pin) prove that nothing changed;
+/// Unknown means the NAS may have changed and must be observed.</summary>
 public enum MarkerWriteOutcome
 {
     Created,
     AlreadyPresent,
     Rejected,
     NotSent,
+    IdentityChanged,
     Unknown,
 }
 
@@ -107,7 +109,9 @@ public sealed class NasOwnershipMarkerWriter
             budget.ThrowIfCancellationRequested();
             using var wire = createWire(timeout);
             await wire.ConnectAsync(trust.Accept, budget).ConfigureAwait(false);
-            if (!trust.Accepted || trust.Failure is not null)
+            if (trust.Failure is not null)
+                return MarkerWriteOutcome.IdentityChanged;
+            if (!trust.Accepted)
                 return MarkerWriteOutcome.NotSent;
             budget.ThrowIfCancellationRequested();
             return await wire.WriteOwnershipMarkerAsync(request, () => sent = true, budget).ConfigureAwait(false);
@@ -115,7 +119,10 @@ public sealed class NasOwnershipMarkerWriter
         catch (Exception)
         {
             // After the command left the client a timeout, cancellation or lost channel proves nothing.
-            return sent ? MarkerWriteOutcome.Unknown : MarkerWriteOutcome.NotSent;
+            if (sent)
+                return MarkerWriteOutcome.Unknown;
+            // A refused host key surfaces as a connection error; it is a changed identity, not transport.
+            return trust.Failure is not null ? MarkerWriteOutcome.IdentityChanged : MarkerWriteOutcome.NotSent;
         }
     }
 }

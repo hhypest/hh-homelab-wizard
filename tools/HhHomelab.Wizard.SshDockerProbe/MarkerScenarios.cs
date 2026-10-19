@@ -10,7 +10,9 @@ internal static class MarkerScenarios
 {
     internal static async Task RunAsync(OwnedDockerBench bench, SshProbeCredentials credentials, SshHostKey pin, CancellationToken token)
     {
-        await bench.PrepareSshMarkerWriteTreeAsync(token);
+        var foreign = "{\"schema\":1,\"installationId\":\"" + Guid.NewGuid().ToString("D")
+            + "\",\"profileFingerprint\":\"" + PinnedRuntimeProfile.Fingerprint + "\"}";
+        await bench.PrepareSshMarkerWriteTreeAsync(foreign, token);
         var directory = Path.Combine(Path.GetTempPath(), $"wizard-marker-stand-{Guid.NewGuid():N}");
         Directory.CreateDirectory(directory);
         try
@@ -62,6 +64,9 @@ internal static class MarkerScenarios
         Require(await context.OwnershipAsync(foreign, token) == "ownership.foreign-installation", "marker.foreign-unchanged");
         var unmarked = context.NewRequest("/volume1/docker/hh");
         Expect(await context.RunAsync(unmarked, token), OperationOutcomeKind.Conflict, "marker.unmarked-untouched");
+        var foreignStaged = context.NewRequest("/volume1/apps/foreign-staged");
+        Require(await context.OwnershipAsync(foreignStaged, token) == "ownership.foreign-installation", "marker.foreign-staged-not-new");
+        Expect(await context.RunAsync(foreignStaged, token), OperationOutcomeKind.Conflict, "marker.foreign-staged-untouched");
         var linkedTemporary = context.NewRequest("/volume1/apps/linked-tmp");
         Require(await context.OwnershipAsync(linkedTemporary, token) == "ownership.unmarked-contents", "marker.symlink-tmp-not-staged");
         Expect(await context.RunAsync(linkedTemporary, token), OperationOutcomeKind.Conflict, "marker.symlink-tmp-untouched");
