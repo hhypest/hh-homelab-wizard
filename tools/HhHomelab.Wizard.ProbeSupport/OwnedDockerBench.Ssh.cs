@@ -16,17 +16,20 @@ public enum SshFixtureFault
     Malformed,
     SudoDenied,
     SftpDenied,
+    DockerOverrides,
 }
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
     public SshConnectionTarget SshTarget { get; private set; } = null!;
 
     private bool sshMode;
+
+    private bool sshDockerMode;
 
     private static byte[] ReadSshFixture(string name)
     {
@@ -45,11 +48,15 @@ public sealed partial class OwnedDockerBench
 
     /// <summary>Build only the embedded public fixture on a local daemon. The digest-pinned base
     /// must already be cached; secrets are generated later and never enter build layers or args.</summary>
-    public async Task StartSshFixtureAsync(CancellationToken token)
+    public Task StartSshFixtureAsync(CancellationToken token) => StartSshFixtureAsync(withDocker: false, token);
+
+    private async Task StartSshFixtureAsync(bool withDocker, CancellationToken token)
     {
+        if (withDocker)
+            RequireHostedDockerFixture();
         if (resources.Count != 0)
             throw new InvalidOperationException("bench.mode.conflict");
-        var immutableImage = await BuildSshFixtureAsync(token);
+        var immutableImage = await BuildSshFixtureAsync(withDocker, token);
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var port = ((IPEndPoint)listener.LocalEndpoint).Port;
@@ -57,11 +64,17 @@ public sealed partial class OwnedDockerBench
 
         await CreateNetworkAsync(token);
         resources.Add(("container", Container));
-        _ = await RunAsync(["create", "--name", Container, "--label", Label + "=" + session,
-            "--network", Network, "--publish", $"127.0.0.1:{port}:2222", "--pids-limit", "64", "--memory", "128m", "--cpus", "1",
+        var create = new List<string> { "create", "--name", Container, "--label", Label + "=" + session,
+            "--network", Network, "--publish", $"127.0.0.1:{port}:2222", "--pids-limit", withDocker ? "512" : "64",
+            "--memory", withDocker ? "768m" : "128m", "--cpus", withDocker ? "2" : "1",
             "--tmpfs", "/run/sshd:rw,mode=0700", "--tmpfs", "/fixture-state:rw,uid=1000,gid=1000,mode=0700",
-            "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1", immutableImage], token);
+            "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1" };
+        if (withDocker)
+            create.AddRange(["--privileged", "--cgroupns", "private", "--ipc", "private"]);
+        create.Add(immutableImage);
+        _ = await RunAsync(create, token);
         sshMode = true;
+        sshDockerMode = withDocker;
         _ = await RunAsync(["start", Container], token);
         var binding = await ReadBindingAsync(Container, 2222, token);
         SshTarget = new("127.0.0.1", binding.Port, "wizard");
@@ -69,16 +82,17 @@ public sealed partial class OwnedDockerBench
         await ReportSshPackagesAsync(token);
     }
 
-    private async Task<string> BuildSshFixtureAsync(CancellationToken token)
+    private async Task<string> BuildSshFixtureAsync(bool withDocker, CancellationToken token)
     {
         var definition = SshDefinitionHash();
-        var image = "hh-homelab-wizard/ssh-fixture:" + definition;
+        var target = withDocker ? "ssh-docker" : "ssh-only";
+        var image = "hh-homelab-wizard/ssh-fixture:" + target + "-" + definition;
         var dockerfile = Encoding.UTF8.GetString(ReadSshFixture("Dockerfile"));
-        var baseImage = dockerfile.Split('\n')[0]["FROM ".Length..].Trim();
+        var baseImage = dockerfile.Split('\n')[0].Split(' ', StringSplitOptions.RemoveEmptyEntries)[1];
         _ = await RunAsync(["image", "inspect", baseImage], token);
         using var archive = CreateSshBuildArchive();
         var build = await RunProcessAsync(["--context", context, "build", "--pull=false", "--label", SshDefinitionLabel + "=" + definition,
-            "--tag", image, "-"], token, archive, TimeSpan.FromMinutes(4));
+            "--target", target, "--tag", image, "-"], token, archive, TimeSpan.FromMinutes(4));
         if (build.ExitCode != 0)
         {
             // Only embedded public build files exist at this point; credentials are created later.
@@ -96,6 +110,7 @@ public sealed partial class OwnedDockerBench
             throw new InvalidOperationException("bench.ssh.architecture.unsupported");
         Console.WriteLine("ssh-fixture.definition: " + definition);
         Console.WriteLine("ssh-fixture.base: " + baseImage);
+        Console.WriteLine("ssh-fixture.target: " + target);
         return root.GetProperty("Id").GetString()!;
     }
 
@@ -174,6 +189,7 @@ public sealed partial class OwnedDockerBench
             SshFixtureFault.Malformed => "malformed",
             SshFixtureFault.SudoDenied => "sudo-denied",
             SshFixtureFault.SftpDenied => "sftp-denied",
+            SshFixtureFault.DockerOverrides => "docker-overrides",
             _ => throw new InvalidOperationException("bench.ssh.fault.invalid"),
         };
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c",

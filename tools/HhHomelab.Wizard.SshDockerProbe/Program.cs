@@ -5,9 +5,10 @@ using HhHomelab.Wizard.Domain;
 using HhHomelab.Wizard.Infrastructure;
 using HhHomelab.Wizard.ProbeSupport;
 
-if (args.Length != 0)
+var dockerPreflight = args.Length == 1 && args[0] == "--docker-preflight";
+if (args.Length != 0 && !dockerPreflight)
 {
-    Console.Error.WriteLine("Usage: SshDockerProbe; local Linux Docker and cached fixture base required.");
+    Console.Error.WriteLine("Usage: SshDockerProbe [--docker-preflight]; Docker preflight is restricted to GitHub-hosted Linux jobs.");
     return 2;
 }
 using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(8));
@@ -20,9 +21,19 @@ OwnedDockerBench? bench = null;
 var exitCode = 1;
 try
 {
+    if (dockerPreflight)
+        OwnedDockerBench.RequireHostedDockerFixture();
     bench = await OwnedDockerBench.ConnectAsync(deadline.Token);
-    await bench.StartSshFixtureAsync(deadline.Token);
-    await SshScenarios.RunAsync(bench, deadline.Token);
+    if (dockerPreflight)
+    {
+        await bench.StartSshDockerFixtureAsync(deadline.Token);
+        await DockerPreflightScenarios.RunAsync(bench, deadline.Token);
+    }
+    else
+    {
+        await bench.StartSshFixtureAsync(deadline.Token);
+        await SshScenarios.RunAsync(bench, deadline.Token);
+    }
     exitCode = 0;
 }
 catch (Exception error)
