@@ -50,8 +50,21 @@
 
 Локально Windows 11 / SDK 10.0.401: Release build без предупреждений и ошибок, все unit/fixture и Desktop тесты.
 
+## `docker compose config` на стенде
+
+Дополнение от 19.10.2026 после слияния PR #126. Задание `ssh-runtime (docker)` после read-only preflight отрисовывает Compose и .env из синтетического запроса (порт 19080, torrent 16881, сеть `media-test`, корень данных `/volume1/data`) и закреплённого профиля через `Render(request, profile)` — те же байты, что из плана (unit-тест). Файлы кладутся во временный каталог одноразового контейнера-стенда, где `docker compose config --format json` закреплённого Compose 5.1.4 разбирает и подставляет их. Ничего не скачивается, не создаётся и не запускается; NAS не участвует.
+
+- Имя проекта `hhw-<installation ID>`, ровно один сервис `qbittorrent`, закреплённый образ, `container_name`, `restart`.
+- Окружение после подстановки: ровно PUID, PGID, UMASK, TZ, `WEBUI_PORT=19080`, `TORRENTING_PORT=16881` и Docker mods профиля.
+- Монтирования: `./config/qbittorrent` и `./watch` разрешаются относительно каталога Compose; `MEDIA_ROOT` в одинарных кавычках даёт буквальный `/volume1/data` → `/data`.
+- Публикации: WebUI 19080 и torrent 16881 TCP/UDP на `0.0.0.0`; сеть `media` с именем `media-test`, драйвер bridge; журналы json-file 10m × 3.
+- Повторный запуск даёт тот же вывод.
+- Без .env Compose завершается ошибкой с подсказкой «см. .env», а не подставляет пустые значения.
+
+Результат — по CI PR этого инкремента.
+
 ## Не проверено
 
-`docker compose config` и запуск контейнера; сеть; совпадение пользователя SSH с PUID/PGID; работа графа на SSH-стенде (стендовый preflight без DSM даёт Blocking и намеренно не превращается в граф); DS725+/DSM.
+Запуск контейнера и `docker compose up`; сеть; совпадение пользователя SSH с PUID/PGID; работа графа на SSH-стенде (стендовый preflight без DSM даёт Blocking и намеренно не превращается в граф); DS725+/DSM.
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.
