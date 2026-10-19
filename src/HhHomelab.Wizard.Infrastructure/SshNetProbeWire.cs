@@ -50,6 +50,12 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         return NasMarkerWriteProtocol.Parse(result.ExitCode, result.Output);
     }
 
+    public async Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token)
+    {
+        var result = await ExecuteAsync(NasLockProtocol.Command, retainOutput: true, token, request, sending).ConfigureAwait(false);
+        return (result.ExitCode, result.Output);
+    }
+
     internal static SshProbeIdentity ParseIdentity(int? exitCode, string output)
     {
         if (exitCode != 0 || output.Length > 256)

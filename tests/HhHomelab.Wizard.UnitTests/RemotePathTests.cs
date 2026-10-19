@@ -397,6 +397,9 @@ public sealed class RemotePathTests
         public Task<MarkerWriteOutcome> WriteOwnershipMarkerAsync(OwnershipMarkerRequest request, Action sending, CancellationToken token) =>
             throw new InvalidOperationException("test.read-only-probe");
 
+        public Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token) =>
+            throw new InvalidOperationException("test.read-only-probe");
+
         public void Dispose() => Disposed = true;
     }
 }

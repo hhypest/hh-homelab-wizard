@@ -18,11 +18,12 @@ public enum SshFixtureFault
     SftpDenied,
     DockerOverrides,
     MarkerLostResponse,
+    LockLostResponse,
 }
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "docker-control.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "lock.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
@@ -219,8 +220,20 @@ public sealed partial class OwnedDockerBench
             + ": > /volume1/apps/staged/.hh-homelab-wizard/.installation.json.tmp-1; "
             + "printf '%s' \"$foreign\" > /volume1/apps/foreign-staged/.hh-homelab-wizard/.installation.json.tmp-1; "
             + ": > /volume1/apps/victim; ln -s /volume1/apps/victim /volume1/apps/linked-tmp/.hh-homelab-wizard/.installation.json.tmp-1; "
-            + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly";
+            + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly; ln -sfn /volume1/apps /volume1/apps-link";
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], foreignMarker + "\n", token);
+    }
+
+    /// <summary>Simulates a tampered lock of /volume1/apps/created: the holder holds the given session
+    /// GUID followed by a newline. With <paramref name="present"/> false the lock directory is removed.</summary>
+    public async Task SetSshTamperedLockAsync(Guid session, bool present, CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        var lockDirectory = "/volume1/apps/created/.hh-homelab-wizard/lock";
+        var script = present
+            ? "set -eu; mkdir " + lockDirectory + "; IFS= read -r holder; printf '%s\\n' \"$holder\" > " + lockDirectory + "/holder; chown -R 1000:1000 " + lockDirectory
+            : "set -eu; rm -f " + lockDirectory + "/holder; rmdir " + lockDirectory;
+        await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], session.ToString("D") + "\n", token);
     }
 
     /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>
@@ -253,6 +266,7 @@ public sealed partial class OwnedDockerBench
             SshFixtureFault.SftpDenied => "sftp-denied",
             SshFixtureFault.DockerOverrides => "docker-overrides",
             SshFixtureFault.MarkerLostResponse => "marker-lost-response",
+            SshFixtureFault.LockLostResponse => "lock-lost-response",
             _ => throw new InvalidOperationException("bench.ssh.fault.invalid"),
         };
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c",
