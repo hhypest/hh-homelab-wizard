@@ -125,6 +125,11 @@ marker_of() {
             return
         fi
     done
+    # A symlinked ancestor redirects the whole root: never read a marker through it.
+    if [ -d "$root" ] && [ "$(cd -P "$root" 2>/dev/null && pwd -P)" != "$root" ]; then
+        printf 'marker=redirected\n'
+        return
+    fi
     if [ ! -e "$file" ]; then
         if [ -d "$root" ] && [ ! -x "$root" ]; then
             printf 'marker=unavailable\n'
@@ -147,7 +152,11 @@ marker_of() {
         printf 'marker=unavailable\n'
         return
     fi
-    size="$(wc -c < "$file")"
+    # Size from metadata, so an oversized file is rejected without reading it.
+    if ! size="$(stat -c '%s' "$file" 2>/dev/null)"; then
+        printf 'marker=unavailable\n'
+        return
+    fi
     if [ $((size)) -gt 4096 ]; then
         printf 'marker=invalid\n'
         return

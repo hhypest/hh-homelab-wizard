@@ -66,6 +66,10 @@ public static class InstallationOwnershipAssessment
             return Blocking("ownership.marker-redirected");
         if (ownership.State == OwnershipMarkerState.Invalid)
             return Blocking("ownership.marker-invalid");
+        // The owner comes from a journal; this build observes under its own profile. A journal of
+        // another profile never continues here, whatever the marker says.
+        if (expected is not null && expected.ProfileFingerprint != snapshot.ProfileFingerprint)
+            return Blocking("ownership.profile-changed");
         if (ownership.State == OwnershipMarkerState.Present)
             return MarkerCheck(ownership.Marker!, expected);
         if (ownership.State == OwnershipMarkerState.Staged)

@@ -202,7 +202,7 @@ public sealed partial class OwnedDockerBench
             + "printf '{' > /volume1/docker/corrupt/.hh-homelab-wizard/installation.json; "
             + "ln -sfn /volume1/docker/owned/.hh-homelab-wizard /volume1/docker/linked/.hh-homelab-wizard; "
             + "printf '%s' \"$own\" > /volume1/docker/locked/.hh-homelab-wizard/installation.json; "
-            + "chmod 0700 /volume1/docker/locked/.hh-homelab-wizard";
+            + "chmod 0700 /volume1/docker/locked/.hh-homelab-wizard; ln -sfn /volume1/docker /volume1/docker-link";
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], ownMarker + "\n" + foreignMarker + "\n", token);
     }
 
