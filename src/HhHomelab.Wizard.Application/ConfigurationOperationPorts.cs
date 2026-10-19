@@ -55,8 +55,9 @@ public interface IOperationJournal
     Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token);
 
     /// <summary>Null proves no intent exists in a valid, owned journal. A missing/corrupt/incompatible
-    /// store is an error, never a new installation. An unresolved intent for the resource cannot be
-    /// hidden by a new operation ID; return it or reject the conflict rather than returning null.</summary>
+    /// store is an error, never a new installation. An unresolved intent cannot be hidden by an
+    /// unplanned operation ID. A journal with a durably bound graph may allow observation of another
+    /// listed step, but RecordIntent must reject any second pending write for the same resource.</summary>
     Task<OperationJournalEntry?> ReadAsync(OperationDescriptor descriptor, CancellationToken token);
 
     Task RecordIntentAsync(OperationIntent intent, CancellationToken token);

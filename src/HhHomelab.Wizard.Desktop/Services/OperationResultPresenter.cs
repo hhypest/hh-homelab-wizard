@@ -40,6 +40,7 @@ public static class OperationResultPresenter
             OperationErrorCode.AuthenticationRequired => "Требуется повторный вход в сервис.",
             OperationErrorCode.ResponseInvalid => "Сервис вернул ответ, который не соответствует проверенному контракту.",
             OperationErrorCode.ReadFailed => "Не удалось получить состояние сервиса. Проверьте соединение.",
+            OperationErrorCode.DeadlineExceeded => "Истекло время ожидания состояния сервиса. Проверьте соединение.",
             OperationErrorCode.WriteRejected => "Сервис отклонил изменение до его применения. Проверьте параметры.",
             OperationErrorCode.WriteUncertain => "Результат изменения неизвестен. Сначала проверьте состояние сервиса.",
             OperationErrorCode.VerificationFailed => "Проверка не подтвердила требуемый результат.",
@@ -55,7 +56,7 @@ public static class OperationResultPresenter
             OperationErrorCode.AuthenticationRequired => OperationUserAction.SignIn,
             OperationErrorCode.VersionUnsupported => OperationUserAction.CheckCompatibility,
             OperationErrorCode.InvalidRequest => OperationUserAction.CorrectInput,
-            OperationErrorCode.ReadFailed => OperationUserAction.CheckConnection,
+            OperationErrorCode.ReadFailed or OperationErrorCode.DeadlineExceeded => OperationUserAction.CheckConnection,
             OperationErrorCode.OperationInProgress or OperationErrorCode.Cancelled => OperationUserAction.None,
             _ => OperationUserAction.ReviewPlan,
         };

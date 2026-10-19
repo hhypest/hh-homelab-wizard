@@ -24,6 +24,7 @@ public sealed class OperationResultPresenterTests
     [InlineData(OperationOutcomeKind.Invalid, OperationErrorCode.AuthenticationRequired, OperationUserAction.SignIn)]
     [InlineData(OperationOutcomeKind.Invalid, OperationErrorCode.VersionUnsupported, OperationUserAction.CheckCompatibility)]
     [InlineData(OperationOutcomeKind.Transport, OperationErrorCode.ReadFailed, OperationUserAction.CheckConnection)]
+    [InlineData(OperationOutcomeKind.Transport, OperationErrorCode.DeadlineExceeded, OperationUserAction.CheckConnection)]
     [InlineData(OperationOutcomeKind.Conflict, OperationErrorCode.ObservationChanged, OperationUserAction.ReviewPlan)]
     [InlineData(OperationOutcomeKind.Rejected, OperationErrorCode.WriteRejected, OperationUserAction.ReviewPlan)]
     [InlineData(OperationOutcomeKind.Cancelled, OperationErrorCode.Cancelled, OperationUserAction.None)]

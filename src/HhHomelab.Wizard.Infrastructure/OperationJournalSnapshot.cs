@@ -9,7 +9,8 @@ internal sealed record OperationJournalData(
     int SchemaVersion,
     OperationJournalScope Scope,
     long Generation,
-    OperationJournalEntry[] Entries
+    OperationJournalEntry[] Entries,
+    OperationPlanBinding? Plan
 );
 
 internal sealed record OperationJournalSnapshot(OperationJournalData Data, string Hash)
@@ -26,9 +27,9 @@ internal sealed record OperationJournalSnapshot(OperationJournalData Data, strin
         MaxDepth = 32,
     };
 
-    internal static OperationJournalSnapshot Create(OperationJournalScope scope, long generation, OperationJournalEntry[] entries)
+    internal static OperationJournalSnapshot Create(OperationJournalScope scope, long generation, OperationJournalEntry[] entries, OperationPlanBinding? plan = null)
     {
-        var data = new OperationJournalData(1, scope, generation, entries);
+        var data = new OperationJournalData(2, scope, generation, entries, plan);
         return new OperationJournalSnapshot(data, ConfigurationRequest.Fingerprint(data));
     }
 
@@ -45,12 +46,13 @@ internal sealed record OperationJournalSnapshot(OperationJournalData Data, strin
         var snapshot = JsonSerializer.Deserialize<OperationJournalSnapshot>(bytes, JsonOptions);
         if (snapshot?.Data is not { } data || data.Scope != expected)
             throw new OperationJournalException("journal.identity");
-        if (data.SchemaVersion != 1)
+        if (data.SchemaVersion != 2)
             throw new OperationJournalException("journal.schema");
         if (data.Generation < 0 || data.Entries is null)
             throw new OperationJournalException("journal.invalid");
         if (snapshot.Hash != ConfigurationRequest.Fingerprint(data))
             throw new OperationJournalException("journal.hash");
+        data.Plan?.Validate(data.Scope);
         ValidateEntries(data);
         return snapshot;
     }
@@ -67,6 +69,7 @@ internal sealed record OperationJournalSnapshot(OperationJournalData Data, strin
             if (entry?.Intent is not { } intent || intent.Descriptor is not { IsValid: true } descriptor)
                 throw new OperationJournalException("journal.invalid");
             ValidateIntent(intent, data.Scope);
+            data.Plan?.RequireMember(descriptor);
             if (entry.Confirmation is not null && !entry.Confirmation.IsSatisfiedFor(descriptor))
                 throw new OperationJournalException("journal.invalid");
             if (!operationIds.Add(descriptor.Identity.OperationId))

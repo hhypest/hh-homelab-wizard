@@ -7,7 +7,7 @@ namespace HhHomelab.Wizard.Infrastructure;
 /// <summary>Bounded local file journal for one installation in a private, existing directory.
 /// Cooperating processes must use the same directory on a local filesystem. Never copy/delete its
 /// lock file while in use. This is not a remote NAS lock, ownership proof or power-loss guarantee.</summary>
-public sealed class FileOperationJournal : IOperationJournal
+public sealed class FileOperationJournal : IOperationPlanJournal
 {
     private readonly object gate = new();
 
@@ -55,26 +55,73 @@ public sealed class FileOperationJournal : IOperationJournal
         });
     }
 
-    public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token)
+    public Task BindPlanAsync(ConfigurationOperationPlan plan, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        return RunAsync(() =>
+        {
+            if (activeLease is not null)
+                throw new OperationLeaseUnavailableException();
+            using var fileLock = OpenLock(FileMode.Open);
+            var snapshot = Load();
+            var resource = plan.Steps[0].Descriptor.Identity.Resource;
+            if (resource.InstallationId != scope.InstallationId || resource.ProfileFingerprint != scope.ProfileFingerprint)
+                throw new OperationPlanMismatchException();
+            var binding = OperationPlanBinding.From(plan);
+            binding.Validate(scope);
+            if (snapshot.Data.Plan is { } previous)
+            {
+                if (previous.Fingerprint != binding.Fingerprint)
+                    throw new OperationPlanMismatchException();
+                return true;
+            }
+            // An existing single-operation history cannot be silently adopted into a new graph.
+            if (snapshot.Data.Entries.Length != 0)
+                throw new OperationPlanMismatchException();
+            Save(OperationJournalSnapshot.Create(scope, checked(snapshot.Data.Generation + 1), [], binding), replace: true);
+            return true;
+        }, token);
+    }
+
+    public IOperationJournal ForPlanStep(OperationPlanStepContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new PlanStepJournal(this, context);
+    }
+
+    public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token) =>
+        AcquireAsync(descriptor, null, token);
+
+    private Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, OperationPlanStepContext? context, CancellationToken token)
     {
         return RunAsync<IAsyncDisposable>(() =>
         {
             if (activeLease is not null)
                 throw new OperationLeaseUnavailableException();
-            var lease = Acquire(descriptor);
+            var lease = Acquire(descriptor, context);
             activeLease = lease;
             return lease;
         }, token);
     }
 
-    private Lease Acquire(OperationDescriptor descriptor)
+    private Lease Acquire(OperationDescriptor descriptor, OperationPlanStepContext? context)
     {
         OperationJournalSnapshot.ValidateDescriptor(descriptor, scope);
         var fileLock = OpenLock(FileMode.Open);
         try
         {
             var snapshot = Load();
-            FindEntry(snapshot, descriptor);
+            if (snapshot.Data.Plan is { } plan)
+            {
+                plan.RequireMember(descriptor);
+                if (context is null || !context.Authorizes(plan.Fingerprint, descriptor))
+                    throw new OperationPlanMismatchException();
+            }
+            else if (context is not null)
+            {
+                throw new OperationPlanMismatchException();
+            }
+            FindEntry(snapshot, descriptor, observePlanStep: true);
             return new Lease(this, descriptor, fileLock, snapshot.Hash);
         }
         catch
@@ -86,7 +133,7 @@ public sealed class FileOperationJournal : IOperationJournal
 
     public Task<OperationJournalEntry?> ReadAsync(OperationDescriptor descriptor, CancellationToken token)
     {
-        return RunAsync(() => FindEntry(Current(descriptor), descriptor), token);
+        return RunAsync(() => FindEntry(Current(descriptor), descriptor, observePlanStep: true), token);
     }
 
     public Task RecordIntentAsync(OperationIntent intent, CancellationToken token)
@@ -160,7 +207,7 @@ public sealed class FileOperationJournal : IOperationJournal
         return snapshot;
     }
 
-    private static OperationJournalEntry? FindEntry(OperationJournalSnapshot snapshot, OperationDescriptor descriptor)
+    private static OperationJournalEntry? FindEntry(OperationJournalSnapshot snapshot, OperationDescriptor descriptor, bool observePlanStep = false)
     {
         OperationJournalEntry? found = null;
         foreach (var entry in snapshot.Data.Entries)
@@ -172,7 +219,10 @@ public sealed class FileOperationJournal : IOperationJournal
                     throw new OperationJournalException("journal.identity");
                 var differentPendingOperation = entry.Confirmation is null
                     && identity.OperationId != descriptor.Identity.OperationId;
-                if (differentPendingOperation)
+                // A bound graph must reobserve earlier steps even when a later step of the same
+                // resource is pending. This is read permission only: RecordIntent still uses the
+                // strict path and cannot create another pending write for that resource.
+                if (differentPendingOperation && !(observePlanStep && snapshot.Data.Plan is not null))
                     throw new OperationJournalException("journal.pending-conflict");
             }
             if (identity.OperationId == descriptor.Identity.OperationId)
@@ -187,7 +237,7 @@ public sealed class FileOperationJournal : IOperationJournal
 
     private void Commit(OperationJournalSnapshot previous, OperationJournalEntry[] entries)
     {
-        var next = OperationJournalSnapshot.Create(scope, checked(previous.Data.Generation + 1), entries);
+        var next = OperationJournalSnapshot.Create(scope, checked(previous.Data.Generation + 1), entries, previous.Data.Plan);
         Save(next, replace: true);
         activeLease!.Hash = next.Hash;
     }
@@ -285,6 +335,19 @@ public sealed class FileOperationJournal : IOperationJournal
         {
             throw new OperationJournalException("journal.storage");
         }
+    }
+
+    private sealed class PlanStepJournal(FileOperationJournal owner, OperationPlanStepContext context) : IOperationJournal
+    {
+        public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token) =>
+            owner.AcquireAsync(descriptor, context, token);
+
+        public Task<OperationJournalEntry?> ReadAsync(OperationDescriptor descriptor, CancellationToken token) => owner.ReadAsync(descriptor, token);
+
+        public Task RecordIntentAsync(OperationIntent intent, CancellationToken token) => owner.RecordIntentAsync(intent, token);
+
+        public Task ConfirmAsync(OperationIntent intent, OperationVerification verification, CancellationToken token) =>
+            owner.ConfirmAsync(intent, verification, token);
     }
 
     private sealed class Lease(FileOperationJournal owner, OperationDescriptor descriptor, FileStream fileLock, string hash) : IAsyncDisposable
