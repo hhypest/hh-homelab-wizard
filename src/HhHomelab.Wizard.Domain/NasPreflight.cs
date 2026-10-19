@@ -51,7 +51,17 @@ public sealed record PreflightModel(PreflightFactStatus Status, string? Name = n
 /// part of the environment identity.</summary>
 public sealed record PreflightVolume(string Mount, long TotalBytes, long AvailableBytes)
 {
-    public bool IsValid => IsVolumeMount(Mount) && TotalBytes > 0 && AvailableBytes >= 0 && AvailableBytes <= TotalBytes;
+    public bool IsValid
+    {
+        get
+        {
+            if (!IsVolumeMount(Mount))
+                return false;
+            var capacityPositive = TotalBytes > 0;
+            var availableWithinCapacity = AvailableBytes >= 0 && AvailableBytes <= TotalBytes;
+            return capacityPositive && availableWithinCapacity;
+        }
+    }
 
     public static bool IsVolumeMount(string? mount)
     {
