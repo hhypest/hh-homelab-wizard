@@ -75,6 +75,8 @@ internal static class PathScenarios
         Require(await OwnershipAsync("linked", owner) == "ownership.marker-redirected", "ownership.symlink");
         Require(await OwnershipAsync("locked", owner) == "ownership.marker-unavailable", "ownership.unsearchable");
         Require(await OwnershipAsync("hh", owner) == "ownership.unmarked-contents", "ownership.unmarked");
+        var linked = await InspectAsync(bench, credentials, pin, new("/volume1/data", "/volume1/docker-link/owned"), token);
+        Require(InstallationOwnershipAssessment.Evaluate(linked, owner).Code == "ownership.marker-redirected", "ownership.symlinked-ancestor");
         Require(await OwnershipAsync("never-created", owner) == "ownership.new-installation", "ownership.new");
 
         async Task<string> OwnershipAsync(string configuration, InstallationOwner? expected)
