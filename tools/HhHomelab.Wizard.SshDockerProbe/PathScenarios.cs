@@ -15,6 +15,7 @@ internal static class PathScenarios
         Console.WriteLine("ssh-runtime.paths-read-only: passed");
         await VerifyOwnershipAsync(bench, credentials, pin, token);
         Console.WriteLine("ssh-runtime.ownership-markers: passed");
+        await MarkerScenarios.RunAsync(bench, credentials, pin, token);
         await VerifyFaultsAsync(bench, credentials, pin, token);
         Console.WriteLine("ssh-runtime.paths-faults-and-recovery: passed");
     }

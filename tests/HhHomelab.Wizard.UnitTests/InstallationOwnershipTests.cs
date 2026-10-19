@@ -48,6 +48,27 @@ public sealed class InstallationOwnershipTests
     }
 
     [Fact]
+    public void StagedLeftoverOfAnInterruptedCreationIsStillANewInstallation()
+    {
+        var output = PathData.Output(configuration: OwnedConfiguration, marker: "marker=staged");
+        Assert.Equal(new PreflightCheck("ownership.new-installation", PreflightCheckStatus.Passed), Evaluate(output, Owner));
+        Assert.Equal(OwnershipMarkerState.Staged, PathData.Snapshot(output).Ownership.State);
+        var partial = PathData.Output(configuration: OwnedConfiguration, marker: "marker=staged\nmarker-content=7b7d");
+        Assert.Equal(new PreflightCheck("ownership.marker-invalid", PreflightCheckStatus.Blocking), Evaluate(partial, Owner));
+        Assert.Throws<InvalidDataException>(() => NasPathProtocol.Parse(PathData.Layout, 0, PathData.Output(marker: "marker=staged\nextra")));
+    }
+
+    [Fact]
+    public void StagedLeftoverIsCompletedOnlyByTheInstallationItsTemporaryMarkerNames()
+    {
+        var own = PathData.Output(configuration: OwnedConfiguration, marker: StagedLines(Json(Installation, PreflightData.Profile)));
+        Assert.Equal(new PreflightCheck("ownership.new-installation", PreflightCheckStatus.Passed), Evaluate(own, Owner));
+        var foreign = PathData.Output(configuration: OwnedConfiguration, marker: StagedLines(Json(Guid.NewGuid(), PreflightData.Profile)));
+        Assert.Equal(new PreflightCheck("ownership.foreign-installation", PreflightCheckStatus.Blocking), Evaluate(foreign, Owner));
+        Assert.Equal("ownership.foreign-installation", Evaluate(own, null).Code);
+    }
+
+    [Fact]
     public void OwnerFromAJournalOfAnotherProfileNeverMatchesEvenWithItsOwnMarker()
     {
         var oldProfile = new string('c', 64);
@@ -133,4 +154,7 @@ public sealed class InstallationOwnershipTests
 
     private static string MarkerLines(string json) =>
         "marker=present\nmarker-content=" + Convert.ToHexStringLower(Encoding.UTF8.GetBytes(json));
+
+    private static string StagedLines(string json) =>
+        "marker=staged\nmarker-content=" + Convert.ToHexStringLower(Encoding.UTF8.GetBytes(json));
 }

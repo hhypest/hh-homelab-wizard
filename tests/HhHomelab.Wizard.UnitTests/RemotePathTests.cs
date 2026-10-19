@@ -394,6 +394,9 @@ public sealed class RemotePathTests
             return Read?.Invoke(token) ?? Task.FromResult(NasPathProtocol.Parse(layout, 0, PathData.Output()));
         }
 
+        public Task<MarkerWriteOutcome> WriteOwnershipMarkerAsync(OwnershipMarkerRequest request, Action sending, CancellationToken token) =>
+            throw new InvalidOperationException("test.read-only-probe");
+
         public void Dispose() => Disposed = true;
     }
 }

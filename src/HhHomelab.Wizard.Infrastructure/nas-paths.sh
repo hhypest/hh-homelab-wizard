@@ -70,6 +70,79 @@ inspect() {
     fi
 }
 
+# Every entry must satisfy the named predicate. Names come from globbing, never from parsing
+# newline-delimited ls output, so a name containing newlines stays a single entry.
+only_entries() {
+    for entry in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+        if [ ! -e "$entry" ] && [ ! -L "$entry" ]; then
+            continue
+        fi
+        "$2" "$entry" || return 1
+    done
+    return 0
+}
+
+marker_directory_entry() {
+    [ "${1##*/}" = .hh-homelab-wizard ] && [ -d "$1" ] && [ ! -L "$1" ]
+}
+
+# Only this wizard's own regular temporary files; a symlink or anything else is foreign content.
+staged_temporary_entry() {
+    name="${1##*/}"
+    case "$name" in
+        .installation.json.tmp-*) ;;
+        *) return 1 ;;
+    esac
+    case "${name#.installation.json.tmp-}" in
+        '' | *[!0-9]*) return 1 ;;
+    esac
+    [ -f "$1" ] && [ ! -L "$1" ]
+}
+
+# Leftover of an interrupted marker creation: the root holds only the marker directory and that
+# holds only this wizard's regular temporary files. Anything else stays an ordinary absent marker.
+# Non-empty temporary files must hold identical bounded bytes; that content is reported so only the
+# installation it names may complete the leftover. Empty files were never written and name nobody.
+staged_of() {
+    if [ ! -r "$1" ] || [ ! -r "$2" ]; then
+        printf 'marker=unavailable\n'
+        return
+    elif ! only_entries "$1" marker_directory_entry; then
+        printf 'marker=absent\n'
+        return
+    elif ! only_entries "$2" staged_temporary_entry; then
+        printf 'marker=absent\n'
+        return
+    fi
+    staged=''
+    for entry in "$2"/.installation.json.tmp-*; do
+        if [ ! -e "$entry" ]; then
+            continue
+        fi
+        if [ ! -r "$entry" ] || ! size="$(stat -c '%s' "$entry" 2>/dev/null)"; then
+            printf 'marker=unavailable\n'
+            return
+        fi
+        if [ $((size)) -eq 0 ]; then
+            continue
+        fi
+        if [ $((size)) -gt 4096 ]; then
+            printf 'marker=invalid\n'
+            return
+        fi
+        content="$(od -An -v -tx1 "$entry" | tr -d ' \n')"
+        if [ -n "$staged" ] && [ "$content" != "$staged" ]; then
+            printf 'marker=invalid\n'
+            return
+        fi
+        staged="$content"
+    done
+    printf 'marker=staged\n'
+    if [ -n "$staged" ]; then
+        printf 'marker-content=%s\n' "$staged"
+    fi
+}
+
 # Ownership marker below the configuration root: symlinks anywhere on its path, a non-regular or
 # oversized file and a hidden (unsearchable) location are reported, never followed or guessed.
 marker_of() {
@@ -101,6 +174,8 @@ marker_of() {
             printf 'marker=unavailable\n'
         elif [ -e "$dir" ] && [ ! -d "$dir" ]; then
             printf 'marker=invalid\n'
+        elif [ -d "$dir" ]; then
+            staged_of "$root" "$dir"
         else
             printf 'marker=absent\n'
         fi
