@@ -10,9 +10,9 @@ namespace HhHomelab.Wizard.Infrastructure;
 /// root as hex, and never echoes paths or directory names.</summary>
 internal static class NasPathProtocol
 {
-    internal const string RequestMarker = "hh-homelab-wizard:nas-paths-request:v2";
+    internal const string RequestMarker = "hh-homelab-wizard:nas-paths-request:v3";
 
-    internal const string ResponseMarker = "hh-homelab-wizard:nas-paths:v2";
+    internal const string ResponseMarker = "hh-homelab-wizard:nas-paths:v3";
 
     private static readonly Lazy<string> EmbeddedCommand = new(ReadCommand);
 
@@ -42,7 +42,7 @@ internal static class NasPathProtocol
         if (exitCode != 0 || output.Length > SshProbeOutput.MaximumBytes)
             throw Invalid();
         var lines = output.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n');
-        var entriesEnd = layout.Entries.Count + 2;
+        var entriesEnd = layout.Entries.Count + 3;
         if (lines.Length < entriesEnd + 2)
             throw Invalid();
         if (lines[0] != ResponseMarker || lines[^1] != "end")
@@ -51,16 +51,40 @@ internal static class NasPathProtocol
         if (!lines[1].StartsWith(rootPrefix, StringComparison.Ordinal))
             throw Invalid();
         var rootDevice = Number(lines[1][rootPrefix.Length..], 20);
+        var identity = Identity(lines[2]);
         var observations = new List<RemotePathObservation>();
         for (var index = 0; index < layout.Entries.Count; index++)
         {
-            var observation = Entry(layout.Entries[index].Role, lines[index + 2]);
+            var observation = Entry(layout.Entries[index].Role, lines[index + 3]);
             if (!observation.IsValid)
                 throw Invalid();
             observations.Add(observation);
         }
         var ownership = Ownership(lines[entriesEnd..^1]);
-        return new(rootDevice, observations.AsReadOnly(), ownership);
+        return new(rootDevice, observations.AsReadOnly(), ownership, identity);
+    }
+
+    private static RemoteUnixIdentity Identity(string line)
+    {
+        const string prefix = "identity=";
+        if (!line.StartsWith(prefix, StringComparison.Ordinal))
+            throw Invalid();
+
+        var fields = line[prefix.Length..].Split(':');
+        if (fields.Length != 2)
+            throw Invalid();
+
+        return new(IdentityNumber(fields[0]), IdentityNumber(fields[1]));
+    }
+
+    private static int IdentityNumber(string value)
+    {
+        if (value.Length is 0 or > 10)
+            throw Invalid();
+        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number))
+            throw Invalid();
+
+        return number;
     }
 
     /// <summary>A marker that is present but not a valid schema-1 object is an observation

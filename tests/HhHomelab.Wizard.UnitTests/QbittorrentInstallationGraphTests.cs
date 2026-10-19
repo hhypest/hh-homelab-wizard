@@ -119,6 +119,24 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
                 nas.PathProbe(), nas.MarkerWriter(), nas.DirectoryClient(), nas.FileClient())).Message);
     }
 
+    [Theory]
+    [InlineData(2042, 100)]
+    [InlineData(1026, 200)]
+    public async Task IncompatibleContainerIdsStopBeforeAnyGraphMutation(int userId, int groupId)
+    {
+        var fixture = new QbittorrentPlanTests.PlanData();
+        var request = fixture.Request(userId: userId, groupId: groupId);
+        var plan = (await fixture.Compiler.CompileAsync(request, PreflightData.Pin, Token)).Value!;
+        var nas = new FakeNas();
+
+        var error = Assert.Throws<ArgumentException>(() => Graph(plan, nas));
+
+        Assert.Equal("graph.plan.blocking", error.Message);
+        Assert.Equal(0, nas.MarkerWrites);
+        Assert.Equal(0, nas.DirectoryWrites);
+        Assert.Equal(0, nas.FileWrites);
+    }
+
     [Fact]
     public async Task FreshnessIsMeasuredFromTheOldestEvidenceNotFromPlanConstruction()
     {

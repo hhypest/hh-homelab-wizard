@@ -67,6 +67,20 @@ public sealed class RemotePathTests
         Assert.False(MediaPathLayout.IsVolumePath(unpairedSurrogate));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("/")]
+    [InlineData("/volume1")]
+    [InlineData("/volume1/a/../data")]
+    public void VolumeExtractionRejectsInvalidPathsWithTheDomainCode(string? path)
+    {
+        var error = Assert.Throws<ArgumentException>(() => MediaPathLayout.VolumeOf(path));
+
+        Assert.Equal("paths.volume.invalid", error.Message);
+        Assert.Equal("/volume12", MediaPathLayout.VolumeOf("/volume12/data"));
+    }
+
     [Fact]
     public void DeepestGeneratedEntryOfAMaximalMissingRootIsStillAValidObservation()
     {
@@ -211,8 +225,9 @@ public sealed class RemotePathTests
     [InlineData("entry=directory:0:same:41:1026:100:755:empty", "entry=unavailable:0:unavailable:41:-:-:-:unavailable")]
     [InlineData("entry=directory:0:same:41:1026:100:755:empty", "entry=missing:0:same:41:1026:100:755:not-applicable")]
     [InlineData("entry=directory:0:same:41:1026:100:755:empty", "entry=directory:0:same:41:1026:100:755:empty\nentry=directory:0:same:41:1026:100:755:empty")]
-    [InlineData("hh-homelab-wizard:nas-paths:v2", "hh-homelab-wizard:nas-paths:v1")]
-    [InlineData("hh-homelab-wizard:nas-paths:v2", "hh-homelab-wizard:nas-preflight:v2")]
+    [InlineData("hh-homelab-wizard:nas-paths:v3", "hh-homelab-wizard:nas-paths:v1")]
+    [InlineData("hh-homelab-wizard:nas-paths:v3", "hh-homelab-wizard:nas-paths:v2")]
+    [InlineData("hh-homelab-wizard:nas-paths:v3", "hh-homelab-wizard:nas-preflight:v2")]
     [InlineData("marker=absent", "marker=maybe")]
     [InlineData("marker=absent", "marker=present")]
     [InlineData("marker=absent", "marker=absent\nmarker-content=7b7d")]
@@ -223,6 +238,16 @@ public sealed class RemotePathTests
     [InlineData("root-device=2", "root-device=")]
     [InlineData("root-device=2", "root-device=-2")]
     [InlineData("root-device=2\n", "")]
+    [InlineData("identity=1026:100", "identity=-1:100")]
+    [InlineData("identity=1026:100", "identity=1026:-1")]
+    [InlineData("identity=1026:100", "identity=2147483648:100")]
+    [InlineData("identity=1026:100", "identity=1026:2147483648")]
+    [InlineData("identity=1026:100", "identity=1026:100:200")]
+    [InlineData("identity=1026:100", "identity=1026")]
+    [InlineData("identity=1026:100", "identity=1026: 100")]
+    [InlineData("identity=1026:100", "identity=uid:gid")]
+    [InlineData("identity=1026:100\n", "")]
+    [InlineData("identity=1026:100", "identity=1026:100\nidentity=1026:100")]
     [InlineData("end", "")]
     public void MalformedOrInconsistentEntriesRejectTheWholeResponse(string original, string replacement)
     {
@@ -246,6 +271,46 @@ public sealed class RemotePathTests
         var media = PathData.Snapshot(output).Observation(RemotePathRole.MediaMovies);
         Assert.Equal(RemotePathObservation.MaximumMode, media.Mode);
         Assert.False((media with { Mode = RemotePathObservation.MaximumMode + 1 }).IsValid);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(2042, 200)]
+    [InlineData(int.MaxValue, int.MaxValue)]
+    public void NumericSessionIdentityIsIndependentOfDirectoryOwners(int userId, int groupId)
+    {
+        var output = PathData.Output().Replace("identity=1026:100", $"identity={userId}:{groupId}", StringComparison.Ordinal);
+        var snapshot = PathData.Snapshot(output);
+
+        Assert.Equal(new RemoteUnixIdentity(userId, groupId), snapshot.Identity);
+        Assert.Equal(1026, snapshot.Observation(RemotePathRole.DataRoot).OwnerUid);
+        Assert.Equal(0, snapshot.Observation(RemotePathRole.ConfigurationRoot).OwnerUid);
+    }
+
+    [Theory]
+    [InlineData(1027, 100)]
+    [InlineData(1026, 101)]
+    public void RenumberingTheSameSshAccountChangesTheEnvironmentFingerprint(int userId, int groupId)
+    {
+        var before = PathData.Snapshot(PathData.Output());
+        var output = PathData.Output().Replace("identity=1026:100", $"identity={userId}:{groupId}", StringComparison.Ordinal);
+        var after = PathData.Snapshot(output);
+
+        Assert.Equal(before.PrincipalFingerprint, after.PrincipalFingerprint);
+        Assert.NotEqual(before.EnvironmentFingerprint, after.EnvironmentFingerprint);
+    }
+
+    [Theory]
+    [InlineData(-1, 100)]
+    [InlineData(1026, -1)]
+    public void SnapshotRejectsInvalidNumericIdentityEvenWhenConstructedWithoutTheParser(int userId, int groupId)
+    {
+        var facts = NasPathProtocol.Parse(PathData.Layout, 0, PathData.Output());
+        var invalid = facts with { Identity = new(userId, groupId) };
+
+        var error = Assert.Throws<ArgumentException>(() => new RemotePathSnapshot(PreflightData.Target, PathData.Layout,
+            PreflightData.Pin, PreflightData.Profile, PreflightData.Now, invalid));
+        Assert.Equal("paths.identity.invalid", error.Message);
     }
 
     [Fact]
@@ -338,7 +403,7 @@ public sealed class RemotePathTests
             {
                 entered.TrySetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);
-                return new(PathData.RootDevice, [], new(OwnershipMarkerState.Absent));
+                return new(PathData.RootDevice, [], new(OwnershipMarkerState.Absent), new(1026, 100));
             },
         };
         var probe = Probe(wire);
@@ -420,8 +485,9 @@ internal static class PathData
     internal const string Marker = "marker=absent";
 
     internal static string Output(string? media = null, string? configuration = null, string marker = Marker) => string.Join("\n",
-        "hh-homelab-wizard:nas-paths:v2",
+        "hh-homelab-wizard:nas-paths:v3",
         "root-device=2",
+        "identity=1026:100",
         "entry=directory:0:same:41:1026:100:755:empty",
         "entry=missing:1:same:41:1026:100:755:not-applicable",
         "entry=missing:2:same:41:1026:100:755:not-applicable",

@@ -1,4 +1,4 @@
-# hh-homelab-wizard:nas-paths:v2
+# hh-homelab-wizard:nas-paths:v3
 set -eu
 LC_ALL=C
 export LC_ALL
@@ -13,19 +13,17 @@ unavailable() {
     printf 'entry=unavailable:0:unavailable:-:-:-:-:unavailable\n'
 }
 
-# Counts bytes rather than capturing names: a name made only of newlines must not look empty.
+# Read at most one full pathname and retain find's exit status. Even a newline-only basename
+# keeps the nonempty directory prefix. No name is echoed or parsed; a failed listing is unknown.
 contents_of() {
     if [ ! -r "$1" ] || [ ! -x "$1" ]; then
         printf 'unavailable'
-    elif ! ls -A "$1" >/dev/null 2>&1; then
+    elif ! first="$(find "$1" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)"; then
         printf 'unavailable'
+    elif [ -n "$first" ]; then
+        printf 'not-empty'
     else
-        bytes="$(ls -A "$1" | head -c 1 | wc -c)"
-        if [ $((bytes)) -gt 0 ]; then
-            printf 'not-empty'
-        else
-            printf 'empty'
-        fi
+        printf 'empty'
     fi
 }
 
@@ -203,13 +201,17 @@ marker_of() {
 }
 
 IFS= read -r header || fail
-[ "$header" = 'hh-homelab-wizard:nas-paths-request:v2' ] || fail
+[ "$header" = 'hh-homelab-wizard:nas-paths-request:v3' ] || fail
 if ! root_device="$(stat -c '%d' / 2>/dev/null)"; then
     fail
 fi
-printf 'hh-homelab-wizard:nas-paths:v2\n'
+# Numeric process identity is independent of any directory owner, including a missing path's ancestor.
+ssh_uid="$(id -u)" || fail
+ssh_gid="$(id -g)" || fail
+printf 'hh-homelab-wizard:nas-paths:v3\n'
 # A path on the device of "/" sits in a leftover mount-point directory, not on a mounted volume.
 printf 'root-device=%s\n' "$root_device"
+printf 'identity=%s:%s\n' "$ssh_uid" "$ssh_gid"
 count=0
 owner_seen=0
 while IFS= read -r line; do
