@@ -6,7 +6,7 @@ public sealed class QbittorrentPlanProfile
 {
     public QbittorrentPlanProfile(string researchFingerprint, string sourceCommit, string composeSha256,
         string image, IReadOnlyList<string> dockerMods, string composePath, string environmentPath,
-        string configurationPath, string watchPath, string containerName, int containerWebUiPort)
+        string configurationPath, string watchPath, string containerName, string webUiPortPolicy)
     {
         if (!ResourceIdentity.IsFingerprint(researchFingerprint) || sourceCommit is not { Length: 40 }
             || !sourceCommit.All(char.IsAsciiHexDigit) || !ResourceIdentity.IsFingerprint(composeSha256))
@@ -16,7 +16,7 @@ public sealed class QbittorrentPlanProfile
             throw new ArgumentException("plan.profile.images");
         var paths = new[] { composePath, environmentPath, configurationPath, watchPath };
         if (paths.Any(path => !ResearchProfileValidator.IsRelativePath(path)) || paths.Distinct().Count() != paths.Length
-            || containerName != "qbittorrent" || containerWebUiPort is < 1 or > 65535)
+            || containerName != "qbittorrent" || webUiPortPolicy != "host-and-container")
             throw new ArgumentException("plan.profile.layout");
         ResearchFingerprint = researchFingerprint;
         SourceCommit = sourceCommit;
@@ -28,11 +28,11 @@ public sealed class QbittorrentPlanProfile
         ConfigurationPath = configurationPath;
         WatchPath = watchPath;
         ContainerName = containerName;
-        ContainerWebUiPort = containerWebUiPort;
+        WebUiPortPolicy = webUiPortPolicy;
         Fingerprint = ConfigurationRequest.Fingerprint(new
         {
             researchFingerprint, sourceCommit, composeSha256, image, DockerMods,
-            composePath, environmentPath, configurationPath, watchPath, containerName, containerWebUiPort,
+            composePath, environmentPath, configurationPath, watchPath, containerName, webUiPortPolicy,
         });
     }
 
@@ -46,6 +46,6 @@ public sealed class QbittorrentPlanProfile
     public string ConfigurationPath { get; }
     public string WatchPath { get; }
     public string ContainerName { get; }
-    public int ContainerWebUiPort { get; }
+    public string WebUiPortPolicy { get; }
     public string Fingerprint { get; }
 }

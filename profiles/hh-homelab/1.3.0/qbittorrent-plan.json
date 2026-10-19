@@ -7,5 +7,5 @@
   "configurationPath": "media/config/qbittorrent",
   "watchPath": "media/watch",
   "containerName": "qbittorrent",
-  "containerWebUiPort": 9080
+  "webUiPortPolicy": "host-and-container"
 }

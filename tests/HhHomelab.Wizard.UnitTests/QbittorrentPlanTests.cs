@@ -41,7 +41,7 @@ public sealed class QbittorrentPlanTests
     [InlineData("0.0.0.0", "127.0.0.1", false)]
     [InlineData("192.0.2.53", "192.0.2.53", false)]
     [InlineData("127.0.0.1", "127.0.0.1", true)]
-    public async Task AddressContextsRespectBindAddressAndHostVersusContainerPorts(string bind, string haHost, bool proxyRequired)
+    public async Task AddressContextsRespectBindAndKeepWebUiHostAndContainerPortsAligned(string bind, string haHost, bool proxyRequired)
     {
         var fixture = new PlanData();
         var plan = (await fixture.Compiler.CompileAsync(fixture.Request(bind: bind, webPort: 19080), PreflightData.Pin, Token)).Value!;
@@ -50,9 +50,10 @@ public sealed class QbittorrentPlanTests
         if (!proxyRequired)
             Assert.Equal("http://192.0.2.53:19080/", computer!.AbsoluteUri);
         Assert.Equal($"http://{haHost}:19080/", plan.Endpoints.Single(endpoint => endpoint.Context == PlannedAddressContext.HomeAssistantToHost).Address!.AbsoluteUri);
-        Assert.Equal("http://qbittorrent:9080/", plan.Endpoints.Single(endpoint => endpoint.Context == PlannedAddressContext.ComposeToService).Address!.AbsoluteUri);
+        Assert.Equal("http://qbittorrent:19080/", plan.Endpoints.Single(endpoint => endpoint.Context == PlannedAddressContext.ComposeToService).Address!.AbsoluteUri);
         Assert.Equal(proxyRequired, plan.HasBlockingChecks);
-        Assert.Contains(plan.Publications, item => item.Protocol == PlannedPortProtocol.Tcp && item.HostPort == 19080 && item.ContainerPort == 9080);
+        Assert.Equal(19080, plan.ContainerWebUiPort);
+        Assert.Contains(plan.Publications, item => item.Protocol == PlannedPortProtocol.Tcp && item.HostPort == 19080 && item.ContainerPort == 19080);
         Assert.Contains(plan.Publications, item => item.Protocol == PlannedPortProtocol.Udp && item.HostPort == 16881 && item.ContainerPort == 16881);
     }
 
@@ -242,8 +243,8 @@ public sealed class QbittorrentPlanTests
         var current = fixture.Profile.Definition;
         var mods = current.DockerMods.ToArray();
         var replacement = new QbittorrentPlanProfile(current.ResearchFingerprint, current.SourceCommit, current.ComposeSha256,
-            current.Image, mods, current.ComposePath, current.EnvironmentPath, current.ConfigurationPath,
-            current.WatchPath, current.ContainerName, current.ContainerWebUiPort + 1);
+            current.Image, mods, current.ComposePath, current.EnvironmentPath, current.ConfigurationPath + "-changed",
+            current.WatchPath, current.ContainerName, current.WebUiPortPolicy);
         var fingerprint = replacement.Fingerprint;
         mods[0] = "example.invalid/changed:1.0";
         Assert.Equal(current.DockerMods[0], replacement.DockerMods[0]);
@@ -264,6 +265,7 @@ public sealed class QbittorrentPlanTests
     [InlineData("sourceComposeSha256")]
     [InlineData("schema")]
     [InlineData("unknown")]
+    [InlineData("webUiPortPolicy")]
     public void EmbeddedTemplateProvenanceAndSchemaAreChecked(string field)
     {
         using var stream = typeof(PinnedQbittorrentPlanProfile).Assembly.GetManifestResourceStream("qbittorrent-plan.json")!;

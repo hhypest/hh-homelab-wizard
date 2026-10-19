@@ -37,9 +37,9 @@ public sealed class PinnedQbittorrentPlanProfile : IQbittorrentPlanProfile
         var service = PinnedRuntimeProfile.Service("qbittorrent");
         return new(PinnedRuntimeProfile.Fingerprint, data.SourceCommit, data.SourceComposeSha256,
             service.Image, service.DockerMods, data.ComposePath, data.EnvironmentPath,
-            data.ConfigurationPath, data.WatchPath, data.ContainerName, data.ContainerWebUiPort);
+            data.ConfigurationPath, data.WatchPath, data.ContainerName, data.WebUiPortPolicy);
     }
 
     private sealed record Template(int Schema, string SourceCommit, string SourceComposeSha256, string ComposePath,
-        string EnvironmentPath, string ConfigurationPath, string WatchPath, string ContainerName, int ContainerWebUiPort);
+        string EnvironmentPath, string ConfigurationPath, string WatchPath, string ContainerName, string WebUiPortPolicy);
 }

@@ -47,7 +47,7 @@ public sealed class QbittorrentInstallationPlan
         Resources = BuildResources(request, profile, Owner);
         Publications = Array.AsReadOnly(new[]
         {
-            new PlannedPublication(PlannedPortProtocol.Tcp, request.BindAddress, request.WebUiPort, profile.ContainerWebUiPort),
+            new PlannedPublication(PlannedPortProtocol.Tcp, request.BindAddress, request.WebUiPort, ContainerWebUiPort),
             new(PlannedPortProtocol.Tcp, request.BindAddress, request.TorrentPort, request.TorrentPort),
             new(PlannedPortProtocol.Udp, request.BindAddress, request.TorrentPort, request.TorrentPort),
         });
@@ -56,7 +56,7 @@ public sealed class QbittorrentInstallationPlan
         {
             new PlannedEndpoint(PlannedAddressContext.ComputerToNas, request.BindAddress == "127.0.0.1" ? null : Http(request.NasAddress, request.WebUiPort)),
             new(PlannedAddressContext.HomeAssistantToHost, Http(localAddress, request.WebUiPort)),
-            new(PlannedAddressContext.ComposeToService, Http(profile.ContainerName, profile.ContainerWebUiPort)),
+            new(PlannedAddressContext.ComposeToService, Http(profile.ContainerName, ContainerWebUiPort)),
         });
         var sameVolume = MediaPathLayout.VolumeOf(request.Layout.DataRoot) == MediaPathLayout.VolumeOf(request.Layout.ConfigurationRoot);
         var configurationSpace = request.ConfigurationFreeBytes + (sameVolume ? request.DataFreeBytes : 0);
@@ -93,6 +93,8 @@ public sealed class QbittorrentInstallationPlan
 
     public QbittorrentInstallationRequest Request { get; }
     public QbittorrentPlanProfile Profile { get; }
+    /// <summary>Required WEBUI_PORT value inside the container, aligned with its published Host port.</summary>
+    public int ContainerWebUiPort => Request.WebUiPort;
     public InstallationOwner Owner { get; }
     public DateTimeOffset ObservedAt { get; }
     public IReadOnlyList<PlannedResource> Resources { get; }

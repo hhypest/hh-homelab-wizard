@@ -14,14 +14,14 @@ dotnet run --project tools/HhHomelab.Wizard.JournalProbe --no-build -c Release
 dotnet run --project tools/HhHomelab.Wizard.ProfileCheck --no-build -c Release -- profiles/hh-homelab/1.3.0/research-profile.json
 ```
 
-Locked restore и Release build прошли, 0 warnings / 0 errors. Полный набор: **1091 unit/fixture** (45 новых plan cases), **18 Desktop tests**, без пропусков. JournalProbe: `journal.probe.restart-and-exclusive-lock.passed`, `journal.probe.plan-recovery.passed`, `journal.probe.passed`. ProfileCheck: 9 services / 19 artifacts / 118 steps, research inventory only. Последовательный MSBuild — параметр ограниченной локальной среды, CI не менялся.
+Locked restore и Release build прошли, 0 warnings / 0 errors. Полный набор: **1092 unit/fixture** (46 новых plan cases), **18 Desktop tests**, без пропусков. JournalProbe: `journal.probe.restart-and-exclusive-lock.passed`, `journal.probe.plan-recovery.passed`, `journal.probe.passed`. ProfileCheck: 9 services / 19 artifacts / 118 steps, research inventory only. Последовательный MSBuild — параметр ограниченной локальной среды, CI не менялся.
 
 ## Сценарии
 
 | Проверка | Результат |
 | --- | --- |
 | Явные пути, порты и budgets | Конкретные каталоги/файлы/контейнер/сеть; медиатека PreserveOrCreate без присвоения owner |
-| BIND_ADDR на все интерфейсы / конкретный NAS / loopback | Раздельные PC, HA host network и Compose адреса; host WebUI port отличается от внутреннего 9080; loopback блокирует PC без proxy |
+| BIND_ADDR на все интерфейсы / конкретный NAS / loopback | Раздельные PC, HA host network и Compose адреса; выбранный 19080 одинаков в WEBUI_PORT, публикации и Compose-адресе (регрессия несовпадающего Host port); loopback блокирует PC без proxy |
 | Данные и конфигурация на одном/разных томах | Бюджеты складываются только на одном томе, каждый нужный том проверяется |
 | TCP listener / непустой Docker / нехватка места / redirected path / чужой marker / данные без marker | Blocking остаётся в preview |
 | Перепроверка listener/path/space-below-budget/owner | Оба порта вызываются заново, прежний fingerprint инвалидируется |
@@ -33,8 +33,10 @@ Locked restore и Release build прошли, 0 warnings / 0 errors. Полны�
 | Auth / deadline / invalid response | Типизированные безопасные коды, без исходного exception text |
 | Caller cancellation / второй запуск | Cancelled / OperationInProgress, лишнее чтение путей не начинается; следующий запуск разрешён |
 | Изменённый шаблон при том же research profile | Fingerprint меняется; мутация исходного массива mods не меняет сохранённый профиль |
-| Неверные schema/source commit/compose hash/unknown field | Встроенный template parser отклоняет вход |
+| Неверные schema/source commit/compose hash/unknown field/WebUI port policy | Встроенный template parser отклоняет вход |
 | Неверный адрес/bind/ports/network/root UID/UMASK/TZ/overflow бюджета | Отказ до чтений |
+
+По замечанию review исходного `15e7799` устранён ошибочный фиксированный внутренний 9080 при выбранном внешнем 19080. Plan tests проверяют согласование, а существующий CI QbDockerProbe — отказ несовпадающего Host port на закреплённом runtime. Сам compiler через runtime пока не подключён.
 
 Проверены Markdown-relative links и `git diff --check` перед публикацией. Результат Windows/Linux CI относится к точному head в PR и не подменяет этот локальный запуск.
 
