@@ -5,14 +5,17 @@ using HhHomelab.Wizard.Domain;
 
 namespace HhHomelab.Wizard.Infrastructure;
 
-/// <summary>Executable graph of the first qBittorrent increment: the ownership marker, then Compose and
-/// .env rendered from the plan. Built only from a fresh plan without blocking checks; unresolved
-/// Unverified/NotChecked checks stay on the plan and are not an authorization. Operation and resource IDs
-/// derive from the installation ID, so a new process rebuilds the same graph and the journal resumes it.
-/// Directories of mounts, the network and the container are later steps.</summary>
+/// <summary>Executable graph of the first qBittorrent increment: the ownership marker, then the mount
+/// directories of /config and /watch and the Compose and .env files rendered from the plan. Built only from a
+/// fresh plan without blocking checks; unresolved Unverified/NotChecked checks stay on the plan and are not an
+/// authorization. Operation and resource IDs derive from the installation ID, so a new process rebuilds the
+/// same graph and the journal resumes it. The network and the container are later steps.</summary>
 public sealed class QbittorrentInstallationGraph : IDisposable
 {
     public static TimeSpan StepTimeout { get; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>Octal 750: the container user owns its mounts, the DSM group may read, others may not.</summary>
+    public const int MountDirectoryMode = 0x1E8;
 
     private readonly ConfigurationFileRequest[] files;
     private readonly ConfigurationOperationPlan plan;
@@ -36,12 +39,14 @@ public sealed class QbittorrentInstallationGraph : IDisposable
     public IOperationOwnership Ownership => Live(ownership);
 
     public static QbittorrentInstallationGraph Create(QbittorrentInstallationPlan plan, SshHostKey pin, DateTimeOffset now,
-        INasPathProbe paths, NasOwnershipMarkerWriter markerWriter, NasConfigurationFileClient fileClient)
+        INasPathProbe paths, NasOwnershipMarkerWriter markerWriter, NasConfigurationDirectoryClient directoryClient,
+        NasConfigurationFileClient fileClient)
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(pin);
         ArgumentNullException.ThrowIfNull(paths);
         ArgumentNullException.ThrowIfNull(markerWriter);
+        ArgumentNullException.ThrowIfNull(directoryClient);
         ArgumentNullException.ThrowIfNull(fileClient);
         if (plan.HasBlockingChecks)
             throw new ArgumentException("graph.plan.blocking");
@@ -55,6 +60,14 @@ public sealed class QbittorrentInstallationGraph : IDisposable
         var markerStep = new ConfigurationPlanStep(marker.Descriptor, [], StepTimeout);
         var operations = new List<IConfigurationOperation> { new NasOwnershipMarkerOperation(marker, paths, markerWriter, pin) };
         var steps = new List<ConfigurationPlanStep> { markerStep };
+        // Created before the container starts: otherwise Docker creates the mounts itself, owned by root.
+        foreach (var relative in new[] { plan.Profile.ConfigurationPath, plan.Profile.WatchPath })
+        {
+            var directory = new ConfigurationDirectoryRequest(Identity(plan, "directory:" + relative), plan.Request.Layout,
+                plan.Owner, relative, MountDirectoryMode);
+            operations.Add(new NasConfigurationDirectoryOperation(directory, directoryClient, pin));
+            steps.Add(new ConfigurationPlanStep(directory.Descriptor, [markerStep.Descriptor.Identity.OperationId], StepTimeout));
+        }
         var requests = new List<ConfigurationFileRequest>();
         var rendered = QbittorrentConfigurationRenderer.Render(plan);
         try
