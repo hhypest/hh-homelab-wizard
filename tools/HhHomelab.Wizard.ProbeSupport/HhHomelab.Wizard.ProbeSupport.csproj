@@ -9,6 +9,7 @@
     <EmbeddedResource Include="ssh-fixture/entrypoint.sh" LogicalName="ssh-fixture.entrypoint.sh" />
     <EmbeddedResource Include="ssh-fixture/dispatch.sh" LogicalName="ssh-fixture.dispatch.sh" />
     <EmbeddedResource Include="ssh-fixture/docker-control.sh" LogicalName="ssh-fixture.docker-control.sh" />
+    <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-network-read.sh" LogicalName="ssh-fixture.network-read.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-preflight.sh" LogicalName="ssh-fixture.preflight.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-paths.sh" LogicalName="ssh-fixture.paths.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-marker-write.sh" LogicalName="ssh-fixture.marker-write.sh" />

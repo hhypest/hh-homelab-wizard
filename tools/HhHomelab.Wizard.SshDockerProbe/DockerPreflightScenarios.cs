@@ -23,6 +23,8 @@ internal static class DockerPreflightScenarios
         await UnchangedAsync(bench, initialResources, token);
         Console.WriteLine("ssh-docker.empty-password-key: passed");
 
+        await DockerNetworkScenarios.RunAsync(bench, credentials, keyCredentials, pin, token);
+
         var expected = await VerifyResourceDriftAsync(bench, credentials, pin, empty, token);
         var resources = await bench.ObserveSshDockerResourcesAsync(token);
         await VerifyOverridesAsync(bench, credentials, pin, expected, token);

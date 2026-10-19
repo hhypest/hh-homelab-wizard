@@ -2,6 +2,7 @@
   <ItemGroup>
     <PackageReference Include="SSH.NET" />
     <EmbeddedResource Include="../../profiles/hh-homelab/1.3.0/qbittorrent-plan.json" LogicalName="qbittorrent-plan.json" />
+    <EmbeddedResource Include="nas-network-read.sh" LogicalName="nas-network-read.sh" />
     <EmbeddedResource Include="nas-preflight.sh" LogicalName="nas-preflight.sh" />
     <EmbeddedResource Include="nas-paths.sh" LogicalName="nas-paths.sh" />
     <EmbeddedResource Include="nas-marker-write.sh" LogicalName="nas-marker-write.sh" />

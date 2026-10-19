@@ -9,9 +9,10 @@ public interface IQbittorrentPlanProfile
 
 public sealed record QbittorrentPlanRevalidation(OperationRead<QbittorrentInstallationPlan> Fresh, bool Unchanged);
 
-/// <summary>Read-only compiler. Each call obtains new host and path evidence through the existing
+/// <summary>Read-only compiler. Each call obtains new host, path and network evidence through the existing
 /// ports. There is no write port, execution adapter, credential store or permission to install.</summary>
-public sealed class QbittorrentPlanCompiler(IQbittorrentPlanProfile profile, INasPreflightProbe preflight, INasPathProbe paths, TimeProvider? clock = null)
+public sealed class QbittorrentPlanCompiler(IQbittorrentPlanProfile profile, INasPreflightProbe preflight, INasPathProbe paths,
+    INasDockerNetworkProbe networks, TimeProvider? clock = null)
 {
     private readonly TimeProvider time = clock ?? TimeProvider.System;
     private int running;
@@ -43,10 +44,18 @@ public sealed class QbittorrentPlanCompiler(IQbittorrentPlanProfile profile, INa
                 return FailureFor(inspected.Status);
             if (!QbittorrentInstallationPlan.EvidenceIsBound(request, definition, host.Snapshot, inspected.Snapshot, approvedKey))
                 return Failed(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch);
+            var network = await networks.InspectAsync(request.NetworkName, approvedKey, token).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            if (network.Snapshot is null)
+                return FailureFor(network.Status);
+            if (!QbittorrentInstallationPlan.NetworkIsBound(request, definition, network.Snapshot, approvedKey))
+                return Failed(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch);
             var now = time.GetUtcNow();
             if (!QbittorrentInstallationPlan.EvidenceIsFresh(request, definition, host.Snapshot, inspected.Snapshot, approvedKey, now))
                 return Failed(OperationOutcomeKind.Conflict, OperationErrorCode.ObservationChanged);
-            return OperationRead<QbittorrentInstallationPlan>.Observed(new(request, definition, host.Snapshot, inspected.Snapshot, approvedKey, now));
+            if (!QbittorrentInstallationPlan.NetworkIsFresh(inspected.Snapshot, network.Snapshot, now))
+                return Failed(OperationOutcomeKind.Conflict, OperationErrorCode.ObservationChanged);
+            return OperationRead<QbittorrentInstallationPlan>.Observed(new(request, definition, host.Snapshot, inspected.Snapshot, network.Snapshot, approvedKey, now));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {

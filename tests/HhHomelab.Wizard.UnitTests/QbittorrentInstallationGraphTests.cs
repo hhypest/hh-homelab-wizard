@@ -137,6 +137,24 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         Assert.Equal(0, nas.FileWrites);
     }
 
+    [Theory]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData("retqaqtrgpy0jb8gv95yi9tnd")]
+    [InlineData(null)]
+    public async Task ExistingOrUnreadableNetworkStopsBeforeGraphWrites(string? networkId)
+    {
+        var fixture = new QbittorrentPlanTests.PlanData();
+        fixture.Networks.Facts = networkId is not null ? new(PreflightFactStatus.Available, [networkId])
+            : new(PreflightFactStatus.Unavailable, []);
+        var plan = (await fixture.Compiler.CompileAsync(fixture.Request(), PreflightData.Pin, Token)).Value!;
+        var nas = new FakeNas();
+
+        Assert.Equal("graph.plan.blocking", Assert.Throws<ArgumentException>(() => Graph(plan, nas)).Message);
+        Assert.Equal(0, nas.MarkerWrites);
+        Assert.Equal(0, nas.DirectoryWrites);
+        Assert.Equal(0, nas.FileWrites);
+    }
+
     [Fact]
     public async Task FreshnessIsMeasuredFromTheOldestEvidenceNotFromPlanConstruction()
     {

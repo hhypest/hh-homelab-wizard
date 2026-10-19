@@ -21,8 +21,7 @@ public sealed class QbittorrentInstallationRequest
             throw new ArgumentException("plan.request.bind-address");
         if (webUiPort is < 1 or > 65535 || torrentPort is < 1 or > 65535 || webUiPort == torrentPort)
             throw new ArgumentException("plan.request.ports");
-        if (networkName is not { Length: > 0 and <= 63 } || !char.IsAsciiLetterOrDigit(networkName[0])
-            || networkName.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-'))
+        if (!DockerNetworkSnapshot.IsValidName(networkName))
             throw new ArgumentException("plan.request.network");
         if (userId <= 0 || groupId <= 0 || umask is not { Length: 3 } || umask.Any(character => character is < '0' or > '7'))
             throw new ArgumentException("plan.request.permissions");

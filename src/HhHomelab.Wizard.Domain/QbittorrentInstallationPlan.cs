@@ -36,15 +36,19 @@ public sealed class QbittorrentInstallationPlan
     public static TimeSpan MaximumEvidenceAge => TimeSpan.FromMinutes(2);
 
     public QbittorrentInstallationPlan(QbittorrentInstallationRequest request, QbittorrentPlanProfile profile,
-        NasPreflightSnapshot preflight, RemotePathSnapshot paths, SshHostKey pin, DateTimeOffset now)
+        NasPreflightSnapshot preflight, RemotePathSnapshot paths, DockerNetworkSnapshot network, SshHostKey pin, DateTimeOffset now)
     {
-        if (!EvidenceIsBound(request, profile, preflight, paths, pin) || !EvidenceIsFresh(request, profile, preflight, paths, pin, now))
+        ArgumentNullException.ThrowIfNull(network);
+        if (!EvidenceIsBound(request, profile, preflight, paths, pin) || !NetworkIsBound(request, profile, network, pin))
+            throw new ArgumentException("plan.evidence.invalid");
+        if (!EvidenceIsFresh(request, profile, preflight, paths, pin, now) || !NetworkIsFresh(paths, network, now))
             throw new ArgumentException("plan.evidence.invalid");
         Request = request;
         Profile = profile;
         ObservedAt = now;
         HostKey = pin;
         EvidenceStartedAt = preflight.StartedAt;
+        Network = network;
         Owner = new(request.InstallationId, profile.ResearchFingerprint);
         Resources = BuildResources(request, profile, Owner);
         Publications = Array.AsReadOnly(new[]
@@ -81,7 +85,7 @@ public sealed class QbittorrentInstallationPlan
         checks.Add(UnixIdentityCheck("plan.pgid.ssh-primary-group", request.GroupId, paths.Identity.PrimaryGroupId));
         checks.Add(new("plan.udp-ports", PreflightCheckStatus.NotChecked));
         checks.Add(new("plan.configuration-children", PreflightCheckStatus.NotChecked));
-        checks.Add(new("plan.network-name", PreflightCheckStatus.NotChecked));
+        checks.Add(NetworkNameCheck(network.Facts));
         checks.Add(new("plan.address-reachability", PreflightCheckStatus.NotChecked));
         checks.Add(new("plan.timezone", PreflightCheckStatus.Unverified));
         checks.Add(new("plan.docker-storage", PreflightCheckStatus.NotChecked));
@@ -94,12 +98,15 @@ public sealed class QbittorrentInstallationPlan
         Fingerprint = ConfigurationRequest.Fingerprint(new
         {
             Request, Profile = profile.Fingerprint,
-            Preflight = preflight.EnvironmentFingerprint, Paths = paths.EnvironmentFingerprint, Checks,
+            Preflight = preflight.EnvironmentFingerprint, Paths = paths.EnvironmentFingerprint,
+            Network = network.EnvironmentFingerprint, Checks,
         });
     }
 
     public QbittorrentInstallationRequest Request { get; }
     public QbittorrentPlanProfile Profile { get; }
+
+    public DockerNetworkSnapshot Network { get; }
     /// <summary>Required WEBUI_PORT value inside the container, aligned with its published Host port.</summary>
     public int ContainerWebUiPort => Request.WebUiPort;
     public InstallationOwner Owner { get; }
@@ -129,6 +136,26 @@ public sealed class QbittorrentInstallationPlan
         NasPreflightSnapshot preflight, RemotePathSnapshot paths, SshHostKey pin, DateTimeOffset now) =>
         preflight.IsCurrentFor(request.Target, pin, profile.ResearchFingerprint, now, MaximumEvidenceAge)
         && paths.ObservedAt >= preflight.CompletedAt && now >= paths.ObservedAt && now - paths.ObservedAt <= MaximumEvidenceAge;
+
+    public static bool NetworkIsBound(QbittorrentInstallationRequest request, QbittorrentPlanProfile profile,
+        DockerNetworkSnapshot network, SshHostKey pin) =>
+        network.IsBoundTo(request.Target, request.NetworkName, pin, profile.ResearchFingerprint);
+
+    public static bool NetworkIsFresh(RemotePathSnapshot paths, DockerNetworkSnapshot network, DateTimeOffset now)
+    {
+        var ordered = network.ObservedAt >= paths.ObservedAt && network.ObservedAt <= now;
+        return ordered && now - network.ObservedAt <= MaximumEvidenceAge;
+    }
+
+    private static PreflightCheck NetworkNameCheck(DockerNetworkFacts facts)
+    {
+        if (facts.Status != PreflightFactStatus.Available)
+            return new("plan.network-name.unavailable", PreflightCheckStatus.Blocking);
+        if (facts.NetworkIds.Count != 0)
+            return new("plan.network-name.conflict", PreflightCheckStatus.Blocking);
+
+        return new("plan.network-name", PreflightCheckStatus.Passed);
+    }
 
     private static IReadOnlyList<PlannedResource> BuildResources(QbittorrentInstallationRequest request, QbittorrentPlanProfile profile, InstallationOwner owner)
     {
