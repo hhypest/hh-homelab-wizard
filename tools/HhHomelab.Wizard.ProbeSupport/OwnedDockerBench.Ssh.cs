@@ -220,6 +220,18 @@ public sealed partial class OwnedDockerBench
             + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly; ln -sfn /volume1/apps /volume1/apps-link"], token);
     }
 
+    /// <summary>Simulates a tampered lock of /volume1/apps/created: the holder holds the given session
+    /// GUID followed by a newline. With <paramref name="present"/> false the lock directory is removed.</summary>
+    public async Task SetSshTamperedLockAsync(Guid session, bool present, CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        var lockDirectory = "/volume1/apps/created/.hh-homelab-wizard/lock";
+        var script = present
+            ? "set -eu; mkdir " + lockDirectory + "; IFS= read -r holder; printf '%s\\n' \"$holder\" > " + lockDirectory + "/holder; chown -R 1000:1000 " + lockDirectory
+            : "set -eu; rm -f " + lockDirectory + "/holder; rmdir " + lockDirectory;
+        await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], session.ToString("D") + "\n", token);
+    }
+
     /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>
     public async Task<bool> SshHomeChangedAsync(CancellationToken token)
     {

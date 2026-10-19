@@ -103,6 +103,12 @@ internal static class MarkerScenarios
 
         var unmarked = context.NewRequest("/volume1/docker/hh");
         RequireLock(await context.LockAsync(unmarked, first, acquire: true, token), InstallationLockStatus.NotOwned, "lock.not-owned");
+        await context.Bench.SetSshTamperedLockAsync(first, present: true, token);
+        var tampered = await context.LockAsync(request, first, acquire: true, token);
+        Require(tampered.Status == InstallationLockStatus.HeldByOther && tampered.Holder is null, "lock.tampered-holder-not-own." + tampered.Status);
+        RequireLock(await context.LockAsync(request, first, acquire: false, token), InstallationLockStatus.HeldByOther, "lock.tampered-holder-kept");
+        await context.Bench.SetSshTamperedLockAsync(first, present: false, token);
+
         var redirected = context.NewRequest("/volume1/apps-link/created");
         RequireLock(await context.LockAsync(redirected, first, acquire: true, token), InstallationLockStatus.Invalid, "lock.symlinked-ancestor");
         RequireLock(await context.LockAsync(request, second, acquire: true, token), InstallationLockStatus.Acquired, "lock.symlink-left-no-lock");

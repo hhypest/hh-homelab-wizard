@@ -17,13 +17,19 @@ refuse() {
     exit 3
 }
 
-# Only a lowercase GUID is ever echoed back; any other holder content is reported as unknown.
+# Only a lowercase GUID is ever echoed back; any other holder content is reported as unknown. The
+# file must be exactly 36 bytes, so a trailing newline or NUL (dropped by command substitution)
+# cannot make a malformed holder look like this session's lock.
 holder_of() {
     if [ ! -f "$1" ] || [ -L "$1" ] || [ ! -r "$1" ]; then
         printf 'unknown'
         return
     fi
-    value="$(head -c 64 "$1")"
+    if [ $(( $(wc -c < "$1") )) -ne 36 ]; then
+        printf 'unknown'
+        return
+    fi
+    value="$(head -c 36 "$1")"
     case "$value" in
         ????????-????-????-????-????????????)
             case "$value" in
