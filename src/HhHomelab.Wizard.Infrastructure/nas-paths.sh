@@ -156,9 +156,16 @@ marker_of() {
         fi
     done
     # A symlinked ancestor redirects the whole root: never read a marker through it.
-    if [ -d "$root" ] && [ "$(cd -P "$root" 2>/dev/null && pwd -P)" != "$root" ]; then
-        printf 'marker=redirected\n'
-        return
+    # A root the SSH user cannot enter is unavailable, not redirected.
+    if [ -d "$root" ]; then
+        if ! resolved="$(cd -P "$root" 2>/dev/null && pwd -P)"; then
+            printf 'marker=unavailable\n'
+            return
+        fi
+        if [ "$resolved" != "$root" ]; then
+            printf 'marker=redirected\n'
+            return
+        fi
     fi
     if [ ! -e "$file" ]; then
         if [ -d "$root" ] && [ ! -x "$root" ]; then
