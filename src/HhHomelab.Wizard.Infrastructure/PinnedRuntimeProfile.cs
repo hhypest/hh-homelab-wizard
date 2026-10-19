@@ -17,7 +17,14 @@ public static class PinnedRuntimeProfile
     private static readonly FrozenDictionary<string, ComponentReference> Components = Snapshot.Components
         .ToFrozenDictionary(component => component.Id, StringComparer.Ordinal);
 
+    private static readonly FrozenDictionary<string, SourceArtifact> Artifacts = Snapshot.Artifacts
+        .ToFrozenDictionary(artifact => artifact.Path, StringComparer.Ordinal);
+
     public static string Fingerprint { get; } = Hash(Snapshot);
+
+    public static SourceArtifact Artifact(string path) => Artifacts.TryGetValue(path, out var artifact)
+        ? artifact
+        : throw new InvalidDataException("profile.artifact.unsupported");
 
     public static SourceReference Source => Snapshot.Source;
 

@@ -45,6 +45,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 - [Read-only проверка путей](docs/adr/0016-remote-path-inspection.md) и [протокол](docs/testing/2026-10-19-remote-paths.md): symlink, границы тома и hardlink-устройство; DSM ACL не заявляются.
 - [Маркер владения установкой](docs/adr/0017-installation-ownership-marker.md) и [протокол](docs/testing/2026-10-19-ownership-marker.md): своя установка определяется только точным совпадением маркера.
 - [Создание маркера владения](docs/adr/0018-ownership-marker-creation.md) и [протокол](docs/testing/2026-10-19-ownership-marker-creation.md): первая мутация NAS через журнал намерений, пока только на стенде.
+- [Конкретный read-only план qBittorrent](docs/adr/0021-qbittorrent-installation-plan.md), [fixture-протокол](docs/testing/2026-10-19-qbittorrent-plan.md): ресурсы, контексты адресов и свежая перепроверка; первый preview, без установки и подключения UI.
 - [Граф конфигурационных операций и recovery](docs/adr/0020-configuration-plan-recovery.md), [протокол](docs/testing/2026-10-19-plan-recovery.md): зависимости, неизменяемый план в журнале schema 2 и повторное наблюдение после перезапуска; прежние журналы schema 1 автоматически не мигрируются.
 - [Удалённая блокировка установки](docs/adr/0019-remote-installation-lock.md) и [протокол](docs/testing/2026-10-19-remote-lock.md): второй мастер не меняет ту же установку; чужая блокировка не перехватывается.
 

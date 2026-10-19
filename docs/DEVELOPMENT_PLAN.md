@@ -60,7 +60,7 @@
 
 ## 4. Архитектура и будущая структура
 
-Созданы Domain, Application, Infrastructure, Desktop, UnitTests и DesktopTests (headless UI). Application содержит искусственный сценарий M1 и однооперационный Observe/Apply/Verify с обязательными journal/ownership портами по [ADR 0010](adr/0010-operation-boundaries.md), а также конфигурационный граф с фиксированными зависимостями, бюджетами и привязкой плана к журналу по [ADR 0020](adr/0020-configuration-plan-recovery.md). Образцы qBittorrent/Radarr проверяются на fixtures; файловый журнал и remote ownership/lock проверяются отдельными процессными и стендовыми пробами. Полная durability, ContractTests и интегрированная установка ещё не приняты. Developer tools расположены в `tools/`, исследовательский профиль — в `profiles/`.
+Созданы Domain, Application, Infrastructure, Desktop, UnitTests и DesktopTests (headless UI). Application содержит искусственный сценарий M1 и однооперационный Observe/Apply/Verify с обязательными journal/ownership портами по [ADR 0010](adr/0010-operation-boundaries.md), а также конфигурационный граф с фиксированными зависимостями, бюджетами и привязкой плана к журналу по [ADR 0020](adr/0020-configuration-plan-recovery.md). Образцы qBittorrent/Radarr проверяются на fixtures; файловый журнал и remote ownership/lock проверяются отдельными процессными и стендовыми пробами. Полная durability, ContractTests и интегрированная установка ещё не приняты. Первый read-only compiler конкретного qBittorrent preview по [ADR 0021](adr/0021-qbittorrent-installation-plan.md) перечисляет ресурсы и перепроверяет снимки, но ещё не создаёт исполняемый граф и не подключён к экрану #50. Developer tools расположены в `tools/`, исследовательский профиль — в `profiles/`.
 
 ```text
 src/
