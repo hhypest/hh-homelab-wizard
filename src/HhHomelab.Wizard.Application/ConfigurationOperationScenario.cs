@@ -69,11 +69,13 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
             return Failure(OperationOutcomeKind.Conflict, OperationErrorCode.ResourceConflict);
         if (observed.State == ObservedResourceState.Satisfied)
             return await VerifyAndConfirmAsync(operation, descriptor, entry?.Confirmation is null ? entry?.Intent : null, observed, state, token).ConfigureAwait(false);
-        if (entry is not null)
-            return state.HasPendingIntent
-                ? Failure(OperationOutcomeKind.Unknown, OperationErrorCode.WriteUncertain)
-                : Failure(OperationOutcomeKind.Conflict, OperationErrorCode.ObservationChanged);
-        return await ApplyFreshAsync(operation, descriptor, observed, state, token).ConfigureAwait(false);
+        if (entry is null)
+            return await ApplyFreshAsync(operation, descriptor, observed, state, token).ConfigureAwait(false);
+        if (!state.HasPendingIntent)
+            return Failure(OperationOutcomeKind.Conflict, OperationErrorCode.ObservationChanged);
+        if (operation is IRepeatableConditionalApply)
+            return await ApplyPendingAsync(operation, descriptor, entry.Intent, observed, state, token).ConfigureAwait(false);
+        return Failure(OperationOutcomeKind.Unknown, OperationErrorCode.WriteUncertain);
     }
 
     private async Task<OperationResult> ApplyFreshAsync(
@@ -102,6 +104,29 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
             return write.Failure.Kind == OperationOutcomeKind.Cancelled
                 ? UncertainIfPending(write.Failure, state.HasPendingIntent)
                 : write.Failure;
+        return await VerifyAndConfirmAsync(operation, descriptor, intent, null, state, token).ConfigureAwait(false);
+    }
+
+    /// <summary>The earlier intent stays the journal record; a fresh Missing observation lets only a
+    /// conditional no-clobber Apply run again under the same intent, then the usual Verify and confirm.</summary>
+    private async Task<OperationResult> ApplyPendingAsync(
+        IConfigurationOperation operation,
+        OperationDescriptor descriptor,
+        OperationIntent intent,
+        OperationObservation observed,
+        ExecutionState state,
+        CancellationToken token
+    )
+    {
+        var access = await CheckOwnershipAsync(descriptor, token).ConfigureAwait(false);
+        if (access is not null)
+            return UncertainIfPending(access, true);
+        token.ThrowIfCancellationRequested();
+        var write = await operation.ApplyAsync(observed, token).ConfigureAwait(false);
+        if (write.Failure is not null)
+            return write.Failure.Kind == OperationOutcomeKind.Rejected
+                ? write.Failure
+                : UncertainIfPending(write.Failure, true);
         return await VerifyAndConfirmAsync(operation, descriptor, intent, null, state, token).ConfigureAwait(false);
     }
 

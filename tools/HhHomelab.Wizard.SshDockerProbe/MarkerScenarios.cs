@@ -62,6 +62,9 @@ internal static class MarkerScenarios
         Require(await context.OwnershipAsync(foreign, token) == "ownership.foreign-installation", "marker.foreign-unchanged");
         var unmarked = context.NewRequest("/volume1/docker/hh");
         Expect(await context.RunAsync(unmarked, token), OperationOutcomeKind.Conflict, "marker.unmarked-untouched");
+        var linkedTemporary = context.NewRequest("/volume1/apps/linked-tmp");
+        Require(await context.OwnershipAsync(linkedTemporary, token) == "ownership.unmarked-contents", "marker.symlink-tmp-not-staged");
+        Expect(await context.RunAsync(linkedTemporary, token), OperationOutcomeKind.Conflict, "marker.symlink-tmp-untouched");
         var unwritable = context.NewRequest("/volume1/readonly/hh");
         var refused = await context.RunAsync(unwritable, token);
         Require(refused.Kind == OperationOutcomeKind.Rejected && refused.Code == OperationErrorCode.WriteRejected, "marker.unwritable." + refused.Kind);

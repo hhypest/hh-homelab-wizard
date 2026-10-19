@@ -70,14 +70,43 @@ inspect() {
     fi
 }
 
+# Every entry must satisfy the named predicate. Names come from globbing, never from parsing
+# newline-delimited ls output, so a name containing newlines stays a single entry.
+only_entries() {
+    for entry in "$1"/* "$1"/.[!.]* "$1"/..?*; do
+        if [ ! -e "$entry" ] && [ ! -L "$entry" ]; then
+            continue
+        fi
+        "$2" "$entry" || return 1
+    done
+    return 0
+}
+
+marker_directory_entry() {
+    [ "${1##*/}" = .hh-homelab-wizard ] && [ -d "$1" ] && [ ! -L "$1" ]
+}
+
+# Only this wizard's own regular temporary files; a symlink or anything else is foreign content.
+staged_temporary_entry() {
+    name="${1##*/}"
+    case "$name" in
+        .installation.json.tmp-*) ;;
+        *) return 1 ;;
+    esac
+    case "${name#.installation.json.tmp-}" in
+        '' | *[!0-9]*) return 1 ;;
+    esac
+    [ -f "$1" ] && [ ! -L "$1" ]
+}
+
 # Leftover of an interrupted marker creation: the root holds only the marker directory and that
-# holds only this wizard's temporary files. Anything else stays an ordinary absent marker.
+# holds only this wizard's regular temporary files. Anything else stays an ordinary absent marker.
 staged_of() {
     if [ ! -r "$1" ] || [ ! -r "$2" ]; then
         printf 'marker=unavailable\n'
-    elif [ $(( $(ls -A "$1" | grep -v -x -e '\.hh-homelab-wizard' | head -c 1 | wc -c) )) -gt 0 ]; then
+    elif ! only_entries "$1" marker_directory_entry; then
         printf 'marker=absent\n'
-    elif [ $(( $(ls -A "$2" | grep -v -x -e '\.installation\.json\.tmp-[0-9][0-9]*' | head -c 1 | wc -c) )) -gt 0 ]; then
+    elif ! only_entries "$2" staged_temporary_entry; then
         printf 'marker=absent\n'
     else
         printf 'marker=staged\n'

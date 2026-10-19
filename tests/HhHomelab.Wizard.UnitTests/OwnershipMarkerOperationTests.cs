@@ -54,14 +54,67 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
     }
 
     [Fact]
-    public async Task LostResponseWithoutAnyChangeStaysUnknownInsteadOfRetrying()
+    public async Task LostChannelWithoutChangeIsUnknownThenTheConditionalWriteCompletesUnderTheSameIntent()
+    {
+        var nas = new FakeNas { FailAfterSendWithoutWriting = true };
+        var first = await RunAsync(nas);
+        Assert.Equal(OperationOutcomeKind.Unknown, first.Kind);
+        Assert.Equal(OperationErrorCode.WriteUncertain, first.Code);
+        nas.FailAfterSendWithoutWriting = false;
+        Assert.Equal(OperationOutcomeKind.Applied, (await RunAsync(nas)).Kind);
+        Assert.Equal(1, nas.Writes);
+        Assert.Equal(OperationOutcomeKind.AlreadySatisfied, (await RunAsync(nas)).Kind);
+    }
+
+    [Fact]
+    public async Task WriteInterruptedAfterStagingIsCompletedWhenTheIntentIsStillPending()
+    {
+        var nas = new FakeNas { FailAfterSendWithoutWriting = true, StageOnFailure = true };
+        Assert.Equal(OperationOutcomeKind.Unknown, (await RunAsync(nas)).Kind);
+        Assert.True(nas.Staged);
+        nas.FailAfterSendWithoutWriting = false;
+        Assert.Equal(OperationOutcomeKind.Applied, (await RunAsync(nas)).Kind);
+        Assert.Equal(1, nas.Writes);
+        Assert.Equal(OwnershipMarkerJson.Serialize(request.Marker), nas.MarkerJson);
+    }
+
+    [Fact]
+    public async Task ProvenRejectionOfARepeatedWriteKeepsTheIntentPendingButIsNotUnknown()
     {
         var nas = new FakeNas { FailAfterSendWithoutWriting = true };
         Assert.Equal(OperationOutcomeKind.Unknown, (await RunAsync(nas)).Kind);
         nas.FailAfterSendWithoutWriting = false;
-        var resumed = await RunAsync(nas);
-        Assert.Equal(OperationOutcomeKind.Unknown, resumed.Kind);
-        Assert.Equal(OperationErrorCode.WriteUncertain, resumed.Code);
+        nas.WriteOutcome = MarkerWriteOutcome.Rejected;
+        Assert.Equal(OperationOutcomeKind.Rejected, (await RunAsync(nas)).Kind);
+        nas.WriteOutcome = null;
+        Assert.Equal(OperationOutcomeKind.Applied, (await RunAsync(nas)).Kind);
+    }
+
+    [Fact]
+    public void ResourceMustNameThePinnedEndpoint()
+    {
+        var otherNas = request.Identity with { Resource = request.Identity.Resource with { EndpointFingerprint = new string('d', 64) } };
+        var mismatched = request with { Identity = otherNas };
+        var nas = new FakeNas();
+        var probe = new NasPathProbe(PreflightData.Target, _ => nas.Wire(), TimeSpan.FromSeconds(5), TimeProvider.System);
+        var writer = new NasOwnershipMarkerWriter(PreflightData.Target, _ => nas.Wire(), TimeSpan.FromSeconds(5));
+        var error = Assert.Throws<ArgumentException>(() => new NasOwnershipMarkerOperation(mismatched, probe, writer, PreflightData.Pin));
+        Assert.Equal("ownership.endpoint.mismatch", error.Message);
+    }
+
+    [Fact]
+    public async Task ResourceProfileDifferentFromTheObservedBuildProfileNeverProvesOwnershipOrWrites()
+    {
+        var installation = Guid.NewGuid();
+        var otherProfile = new string('e', 64);
+        var resource = new ResourceIdentity(installation, Guid.NewGuid(), "nas", otherProfile, PreflightData.Target.EndpointFingerprint);
+        var foreignProfile = new OwnershipMarkerRequest(new(Guid.NewGuid(), resource), PathData.Layout, new(installation, otherProfile));
+        var otherScope = new OperationJournalScope(installation, Guid.NewGuid(), otherProfile);
+        using var otherDirectory = new MarkerJournalDirectory(otherScope);
+        var nas = new FakeNas();
+        var result = await RunAsync(nas, otherDirectory.Path, foreignProfile, otherScope);
+        Assert.Equal(OperationOutcomeKind.Invalid, result.Kind);
+        Assert.Equal(OperationErrorCode.OwnershipNotProven, result.Code);
         Assert.Equal(0, nas.Writes);
     }
 
@@ -143,12 +196,13 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
             (request with { Layout = new MediaPathLayout("/volume1/data", "/volume1/docker/other") }).Descriptor.SpecificationHash);
     }
 
-    private async Task<OperationResult> RunAsync(FakeNas nas, string? journalDirectory = null)
+    private async Task<OperationResult> RunAsync(FakeNas nas, string? journalDirectory = null,
+        OwnershipMarkerRequest? overrideRequest = null, OperationJournalScope? overrideScope = null)
     {
-        var journal = FileOperationJournal.Open(journalDirectory ?? directory, scope);
+        var journal = FileOperationJournal.Open(journalDirectory ?? directory, overrideScope ?? scope);
         var probe = new NasPathProbe(PreflightData.Target, _ => nas.Wire(), TimeSpan.FromSeconds(5), TimeProvider.System);
         var writer = new NasOwnershipMarkerWriter(PreflightData.Target, _ => nas.Wire(), TimeSpan.FromSeconds(5));
-        var operation = new NasOwnershipMarkerOperation(request, probe, writer, PreflightData.Pin);
+        var operation = new NasOwnershipMarkerOperation(overrideRequest ?? request, probe, writer, PreflightData.Pin);
         return await new ConfigurationOperationScenario(journal, operation).ExecuteAsync(operation, Token);
     }
 
@@ -187,6 +241,8 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
         public bool FailAfterSendWithoutWriting { get; set; }
 
         public bool FailWriteConnect { get; set; }
+
+        public bool StageOnFailure { get; set; }
 
         public MarkerWriteOutcome? WriteOutcome { get; set; }
 
@@ -228,7 +284,10 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
                 if (nas.WriteOutcome is { } outcome)
                     return Task.FromResult(outcome);
                 if (nas.FailAfterSendWithoutWriting)
+                {
+                    nas.Staged = nas.StageOnFailure;
                     throw new SshConnectionException("synthetic-lost-channel");
+                }
                 nas.Writes++;
                 nas.Staged = false;
                 nas.MarkerJson = OwnershipMarkerJson.Serialize(request.Marker);

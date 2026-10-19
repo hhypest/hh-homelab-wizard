@@ -15,6 +15,14 @@ public interface IConfigurationOperation
     Task<OperationRead<OperationVerification>> VerifyAsync(CancellationToken token);
 }
 
+/// <summary>Opt-in for an operation whose Apply is a conditional, no-clobber write of identical content:
+/// it re-checks every precondition on the target before changing anything and can neither duplicate
+/// nor overwrite a result. Only such an operation may be applied again when a pending intent meets a
+/// fresh Missing observation; an in-flight earlier attempt then loses the race harmlessly.</summary>
+public interface IRepeatableConditionalApply
+{
+}
+
 public enum ResourceOwnership
 {
     Owned,
