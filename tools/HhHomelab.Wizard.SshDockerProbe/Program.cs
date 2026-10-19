@@ -81,6 +81,7 @@ internal static class SshScenarios
         Console.WriteLine("ssh-runtime.password-key-sftp: passed");
 
         await PreflightScenarios.RunAsync(bench, credentials, keyCredentials, pin, token);
+        await PathScenarios.RunAsync(bench, credentials, pin, token);
         await VerifyFaultsAsync(bench, credentials, pin, token);
         await VerifyCancellationAsync(bench, credentials, pin, token);
         await VerifyKeyRotationAsync(bench, credentials, pin, token);

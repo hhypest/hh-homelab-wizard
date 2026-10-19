@@ -44,21 +44,30 @@ internal static class PreflightScenarios
         return snapshot;
     }
 
-    /// <summary>The fixture sshd really listens on 2222 and the container has no DSM volume mounts.</summary>
+    /// <summary>The fixture sshd really listens on 2222; /volume1 is the fixture's own tmpfs mount and
+    /// the only DSM-style volume, so free space is checked against a real mounted filesystem.</summary>
     internal static void HostResources(NasPreflightSnapshot snapshot, string scope)
     {
         var resources = snapshot.Facts.Resources;
         Require(resources.Model.Status == PreflightFactStatus.Missing, scope + ".non-dsm-model");
         Require(resources.ListeningStatus == PreflightFactStatus.Available, scope + ".listeners");
         Require(resources.ListeningTcpPorts.Contains(FixtureSshPort), scope + ".sshd-listener");
-        Require(resources.VolumeStatus == PreflightFactStatus.Available && resources.Volumes.Count == 0, scope + ".no-dsm-volumes");
-        var conflicting = new PreflightRequirements([FixtureSshPort, FreePort], "/volume1", 1);
+        Require(resources.VolumeStatus == PreflightFactStatus.Available, scope + ".volumes");
+        Require(resources.Volumes.Count == 1, scope + ".single-volume");
+        var volume = resources.Volumes[0];
+        Require(volume.Mount == "/volume1" && volume.AvailableBytes > 0, scope + ".tmpfs-volume");
+
+        var conflicting = new PreflightRequirements([FixtureSshPort, FreePort], "/volume2", 1);
         var checks = NasPreflightAssessment.Evaluate(snapshot, conflicting);
         Require(checks.Any(check => check.Code == "preflight.ports.conflict" && check.Status == PreflightCheckStatus.Blocking), scope + ".port-conflict");
         Require(NasPreflightAssessment.ConflictingPorts(snapshot, conflicting).SequenceEqual([FixtureSshPort]), scope + ".conflicting-ports");
         Require(checks.Any(check => check.Code == "preflight.disk-space.volume-missing" && check.Status == PreflightCheckStatus.Blocking), scope + ".volume-missing");
+
         var free = NasPreflightAssessment.Evaluate(snapshot, new([FreePort], "/volume1", 1));
         Require(free.Any(check => check.Code == "preflight.ports" && check.Status == PreflightCheckStatus.Passed), scope + ".free-port");
+        Require(free.Any(check => check.Code == "preflight.disk-space" && check.Status == PreflightCheckStatus.Passed), scope + ".space-available");
+        var tooLarge = NasPreflightAssessment.Evaluate(snapshot, new([FreePort], "/volume1", volume.TotalBytes + 1));
+        Require(tooLarge.Any(check => check.Code == "preflight.disk-space.insufficient" && check.Status == PreflightCheckStatus.Blocking), scope + ".space-insufficient");
     }
 
     private const int FixtureSshPort = 2222;

@@ -21,7 +21,7 @@ public enum SshFixtureFault
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "docker-control.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
@@ -68,6 +68,7 @@ public sealed partial class OwnedDockerBench
             "--network", Network, "--publish", $"127.0.0.1:{port}:2222", "--pids-limit", withDocker ? "512" : "64",
             "--memory", withDocker ? "768m" : "128m", "--cpus", withDocker ? "2" : "1",
             "--tmpfs", "/run/sshd:rw,mode=0700", "--tmpfs", "/fixture-state:rw,uid=1000,gid=1000,mode=0700",
+            "--tmpfs", "/volume1:rw,mode=0755",
             "--log-driver", "json-file", "--log-opt", "max-size=1m", "--log-opt", "max-file=1" };
         if (withDocker)
             create.AddRange(["--privileged", "--cgroupns", "private", "--ipc", "private"]);
@@ -167,6 +168,30 @@ public sealed partial class OwnedDockerBench
         {
             CryptographicOperations.ZeroMemory(bytes);
         }
+    }
+
+    /// <summary>Synthetic DSM-like tree. /volume1 is its own tmpfs mount; /volume3 is a leftover
+    /// directory on the container root filesystem, as after an unmounted volume. Includes an existing
+    /// library, a non-empty configuration root, a name made of a newline, a symlinked root, unsearchable
+    /// directories and a regular file.</summary>
+    public async Task PrepareSshPathTreeAsync(CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        _ = await RunAsync(["exec", Container, "sh", "-c",
+            "set -eu; mkdir -p /volume1/data/media/movies /volume1/docker/hh /volume1/docker/newline /volume1/locked/data "
+            + "/volume1/lockedleaf /volume3/data; "
+            + "printf 'synthetic\\n' > /volume1/data/media/movies/sample.mkv; "
+            + "printf 'synthetic\\n' > /volume1/docker/hh/home-assistant_v2.db; "
+            + ": > \"/volume1/docker/newline/\n\"; "
+            + "ln -sfn /volume1/data /volume1/link; chmod 0700 /volume1/locked /volume1/lockedleaf; printf 'x\\n' > /volume1/file"], token);
+    }
+
+    /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>
+    public async Task<bool> SshHomeChangedAsync(CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        var listing = await RunAsync(["exec", Container, "sh", "-c", "ls -A /home/wizard /tmp"], token);
+        return listing.Contains("hh-paths-injected", StringComparison.Ordinal);
     }
 
     public async Task<SshHostKey> ReadSshHostKeyAsync(CancellationToken token)

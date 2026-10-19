@@ -2,6 +2,7 @@
 set -eu
 identity_command="printf 'hh-homelab-wizard:ssh-probe:v1\\n'; uname -s; id -u"
 preflight_command="$(cat /fixture/preflight.sh)"
+paths_command="$(cat /fixture/paths.sh)"
 mode="$(cat /fixture-state/mode 2>/dev/null || printf normal)"
 case "${SSH_ORIGINAL_COMMAND:-}" in
     "$preflight_command")
@@ -17,6 +18,15 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
                 ;;
         esac
         exec /bin/sh /fixture/preflight.sh
+        ;;
+    "$paths_command")
+        : > /fixture-state/identity-started
+        case "$mode" in
+            delay) exec sleep 60 ;;
+            malformed) printf 'invalid-paths\n'; exit 0 ;;
+        esac
+        # The request stays on stdin; the client text is compared, never evaluated.
+        exec /bin/sh /fixture/paths.sh
         ;;
     "$identity_command")
         : > /fixture-state/identity-started
