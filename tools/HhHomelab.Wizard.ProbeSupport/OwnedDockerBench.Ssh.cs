@@ -19,11 +19,12 @@ public enum SshFixtureFault
     DockerOverrides,
     MarkerLostResponse,
     LockLostResponse,
+    FileLostResponse,
 }
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "lock.sh", "docker-control.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "lock.sh", "file-read.sh", "file-write.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
@@ -236,6 +237,34 @@ public sealed partial class OwnedDockerBench
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], session.ToString("D") + "\n", token);
     }
 
+    /// <summary>Configuration-file fixtures below the own marked root /volume1/apps/created: a manual edit
+    /// appended to a delivered file, and a directory reached through a symlink to a victim directory.</summary>
+    public async Task PrepareSshFileTreeAsync(CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        _ = await RunAsync(["exec", Container, "sh", "-c",
+            "set -eu; mkdir -p /volume1/apps/file-victim; ln -sfn /volume1/apps/file-victim /volume1/apps/created/linked; "
+            + "chown -R 1000:1000 /volume1/apps/file-victim; chown -h 1000:1000 /volume1/apps/created/linked"], token);
+    }
+
+    /// <summary>Appends a line to a delivered file of /volume1/apps/created as a later manual change would.</summary>
+    public async Task AppendSshManualEditAsync(string relativePath, CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        if (!ConfigurationFileRequest.IsRelativePath(relativePath))
+            throw new InvalidOperationException("bench.ssh.file.invalid");
+        _ = await RunAsync(["exec", Container, "sh", "-c",
+            "printf '# edited by hand\n' >> \"/volume1/apps/created/$1\"", "sh", relativePath], token);
+    }
+
+    /// <summary>True when nothing was created inside the victim directory behind the symlink.</summary>
+    public async Task<bool> SshFileVictimUntouchedAsync(CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        var listing = await RunAsync(["exec", Container, "ls", "-A", "/volume1/apps/file-victim"], token);
+        return listing.Trim().Length == 0;
+    }
+
     /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>
     public async Task<bool> SshHomeChangedAsync(CancellationToken token)
     {
@@ -267,6 +296,7 @@ public sealed partial class OwnedDockerBench
             SshFixtureFault.DockerOverrides => "docker-overrides",
             SshFixtureFault.MarkerLostResponse => "marker-lost-response",
             SshFixtureFault.LockLostResponse => "lock-lost-response",
+            SshFixtureFault.FileLostResponse => "file-lost-response",
             _ => throw new InvalidOperationException("bench.ssh.fault.invalid"),
         };
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c",

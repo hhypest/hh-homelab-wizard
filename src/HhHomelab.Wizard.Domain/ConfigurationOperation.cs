@@ -8,6 +8,7 @@ public enum ConfigurationOperationKind
     QbittorrentCategory,
     ArrRootFolder,
     OwnershipMarker,
+    ConfigurationFile,
 }
 
 /// <summary>Opaque identities supplied by the ownership/journal boundary, never credentials or URLs.

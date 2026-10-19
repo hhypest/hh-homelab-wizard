@@ -13,5 +13,7 @@
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-paths.sh" LogicalName="ssh-fixture.paths.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-marker-write.sh" LogicalName="ssh-fixture.marker-write.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-lock.sh" LogicalName="ssh-fixture.lock.sh" />
+    <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-file-read.sh" LogicalName="ssh-fixture.file-read.sh" />
+    <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-file-write.sh" LogicalName="ssh-fixture.file-write.sh" />
   </ItemGroup>
 </Project>

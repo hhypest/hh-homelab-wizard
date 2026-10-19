@@ -6,7 +6,7 @@ using HhHomelab.Wizard.ProbeSupport;
 /// <summary>The first journaled NAS mutation through the real OpenSSH server as an unprivileged user:
 /// a local file journal, the shared operation scenario and a fixed marker script. Only the disposable
 /// fixture tree is written; the journal lives in a fresh temporary directory of the runner.</summary>
-internal static class MarkerScenarios
+internal static partial class MarkerScenarios
 {
     internal static async Task RunAsync(OwnedDockerBench bench, SshProbeCredentials credentials, SshHostKey pin, CancellationToken token)
     {
@@ -24,6 +24,8 @@ internal static class MarkerScenarios
             Console.WriteLine("ssh-runtime.marker-journaled-write: passed");
             await VerifyInstallationLockAsync(context, token);
             Console.WriteLine("ssh-runtime.installation-lock: passed");
+            await VerifyConfigurationFilesAsync(context, token);
+            Console.WriteLine("ssh-runtime.configuration-file-delivery: passed");
         }
         finally
         {
@@ -132,7 +134,7 @@ internal static class MarkerScenarios
             throw new SshScenarioException("ssh-runtime." + code);
     }
 
-    private sealed class Context(OwnedDockerBench bench, SshProbeCredentials credentials, SshHostKey pin, string root)
+    private sealed partial class Context(OwnedDockerBench bench, SshProbeCredentials credentials, SshHostKey pin, string root)
     {
         private static readonly Guid Installation = Guid.NewGuid();
 

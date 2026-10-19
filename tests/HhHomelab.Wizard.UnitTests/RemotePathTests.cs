@@ -400,6 +400,12 @@ public sealed class RemotePathTests
         public Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token) =>
             throw new InvalidOperationException("test.read-only-probe");
 
+        public Task<(int? ExitCode, string Output)> ReadConfigurationFileAsync(string request, CancellationToken token) =>
+            throw new InvalidOperationException("test.read-only-probe");
+
+        public Task<(int? ExitCode, string Output)> WriteConfigurationFileAsync(byte[] request, Action sending, CancellationToken token) =>
+            throw new InvalidOperationException("test.read-only-probe");
+
         public void Dispose() => Disposed = true;
     }
 }

@@ -5,6 +5,8 @@ preflight_command="$(cat /fixture/preflight.sh)"
 paths_command="$(cat /fixture/paths.sh)"
 marker_command="$(cat /fixture/marker-write.sh)"
 lock_command="$(cat /fixture/lock.sh)"
+file_read_command="$(cat /fixture/file-read.sh)"
+file_write_command="$(cat /fixture/file-write.sh)"
 mode="$(cat /fixture-state/mode 2>/dev/null || printf normal)"
 case "${SSH_ORIGINAL_COMMAND:-}" in
     "$preflight_command")
@@ -47,6 +49,19 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
             exec sleep 60
         fi
         exec /bin/sh /fixture/lock.sh
+        ;;
+    "$file_read_command")
+        : > /fixture-state/identity-started
+        exec /bin/sh /fixture/file-read.sh
+        ;;
+    "$file_write_command")
+        : > /fixture-state/identity-started
+        if [ "$mode" = file-lost-response ]; then
+            # The file really is created; only its response never reaches the client.
+            /bin/sh /fixture/file-write.sh > /dev/null 2>&1 || true
+            exec sleep 60
+        fi
+        exec /bin/sh /fixture/file-write.sh
         ;;
     "$identity_command")
         : > /fixture-state/identity-started
