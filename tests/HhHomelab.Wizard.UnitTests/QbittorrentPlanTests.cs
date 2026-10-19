@@ -303,7 +303,7 @@ public sealed class QbittorrentPlanTests
         Assert.Equal(0, fixture.Host.Calls);
     }
 
-    private sealed class PlanData
+    internal sealed class PlanData
     {
         internal readonly IQbittorrentPlanProfile Profile = new PinnedQbittorrentPlanProfile();
         internal readonly TestClock Clock = new();
@@ -330,13 +330,13 @@ public sealed class QbittorrentPlanTests
                 nas, bind, webPort, 16881, network, userId, 100, umask, timeZone, dataBytes, configurationBytes);
     }
 
-    private sealed class TestClock : TimeProvider
+    internal sealed class TestClock : TimeProvider
     {
         internal DateTimeOffset Now = PreflightData.Now;
         public override DateTimeOffset GetUtcNow() => Now;
     }
 
-    private sealed class HostProbe(PlanData data) : INasPreflightProbe
+    internal sealed class HostProbe(PlanData data) : INasPreflightProbe
     {
         internal int Calls;
         internal SshProbeStatus? Status;
@@ -360,7 +360,7 @@ public sealed class QbittorrentPlanTests
         }
     }
 
-    private sealed class PathsProbe(PlanData data) : INasPathProbe
+    internal sealed class PathsProbe(PlanData data) : INasPathProbe
     {
         internal int Calls;
         public Task<RemotePathResult> InspectAsync(MediaPathLayout layout, SshHostKey? approvedKey, CancellationToken token)
