@@ -43,6 +43,14 @@ age_of() {
     fi
 }
 
+# Exact byte comparison through the same hex encoder on both sides: shell variables would drop
+# trailing newlines and NUL bytes. The file is size-checked first so a huge file is never read.
+same_marker_bytes() {
+    [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] || return 1
+    [ $(( $(wc -c < "$1") )) -le 4096 ] || return 1
+    [ "$(od -An -v -tx1 "$1" | tr -d ' \n')" = "$(printf '%s' "$2" | od -An -v -tx1 | tr -d ' \n')" ]
+}
+
 IFS= read -r header || framing
 [ "$header" = 'hh-homelab-wizard:nas-lock-request:v1' ] || framing
 IFS= read -r action_line || framing
@@ -80,11 +88,12 @@ for candidate in "$root" "$dir" "$file" "$lock" "$holder"; do
         refuse invalid
     fi
 done
-# The lock exists only inside this installation's own marker directory.
-if [ ! -f "$file" ] || [ ! -r "$file" ]; then
-    refuse not-owned
+# The resolved root must equal its lexical path: a symlinked ancestor would move the lock elsewhere.
+if [ ! -d "$root" ] || [ "$(cd -P "$root" 2>/dev/null && pwd -P)" != "$root" ]; then
+    refuse invalid
 fi
-if [ "$(cat "$file")" != "$marker" ]; then
+# The lock exists only inside this installation's own marker directory.
+if ! same_marker_bytes "$file" "$marker"; then
     refuse not-owned
 fi
 

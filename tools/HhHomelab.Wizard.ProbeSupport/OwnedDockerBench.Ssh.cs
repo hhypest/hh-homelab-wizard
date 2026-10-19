@@ -217,7 +217,7 @@ public sealed partial class OwnedDockerBench
             "set -eu; mkdir -p /volume1/apps/staged/.hh-homelab-wizard /volume1/apps/linked-tmp/.hh-homelab-wizard /volume1/readonly; "
             + ": > /volume1/apps/staged/.hh-homelab-wizard/.installation.json.tmp-1; "
             + ": > /volume1/apps/victim; ln -s /volume1/apps/victim /volume1/apps/linked-tmp/.hh-homelab-wizard/.installation.json.tmp-1; "
-            + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly"], token);
+            + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly; ln -sfn /volume1/apps /volume1/apps-link"], token);
     }
 
     /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>

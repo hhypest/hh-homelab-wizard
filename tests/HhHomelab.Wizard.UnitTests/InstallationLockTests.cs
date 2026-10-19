@@ -123,6 +123,20 @@ public sealed class InstallationLockTests
         Assert.Equal(new[] { "lock", "unlock" }, events);
     }
 
+    [Fact]
+    public async Task CallerCancellationBeforeTheLockRequestIsDeliveredIsCancelledNotAConflict()
+    {
+        using var caller = CancellationTokenSource.CreateLinkedTokenSource(Token);
+        var wire = new LockWire { OnConnect = caller.Cancel };
+        var operation = new OperationFixture();
+        var locked = Journal(operation.Journal, wire);
+        var result = await new ConfigurationOperationScenario(locked, operation).ExecuteAsync(operation, caller.Token);
+        Assert.Equal(OperationOutcomeKind.Cancelled, result.Kind);
+        Assert.Equal(InstallationLockStatus.NotSent, locked.LastAcquire!.Status);
+        Assert.Empty(wire.Requests);
+        Assert.Equal(new[] { "lock", "unlock" }, operation.Events);
+    }
+
     private static NasInstallationLock Lock(LockWire wire) => new(PreflightData.Target, _ => wire, TimeSpan.FromSeconds(5));
 
     private static RemoteLockedOperationJournal Journal(IOperationJournal inner, LockWire wire) =>
@@ -145,8 +159,12 @@ public sealed class InstallationLockTests
 
         public int AcquireExit { get; init; }
 
+        public Action? OnConnect { get; init; }
+
         public Task ConnectAsync(Func<string, byte[], bool> acceptKey, CancellationToken token)
         {
+            OnConnect?.Invoke();
+            token.ThrowIfCancellationRequested();
             if (Fail == WireFailure.Connect || !acceptKey("ssh-ed25519", PreflightData.PublicKey))
                 throw new SshConnectionException("synthetic-connect-failure");
             return Task.CompletedTask;

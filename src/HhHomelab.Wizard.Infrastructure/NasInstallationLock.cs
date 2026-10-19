@@ -184,6 +184,9 @@ public sealed class RemoteLockedOperationJournal(IOperationJournal inner, NasIns
         try
         {
             LastAcquire = await remote.AcquireAsync(layout, owner, session, pin, token).ConfigureAwait(false);
+            // A caller cancellation before the request was delivered is a cancellation, not a lock conflict.
+            if (LastAcquire.Status == InstallationLockStatus.NotSent)
+                token.ThrowIfCancellationRequested();
             if (!LastAcquire.IsHeldBySession)
                 throw new OperationLeaseUnavailableException();
             return new Lease(this, local);
