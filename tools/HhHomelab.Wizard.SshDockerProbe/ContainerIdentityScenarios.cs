@@ -11,7 +11,7 @@ internal static class ContainerIdentityScenarios
         SshHostKey pin, CancellationToken token)
     {
         var compiler = new QbittorrentPlanCompiler(new PinnedQbittorrentPlanProfile(),
-            new NasPreflightProbe(bench.SshTarget, credentials), new NasPathProbe(bench.SshTarget, credentials));
+            new NasPreflightProbe(bench.SshTarget, credentials), new NasPathProbe(bench.SshTarget, credentials), new NasDockerNetworkProbe(bench.SshTarget, credentials));
         var installation = Guid.NewGuid();
         var request = Request(bench.SshTarget, installation, 1000, 1000);
         var matched = await CompileAsync(compiler, request, pin, token);

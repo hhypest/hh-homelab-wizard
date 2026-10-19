@@ -249,7 +249,7 @@ public sealed class QbittorrentPlanTests
         mods[0] = "example.invalid/changed:1.0";
         Assert.Equal(current.DockerMods[0], replacement.DockerMods[0]);
         Assert.Equal(fingerprint, replacement.Fingerprint);
-        var compiler = new QbittorrentPlanCompiler(new FixedProfile(replacement), fixture.Host, fixture.Paths, fixture.Clock);
+        var compiler = new QbittorrentPlanCompiler(new FixedProfile(replacement), fixture.Host, fixture.Paths, fixture.Networks, fixture.Clock);
         var renewed = await compiler.RevalidateAsync(previous, PreflightData.Pin, Token);
         Assert.NotNull(renewed.Fresh.Value);
         Assert.False(renewed.Unchanged);
@@ -365,6 +365,7 @@ public sealed class QbittorrentPlanTests
         internal readonly TestClock Clock = new();
         internal readonly HostProbe Host;
         internal readonly PathsProbe Paths;
+        internal readonly NetworkProbe Networks;
         internal readonly QbittorrentPlanCompiler Compiler;
         internal readonly Guid Installation = Guid.Parse("b3d64c85-e391-4960-b58a-c157d74acb62");
         internal MediaPathLayout Layout = PathData.Layout;
@@ -377,7 +378,8 @@ public sealed class QbittorrentPlanTests
         {
             Host = new HostProbe(this);
             Paths = new PathsProbe(this);
-            Compiler = new(Profile, Host, Paths, Clock);
+            Networks = new NetworkProbe(this);
+            Compiler = new(Profile, Host, Paths, Networks, Clock);
         }
 
         internal QbittorrentInstallationRequest Request(string nas = "192.0.2.53", string bind = "0.0.0.0", int webPort = 19080,
@@ -413,6 +415,31 @@ public sealed class QbittorrentPlanTests
             var profile = data.Change == "host-profile" ? new string('b', 64) : data.Profile.Definition.ResearchFingerprint;
             var now = data.Clock.Now - (data.Change == "stale-host" ? TimeSpan.FromMinutes(3) : TimeSpan.Zero);
             return NasPreflightResult.Observed(new(target, pin, profile, now, now, data.HostFacts));
+        }
+    }
+
+    internal sealed class NetworkProbe(PlanData data) : INasDockerNetworkProbe
+    {
+        internal int Calls;
+
+        internal DockerNetworkFacts Facts = new(PreflightFactStatus.Available, []);
+
+        internal SshProbeStatus? Status;
+
+        public Task<DockerNetworkResult> InspectAsync(string networkName, SshHostKey? approvedKey, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            Calls++;
+            if (Status is { } status)
+                return Task.FromResult(DockerNetworkResult.Failed(SshProbeResult.Failed(status)));
+
+            var target = data.Change == "network-principal" ? PreflightData.Target with { Username = "other-user" } : PreflightData.Target;
+            var pin = data.Change == "network-key" ? PreflightData.OtherPin : PreflightData.Pin;
+            var profile = data.Change == "network-profile" ? new string('b', 64) : data.Profile.Definition.ResearchFingerprint;
+            var name = data.Change == "network-name" ? networkName + "-other" : networkName;
+            var observed = data.Clock.Now + (data.Change == "network-future" ? TimeSpan.FromSeconds(1)
+                : data.Change == "network-old" ? -TimeSpan.FromMinutes(3) : TimeSpan.Zero);
+            return Task.FromResult(DockerNetworkResult.Observed(new(target, name, pin, profile, observed, Facts)));
         }
     }
 

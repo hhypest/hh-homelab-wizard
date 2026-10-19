@@ -25,7 +25,7 @@ public enum SshFixtureFault
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "lock.sh", "file-read.sh", "file-write.sh", "directory-read.sh", "directory-create.sh", "docker-control.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "network-read.sh", "preflight.sh", "paths.sh", "marker-write.sh", "lock.sh", "file-read.sh", "file-write.sh", "directory-read.sh", "directory-create.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
