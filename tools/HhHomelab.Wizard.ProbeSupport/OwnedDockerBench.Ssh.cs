@@ -21,7 +21,7 @@ public enum SshFixtureFault
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "docker-control.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
@@ -167,6 +167,26 @@ public sealed partial class OwnedDockerBench
         {
             CryptographicOperations.ZeroMemory(bytes);
         }
+    }
+
+    /// <summary>Synthetic DSM-like tree in the container writable layer: an existing library, a
+    /// non-empty configuration root, a symlinked root, an unsearchable directory and a regular file.</summary>
+    public async Task PrepareSshPathTreeAsync(CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        _ = await RunAsync(["exec", Container, "sh", "-c",
+            "set -eu; mkdir -p /volume1/data/media/movies /volume1/docker/hh /volume1/locked/data; "
+            + "printf 'synthetic\\n' > /volume1/data/media/movies/sample.mkv; "
+            + "printf 'synthetic\\n' > /volume1/docker/hh/home-assistant_v2.db; "
+            + "ln -sfn /volume1/data /volume1/link; chmod 0700 /volume1/locked; printf 'x\\n' > /volume1/file"], token);
+    }
+
+    /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>
+    public async Task<bool> SshHomeChangedAsync(CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        var listing = await RunAsync(["exec", Container, "sh", "-c", "ls -A /home/wizard /tmp"], token);
+        return listing.Contains("hh-paths-injected", StringComparison.Ordinal);
     }
 
     public async Task<SshHostKey> ReadSshHostKeyAsync(CancellationToken token)

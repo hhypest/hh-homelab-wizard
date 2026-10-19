@@ -6,7 +6,7 @@ using Renci.SshNet.Common;
 
 namespace HhHomelab.Wizard.Infrastructure;
 
-internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire, INasPreflightWire
+internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire, INasPreflightWire, INasPathWire
 {
     internal const string IdentityCommand = "printf 'hh-homelab-wizard:ssh-probe:v1\\n'; uname -s; id -u";
 
@@ -34,6 +34,13 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
     {
         var result = await ExecuteAsync(NasPreflightProtocol.Command, retainOutput: true, token).ConfigureAwait(false);
         return NasPreflightProtocol.Parse(result.ExitCode, result.Output);
+    }
+
+    public async Task<IReadOnlyList<RemotePathObservation>> ReadPathsAsync(MediaPathLayout layout, CancellationToken token)
+    {
+        var request = NasPathProtocol.Request(layout);
+        var result = await ExecuteAsync(NasPathProtocol.Command, retainOutput: true, token, request).ConfigureAwait(false);
+        return NasPathProtocol.Parse(layout, result.ExitCode, result.Output);
     }
 
     internal static SshProbeIdentity ParseIdentity(int? exitCode, string output)
@@ -78,7 +85,8 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         };
     }
 
-    private async Task<CommandEvidence> ExecuteAsync(string fixedCommand, bool retainOutput, CancellationToken token)
+    /// <summary>Runs a fixed command; optional parameters travel only as stdin data, never in the command line.</summary>
+    private async Task<CommandEvidence> ExecuteAsync(string fixedCommand, bool retainOutput, CancellationToken token, string? input = null)
     {
         if (client is null)
             throw new InvalidOperationException("ssh.connection.missing");
@@ -86,6 +94,11 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         command.CommandTimeout = timeout;
         using var abort = CancellationTokenSource.CreateLinkedTokenSource(token);
         var execution = command.ExecuteAsync(abort.Token);
+        if (input is not null)
+        {
+            using var stdin = command.CreateInputStream();
+            await stdin.WriteAsync(new UTF8Encoding(false, true).GetBytes(input), abort.Token).ConfigureAwait(false);
+        }
         var output = SshProbeOutput.ReadAsync(command.OutputStream, retainOutput, abort);
         var error = SshProbeOutput.ReadAsync(command.ExtendedOutputStream, retain: false, abort);
         try
