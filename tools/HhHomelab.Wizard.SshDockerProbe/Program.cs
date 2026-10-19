@@ -28,6 +28,7 @@ try
     {
         await bench.StartSshDockerFixtureAsync(deadline.Token);
         await DockerPreflightScenarios.RunAsync(bench, deadline.Token);
+        await ComposeConfigScenarios.RunAsync(bench, deadline.Token);
     }
     else
     {

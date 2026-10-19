@@ -56,6 +56,16 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         Assert.EndsWith("\n", environment, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task RequestAndProfileRenderTheSameBytesAsThePlan()
+    {
+        var plan = await PlanAsync();
+        var fromPlan = QbittorrentConfigurationRenderer.Render(plan);
+        var direct = QbittorrentConfigurationRenderer.Render(plan.Request, plan.Profile);
+        Assert.Equal(fromPlan.Select(file => (file.RelativePath, file.Mode, file.Content.ToArray())),
+            direct.Select(file => (file.RelativePath, file.Mode, file.Content.ToArray())));
+    }
+
     [Theory]
     [InlineData("/volume1/da:ta")]
     [InlineData("/volume1/da'ta")]

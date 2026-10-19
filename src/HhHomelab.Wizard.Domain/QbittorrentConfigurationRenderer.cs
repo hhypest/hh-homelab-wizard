@@ -43,7 +43,16 @@ public static class QbittorrentConfigurationRenderer
     public static IReadOnlyList<RenderedConfigurationFile> Render(QbittorrentInstallationPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        var profile = plan.Profile;
+        return Render(plan.Request, plan.Profile);
+    }
+
+    /// <summary>The same text from the request and profile alone, for checking the rendered files (for example
+    /// with `docker compose config` on a disposable bench). Not an authorization: files reach a NAS only
+    /// through the installation graph built from a fresh plan without blocking checks.</summary>
+    public static IReadOnlyList<RenderedConfigurationFile> Render(QbittorrentInstallationRequest request, QbittorrentPlanProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(profile);
         if (profile.ComposeSha256 != SourceComposeSha256)
             throw new ArgumentException("render.source.unsupported");
         var directory = DirectoryOf(profile.ComposePath);
@@ -52,12 +61,12 @@ public static class QbittorrentConfigurationRenderer
             throw new ArgumentException("render.layout.environment");
         var configuration = Below(directory, profile.ConfigurationPath);
         var watch = Below(directory, profile.WatchPath);
-        var dataRoot = plan.Request.Layout.DataRoot;
+        var dataRoot = request.Layout.DataRoot;
         // A single-quoted .env value is literal; a colon would split the short volume syntax.
         if (dataRoot.Contains('\'', StringComparison.Ordinal) || dataRoot.Contains(':', StringComparison.Ordinal))
             throw new ArgumentException("render.data-root.unsupported");
-        var compose = RenderCompose(plan, configuration, watch);
-        var environment = RenderEnvironment(plan, dataRoot);
+        var compose = RenderCompose(request, profile, configuration, watch);
+        var environment = RenderEnvironment(request, dataRoot);
         return Array.AsReadOnly(new[]
         {
             new RenderedConfigurationFile(profile.ComposePath, ComposeMode, Utf8(compose)),
@@ -65,17 +74,16 @@ public static class QbittorrentConfigurationRenderer
         });
     }
 
-    private static string RenderCompose(QbittorrentInstallationPlan plan, string configuration, string watch)
+    private static string RenderCompose(QbittorrentInstallationRequest request, QbittorrentPlanProfile profile, string configuration, string watch)
     {
-        var profile = plan.Profile;
         var text = new StringBuilder();
-        text.Append("# Создано hh-homelab-wizard для установки ").Append(plan.Owner.InstallationId.ToString("D")).Append('\n');
+        text.Append("# Создано hh-homelab-wizard для установки ").Append(request.InstallationId.ToString("D")).Append('\n');
         text.Append("# Источник: hh-homelab ").Append(profile.SourceCommit).Append(", media/compose.yaml (sha256 ")
             .Append(profile.ComposeSha256).Append("), сервис qbittorrent.\n");
         text.Append("# Значения — в .env рядом с этим файлом. Мастер не перезаписывает ручные изменения.\n");
         // Own project name: without it Compose names the project after the directory and would treat another
         // stack in a `media` folder, such as hh-homelab itself, as the same project.
-        text.Append("name: ").Append(ProjectName(plan)).Append('\n');
+        text.Append("name: ").Append(ProjectName(request.InstallationId)).Append('\n');
         text.Append("services:\n");
         text.Append("  ").Append(profile.ContainerName).Append(":\n");
         text.Append("    image: ").Append(profile.Image).Append('\n');
@@ -114,11 +122,10 @@ public static class QbittorrentConfigurationRenderer
         return text.ToString();
     }
 
-    private static string RenderEnvironment(QbittorrentInstallationPlan plan, string dataRoot)
+    private static string RenderEnvironment(QbittorrentInstallationRequest request, string dataRoot)
     {
-        var request = plan.Request;
         var text = new StringBuilder();
-        text.Append("# Создано hh-homelab-wizard для установки ").Append(plan.Owner.InstallationId.ToString("D")).Append('\n');
+        text.Append("# Создано hh-homelab-wizard для установки ").Append(request.InstallationId.ToString("D")).Append('\n');
         text.Append("# Значения выбраны в мастере; секретов здесь нет.\n");
         text.Append("PUID=").Append(Number(request.UserId)).Append('\n');
         text.Append("PGID=").Append(Number(request.GroupId)).Append('\n');
@@ -127,13 +134,20 @@ public static class QbittorrentConfigurationRenderer
         text.Append("BIND_ADDR=").Append(request.BindAddress).Append('\n');
         text.Append("MEDIA_ROOT='").Append(dataRoot).Append("'\n");
         text.Append("MEDIA_NETWORK=").Append(request.NetworkName).Append('\n');
-        text.Append("QBITTORRENT_WEBUI_PORT=").Append(Number(plan.ContainerWebUiPort)).Append('\n');
+        // host-and-container (enforced by the profile): the container listens on the published Host port.
+        text.Append("QBITTORRENT_WEBUI_PORT=").Append(Number(request.WebUiPort)).Append('\n');
         text.Append("QBITTORRENT_TORRENT_PORT=").Append(Number(request.TorrentPort)).Append('\n');
         return text.ToString();
     }
 
     /// <summary>Lowercase letters and digits only, as Compose requires; unique per installation.</summary>
-    public static string ProjectName(QbittorrentInstallationPlan plan) => "hhw-" + plan.Owner.InstallationId.ToString("N");
+    public static string ProjectName(QbittorrentInstallationPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        return ProjectName(plan.Owner.InstallationId);
+    }
+
+    private static string ProjectName(Guid installation) => "hhw-" + installation.ToString("N");
 
     private static string DirectoryOf(string relativePath)
     {
