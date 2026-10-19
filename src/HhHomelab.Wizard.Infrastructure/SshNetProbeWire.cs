@@ -52,8 +52,7 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
 
     public async Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token)
     {
-        sending();
-        var result = await ExecuteAsync(NasLockProtocol.Command, retainOutput: true, token, request).ConfigureAwait(false);
+        var result = await ExecuteAsync(NasLockProtocol.Command, retainOutput: true, token, request, sending).ConfigureAwait(false);
         return (result.ExitCode, result.Output);
     }
 
