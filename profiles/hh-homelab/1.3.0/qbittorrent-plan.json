@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "sourceCommit": "b05047b081f3543520582315002e359ef1d93e59",
+  "sourceComposeSha256": "a07918982051b11f4064b91026325bdb12e372ccc02e7991c0075a089c7ffde8",
+  "composePath": "media/compose.yaml",
+  "environmentPath": "media/.env",
+  "configurationPath": "media/config/qbittorrent",
+  "watchPath": "media/watch",
+  "containerName": "qbittorrent",
+  "containerWebUiPort": 9080
+}
