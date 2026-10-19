@@ -303,6 +303,62 @@ public sealed class QbittorrentPlanTests
         Assert.Equal(0, fixture.Host.Calls);
     }
 
+    [Theory]
+    [InlineData(1026, 100, false, false)]
+    [InlineData(1027, 100, true, false)]
+    [InlineData(1026, 101, false, true)]
+    [InlineData(0, 0, true, true)]
+    public async Task ContainerIdsMustMatchTheObservedSshUserAndPrimaryGroup(int userId, int groupId,
+        bool userMismatch, bool groupMismatch)
+    {
+        var fixture = new PlanData
+        {
+            PathOutput = PathData.Output().Replace("identity=1026:100", $"identity={userId}:{groupId}", StringComparison.Ordinal),
+        };
+        var result = await fixture.Compiler.CompileAsync(fixture.Request(), PreflightData.Pin, Token);
+        var plan = Assert.IsType<QbittorrentInstallationPlan>(result.Value);
+
+        var userCode = "plan.puid.ssh-user" + (userMismatch ? ".mismatch" : "");
+        var groupCode = "plan.pgid.ssh-primary-group" + (groupMismatch ? ".mismatch" : "");
+        Assert.Contains(plan.Checks, check => check.Code == userCode
+            && check.Status == (userMismatch ? PreflightCheckStatus.Blocking : PreflightCheckStatus.Passed));
+        Assert.Contains(plan.Checks, check => check.Code == groupCode
+            && check.Status == (groupMismatch ? PreflightCheckStatus.Blocking : PreflightCheckStatus.Passed));
+        Assert.Equal(userMismatch || groupMismatch, plan.HasBlockingChecks);
+        Assert.Contains(plan.Checks, check => check.Code == "paths.permissions" && check.Status == PreflightCheckStatus.Unverified);
+        Assert.Contains(plan.Checks, check => check.Code == "paths.dsm-acl" && check.Status == PreflightCheckStatus.NotChecked);
+    }
+
+    [Theory]
+    [InlineData("1027:100")]
+    [InlineData("1026:101")]
+    public async Task RevalidationDetectsRenumberedAccountEvenWhenItsNameAndPathsAreUnchanged(string identity)
+    {
+        var fixture = new PlanData();
+        var previous = (await fixture.Compiler.CompileAsync(fixture.Request(), PreflightData.Pin, Token)).Value!;
+        fixture.PathOutput = PathData.Output().Replace("identity=1026:100", "identity=" + identity, StringComparison.Ordinal);
+
+        var rechecked = await fixture.Compiler.RevalidateAsync(previous, PreflightData.Pin, Token);
+
+        Assert.False(rechecked.Unchanged);
+        Assert.True(rechecked.Fresh.Value!.HasBlockingChecks);
+        Assert.Equal(2, fixture.Paths.Calls);
+    }
+
+    [Fact]
+    public async Task MatchingContainerIdsDoNotAdoptTheOwnersOfAnExistingMediaLibrary()
+    {
+        var fixture = new PlanData
+        {
+            PathOutput = PathData.Output(media: "entry=directory:0:same:41:0:0:755:not-empty"),
+        };
+        var plan = (await fixture.Compiler.CompileAsync(fixture.Request(), PreflightData.Pin, Token)).Value!;
+
+        Assert.False(plan.HasBlockingChecks);
+        Assert.Contains(plan.Resources, resource => resource.ContainerPath == "/data/media/movies" && resource.Owner is null);
+        Assert.Contains(plan.Checks, check => check.Code == "paths.permissions" && check.Status == PreflightCheckStatus.Unverified);
+    }
+
     internal sealed class PlanData
     {
         internal readonly IQbittorrentPlanProfile Profile = new PinnedQbittorrentPlanProfile();
@@ -325,9 +381,9 @@ public sealed class QbittorrentPlanTests
         }
 
         internal QbittorrentInstallationRequest Request(string nas = "192.0.2.53", string bind = "0.0.0.0", int webPort = 19080,
-            string network = "media-test", int userId = 1026, string umask = "002", string timeZone = "Europe/Moscow",
+            string network = "media-test", int userId = 1026, int groupId = 100, string umask = "002", string timeZone = "Europe/Moscow",
             long dataBytes = 1024, long configurationBytes = 512) => new(Installation, PreflightData.Target, Layout,
-                nas, bind, webPort, 16881, network, userId, 100, umask, timeZone, dataBytes, configurationBytes);
+                nas, bind, webPort, 16881, network, userId, groupId, umask, timeZone, dataBytes, configurationBytes);
     }
 
     internal sealed class TestClock : TimeProvider

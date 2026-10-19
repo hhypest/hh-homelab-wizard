@@ -77,6 +77,8 @@ public sealed class QbittorrentInstallationPlan
             checks.Add(new("plan.data-space" + disk.Code["preflight.disk-space".Length..], disk.Status));
         }
         checks.AddRange(RemotePathAssessment.Evaluate(paths, Owner));
+        checks.Add(UnixIdentityCheck("plan.puid.ssh-user", request.UserId, paths.Identity.UserId));
+        checks.Add(UnixIdentityCheck("plan.pgid.ssh-primary-group", request.GroupId, paths.Identity.PrimaryGroupId));
         checks.Add(new("plan.udp-ports", PreflightCheckStatus.NotChecked));
         checks.Add(new("plan.configuration-children", PreflightCheckStatus.NotChecked));
         checks.Add(new("plan.network-name", PreflightCheckStatus.NotChecked));
@@ -173,6 +175,12 @@ public sealed class QbittorrentInstallationPlan
     }
 
     private static Uri Http(string host, int port) => new UriBuilder("http", host, port).Uri;
+
+    // The first graph creates configuration mounts as the SSH user, without chown/sudo. Only
+    // this identity policy is supported; a matching ID is not proof of write access or DSM ACL.
+    private static PreflightCheck UnixIdentityCheck(string code, int selected, int observed) => selected == observed
+        ? new(code, PreflightCheckStatus.Passed)
+        : new(code + ".mismatch", PreflightCheckStatus.Blocking);
 
     public override string ToString() => "plan.qbittorrent-preview";
 }

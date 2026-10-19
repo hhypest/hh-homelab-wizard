@@ -1,4 +1,4 @@
-# hh-homelab-wizard:nas-paths:v2
+# hh-homelab-wizard:nas-paths:v3
 set -eu
 LC_ALL=C
 export LC_ALL
@@ -203,13 +203,17 @@ marker_of() {
 }
 
 IFS= read -r header || fail
-[ "$header" = 'hh-homelab-wizard:nas-paths-request:v2' ] || fail
+[ "$header" = 'hh-homelab-wizard:nas-paths-request:v3' ] || fail
 if ! root_device="$(stat -c '%d' / 2>/dev/null)"; then
     fail
 fi
-printf 'hh-homelab-wizard:nas-paths:v2\n'
+# Numeric process identity is independent of any directory owner, including a missing path's ancestor.
+ssh_uid="$(id -u)" || fail
+ssh_gid="$(id -g)" || fail
+printf 'hh-homelab-wizard:nas-paths:v3\n'
 # A path on the device of "/" sits in a leftover mount-point directory, not on a mounted volume.
 printf 'root-device=%s\n' "$root_device"
+printf 'identity=%s:%s\n' "$ssh_uid" "$ssh_gid"
 count=0
 owner_seen=0
 while IFS= read -r line; do

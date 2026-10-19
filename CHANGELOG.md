@@ -6,6 +6,8 @@
 
 ### Added
 
+- Проверка PUID/PGID qBittorrent #49/#50/#101: read-only path-протокол v3 читает UID и primary GID текущей SSH-сессии отдельно от владельцев каталогов; snapshot включает числовую identity в fingerprint. Несовпадающие выбранные ID блокируют план до создания графа, перенумерация прежней учётной записи обнаруживается при перепроверке. Старый протокол и отсутствие identity отвергаются; права/DSM ACL не объявляются подтверждёнными. [ADR 0025](docs/adr/0025-container-unix-identity.md), [протокол](docs/testing/2026-10-19-container-unix-identity.md).
+
 - Проверка отрисованных Compose/.env qBittorrent на стенде #101: задание `ssh-runtime (docker)` разбирает их `docker compose config` закреплённого Compose 5.1.4 и сверяет нормализованный сервис (имя проекта, образ, окружение, монтирования относительно каталога Compose, буквальный `MEDIA_ROOT`, публикации, сеть, журналы); без .env Compose отказывает с подсказкой. Для проверки `QbittorrentConfigurationRenderer.Render(request, profile)` отрисовывает те же байты без плана. Контейнер не запускается. [Протокол](docs/testing/2026-10-19-qbittorrent-configuration-graph.md#docker-compose-config-на-стенде).
 
 - Каталоги монтирования qBittorrent в исполняемом графе #101/#53: после маркера граф создаёт `media/config/qbittorrent` и `media/watch` с режимом 750 операциями `ConfigurationDirectory`, параллельно Compose и .env. Каталог, заранее созданный Docker от root или с другим режимом, — Conflict без изменений; потеря ответа — Unknown с подтверждением наблюдением новым процессом. Сеть и запуск контейнера ещё не реализованы. [ADR 0023](docs/adr/0023-qbittorrent-configuration-graph.md), [протокол](docs/testing/2026-10-19-qbittorrent-configuration-graph.md#каталоги-монтирования-в-графе).

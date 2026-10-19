@@ -196,11 +196,18 @@ public sealed record RemotePathObservation(
     }
 }
 
+/// <summary>Numeric process identity observed with id -u and id -g, never inferred from file ownership.
+/// Supplementary groups, user namespace mappings and access permissions are separate evidence.</summary>
+public sealed record RemoteUnixIdentity(int UserId, int PrimaryGroupId)
+{
+    public bool IsValid => UserId >= 0 && PrimaryGroupId >= 0;
+}
+
 /// <summary>Raw facts of one inspection: the device of "/" (to tell a mounted DSM volume from a
-/// leftover mount-point directory on the system filesystem), one observation per layout entry and
-/// the ownership marker below the configuration root, all from the same SSH session.</summary>
+/// leftover mount-point directory), path observations, the configuration ownership marker and
+/// numeric process identity, all from the same SSH session.</summary>
 public sealed record RemotePathFacts(long RootDevice, IReadOnlyList<RemotePathObservation> Observations,
-    OwnershipObservation Ownership);
+    OwnershipObservation Ownership, RemoteUnixIdentity Identity);
 
 /// <summary>Immutable read-only observation of one layout, bound to the approved host key, the SSH
 /// principal (access and visibility depend on the user) and the build-time profile. It does not
@@ -223,6 +230,10 @@ public sealed class RemotePathSnapshot
 
     public OwnershipObservation Ownership { get; }
 
+    /// <summary>Effective UID and primary GID read in this same SSH session. Equality with a
+    /// container's requested IDs does not prove POSIX/DSM ACL access or supplementary groups.</summary>
+    public RemoteUnixIdentity Identity { get; }
+
     public string EnvironmentFingerprint { get; }
 
     public RemotePathSnapshot(SshConnectionTarget target, MediaPathLayout layout, SshHostKey hostKey,
@@ -241,6 +252,8 @@ public sealed class RemotePathSnapshot
             throw new ArgumentException("paths.root-device.invalid");
         if (facts.Ownership is not { IsValid: true })
             throw new ArgumentException("paths.ownership.invalid");
+        if (facts.Identity is not { IsValid: true })
+            throw new ArgumentException("paths.identity.invalid");
         var items = facts.Observations.Take(layout.Entries.Count + 1).ToArray();
         if (items.Any(item => item is not { IsValid: true }))
             throw new ArgumentException("paths.observation.invalid");
@@ -256,10 +269,11 @@ public sealed class RemotePathSnapshot
         RootDevice = facts.RootDevice;
         Observations = Array.AsReadOnly(items);
         Ownership = facts.Ownership;
+        Identity = facts.Identity;
         EnvironmentFingerprint = ConfigurationRequest.Fingerprint(new
         {
             HostKey, PrincipalFingerprint, ProfileFingerprint, layout.DataRoot, layout.ConfigurationRoot,
-            RootDevice, Observations = items, Ownership,
+            RootDevice, Observations = items, Ownership, Identity,
         });
     }
 

@@ -10,6 +10,7 @@ internal static class PathScenarios
     {
         await bench.PrepareSshPathTreeAsync(token);
         await VerifyLayoutAsync(bench, credentials, pin, token);
+        await ContainerIdentityScenarios.RunAsync(bench, credentials, pin, token);
         await VerifyBlockingPathsAsync(bench, credentials, pin, token);
         await VerifyInjectionAsync(bench, credentials, pin, token);
         Console.WriteLine("ssh-runtime.paths-read-only: passed");
@@ -27,6 +28,7 @@ internal static class PathScenarios
         Require(library is { Kind: RemotePathKind.Directory, Contents: RemotePathContents.NotEmpty }, "paths.existing-library");
         Require(snapshot.Observation(RemotePathRole.TorrentsMovies) is { Kind: RemotePathKind.Missing, AncestorDepth: 2 }, "paths.missing-downloads");
         Require(snapshot.Observation(RemotePathRole.DataRoot).OwnerUid == 0, "paths.owner-observed");
+        Require(snapshot.Identity == new RemoteUnixIdentity(1000, 1000), "paths.numeric-session-identity");
         var checks = RemotePathAssessment.Evaluate(snapshot);
         Require(Has(checks, "paths.media-movies", PreflightCheckStatus.Passed), "paths.library-allowed");
         Require(Has(checks, "ownership.new-installation", PreflightCheckStatus.Passed), "paths.configuration-absent");
