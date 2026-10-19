@@ -15,5 +15,7 @@
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-lock.sh" LogicalName="ssh-fixture.lock.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-file-read.sh" LogicalName="ssh-fixture.file-read.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-file-write.sh" LogicalName="ssh-fixture.file-write.sh" />
+    <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-directory-read.sh" LogicalName="ssh-fixture.directory-read.sh" />
+    <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-directory-create.sh" LogicalName="ssh-fixture.directory-create.sh" />
   </ItemGroup>
 </Project>

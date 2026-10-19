@@ -47,6 +47,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 - [Создание маркера владения](docs/adr/0018-ownership-marker-creation.md) и [протокол](docs/testing/2026-10-19-ownership-marker-creation.md): первая мутация NAS через журнал намерений, пока только на стенде.
 - [Конкретный read-only план qBittorrent](docs/adr/0021-qbittorrent-installation-plan.md), [fixture-протокол](docs/testing/2026-10-19-qbittorrent-plan.md): ресурсы, контексты адресов и свежая перепроверка; первый preview, без установки и подключения UI.
 - [Граф конфигурационных операций и recovery](docs/adr/0020-configuration-plan-recovery.md), [протокол](docs/testing/2026-10-19-plan-recovery.md): зависимости, неизменяемый план в журнале schema 2 и повторное наблюдение после перезапуска; прежние журналы schema 1 автоматически не мигрируются.
+- [Создание конфигурационных каталогов](docs/adr/0024-configuration-directories.md) и [протокол](docs/testing/2026-10-19-configuration-directories.md): каталоги монтирования под собственным маркером, существующие не меняются.
 - [Удалённая блокировка установки](docs/adr/0019-remote-installation-lock.md) и [протокол](docs/testing/2026-10-19-remote-lock.md): второй мастер не меняет ту же установку; чужая блокировка не перехватывается.
 - [Создание конфигурационного файла](docs/adr/0022-configuration-file-delivery.md) и [протокол](docs/testing/2026-10-19-configuration-file-delivery.md): только создание под собственным маркером; ручные изменения не перезаписываются, замена и компенсация ещё не реализованы.
 

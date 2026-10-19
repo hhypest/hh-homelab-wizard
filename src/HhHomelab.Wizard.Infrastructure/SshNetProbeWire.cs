@@ -6,7 +6,7 @@ using Renci.SshNet.Common;
 
 namespace HhHomelab.Wizard.Infrastructure;
 
-internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire, INasPreflightWire, INasPathWire
+internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire, INasPreflightWire, INasPathWire, INasDirectoryWire
 {
     internal const string IdentityCommand = "printf 'hh-homelab-wizard:ssh-probe:v1\\n'; uname -s; id -u";
 
@@ -59,6 +59,18 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
     public async Task<(int? ExitCode, string Output)> ReadConfigurationFileAsync(string request, CancellationToken token)
     {
         var result = await ExecuteAsync(NasFileProtocol.ReadCommandText, retainOutput: true, token, request).ConfigureAwait(false);
+        return (result.ExitCode, result.Output);
+    }
+
+    public async Task<(int? ExitCode, string Output)> ReadConfigurationDirectoryAsync(string request, CancellationToken token)
+    {
+        var result = await ExecuteAsync(NasDirectoryProtocol.ReadCommandText, retainOutput: true, token, request).ConfigureAwait(false);
+        return (result.ExitCode, result.Output);
+    }
+
+    public async Task<(int? ExitCode, string Output)> CreateConfigurationDirectoryAsync(string request, Action sending, CancellationToken token)
+    {
+        var result = await ExecuteAsync(NasDirectoryProtocol.CreateCommandText, retainOutput: true, token, request, sending).ConfigureAwait(false);
         return (result.ExitCode, result.Output);
     }
 

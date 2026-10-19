@@ -26,6 +26,8 @@ internal static partial class MarkerScenarios
             Console.WriteLine("ssh-runtime.installation-lock: passed");
             await VerifyConfigurationFilesAsync(context, token);
             Console.WriteLine("ssh-runtime.configuration-file-delivery: passed");
+            await VerifyConfigurationDirectoriesAsync(context, token);
+            Console.WriteLine("ssh-runtime.configuration-directories: passed");
         }
         finally
         {
