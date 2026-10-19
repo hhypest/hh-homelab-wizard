@@ -79,13 +79,15 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
     }
 
     [Fact]
-    public async Task ProvenRejectionOfARepeatedWriteKeepsTheIntentPendingButIsNotUnknown()
+    public async Task RejectedRepeatedWriteStaysUnknownBecauseTheEarlierSentAttemptIsStillUnsettled()
     {
         var nas = new FakeNas { FailAfterSendWithoutWriting = true };
         Assert.Equal(OperationOutcomeKind.Unknown, (await RunAsync(nas)).Kind);
         nas.FailAfterSendWithoutWriting = false;
         nas.WriteOutcome = MarkerWriteOutcome.Rejected;
-        Assert.Equal(OperationOutcomeKind.Rejected, (await RunAsync(nas)).Kind);
+        var repeated = await RunAsync(nas);
+        Assert.Equal(OperationOutcomeKind.Unknown, repeated.Kind);
+        Assert.Equal(OperationErrorCode.WriteRejected, repeated.Code);
         nas.WriteOutcome = null;
         Assert.Equal(OperationOutcomeKind.Applied, (await RunAsync(nas)).Kind);
     }
@@ -142,6 +144,30 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
         var nas = new FakeNas { Staged = true };
         Assert.Equal(OperationOutcomeKind.Applied, (await RunAsync(nas)).Kind);
         Assert.Equal(1, nas.Writes);
+    }
+
+    [Fact]
+    public async Task StagedLeftoverOfAnotherInstallationIsNeverAdopted()
+    {
+        var other = new OwnershipMarker(1, Guid.NewGuid(), PinnedRuntimeProfile.Fingerprint);
+        var nas = new FakeNas { Staged = true, StagedJson = OwnershipMarkerJson.Serialize(other) };
+        var result = await RunAsync(nas);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Kind);
+        Assert.Equal(0, nas.Writes);
+    }
+
+    [Fact]
+    public async Task ChangedHostKeyOnTheWriteConnectionIsAnIdentityConflictNotTransport()
+    {
+        var nas = new FakeNas { ChangeKeyOnWrite = true };
+        var writer = new NasOwnershipMarkerWriter(PreflightData.Target, _ => nas.Wire(), TimeSpan.FromSeconds(5));
+        Assert.Equal(MarkerWriteOutcome.IdentityChanged, await writer.WriteAsync(request, PreflightData.Pin, Token));
+        Assert.Equal(0, nas.Writes);
+        nas.ChangeKeyOnWrite = false;
+        nas.WriteOutcome = MarkerWriteOutcome.IdentityChanged;
+        var result = await RunAsync(nas);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Kind);
+        Assert.Equal(OperationErrorCode.IdentityMismatch, result.Code);
     }
 
     [Fact]
@@ -236,6 +262,10 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
 
         public bool Staged { get; set; }
 
+        public string? StagedJson { get; set; }
+
+        public bool ChangeKeyOnWrite { get; set; }
+
         public bool LoseResponseAfterWrite { get; set; }
 
         public bool FailAfterSendWithoutWriting { get; set; }
@@ -254,8 +284,11 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
         {
             private bool connected;
 
+            private Func<string, byte[], bool>? accept;
+
             public Task ConnectAsync(Func<string, byte[], bool> acceptKey, CancellationToken token)
             {
+                accept = acceptKey;
                 if (!acceptKey("ssh-ed25519", PreflightData.PublicKey))
                     throw new SshConnectionException("synthetic-host-key-refused");
                 connected = true;
@@ -270,6 +303,7 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
                 var marker = nas switch
                 {
                     { MarkerJson: { } json } => "marker=present\nmarker-content=" + Convert.ToHexStringLower(Encoding.UTF8.GetBytes(json)),
+                    { Staged: true, StagedJson: { } staged } => "marker=staged\nmarker-content=" + Convert.ToHexStringLower(Encoding.UTF8.GetBytes(staged)),
                     { Staged: true } => "marker=staged",
                     _ => "marker=absent",
                 };
@@ -280,16 +314,21 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
             {
                 if (!connected || nas.FailWriteConnect)
                     throw new SshConnectionException("synthetic-connect-failure");
+                // Models a key change seen only by the write's own connection: the client refuses it.
+                if (nas.ChangeKeyOnWrite && !accept!("ssh-ed25519", [1, 2, 3]))
+                    throw new SshConnectionException("synthetic-host-key-changed");
                 sending();
                 if (nas.WriteOutcome is { } outcome)
                     return Task.FromResult(outcome);
                 if (nas.FailAfterSendWithoutWriting)
                 {
                     nas.Staged = nas.StageOnFailure;
+                    nas.StagedJson = nas.StageOnFailure ? OwnershipMarkerJson.Serialize(request.Marker) : null;
                     throw new SshConnectionException("synthetic-lost-channel");
                 }
                 nas.Writes++;
                 nas.Staged = false;
+                nas.StagedJson = null;
                 nas.MarkerJson = OwnershipMarkerJson.Serialize(request.Marker);
                 if (nas.LoseResponseAfterWrite)
                     throw new SshConnectionException("synthetic-lost-response");

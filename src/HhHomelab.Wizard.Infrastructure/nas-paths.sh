@@ -101,15 +101,45 @@ staged_temporary_entry() {
 
 # Leftover of an interrupted marker creation: the root holds only the marker directory and that
 # holds only this wizard's regular temporary files. Anything else stays an ordinary absent marker.
+# Non-empty temporary files must hold identical bounded bytes; that content is reported so only the
+# installation it names may complete the leftover. Empty files were never written and name nobody.
 staged_of() {
     if [ ! -r "$1" ] || [ ! -r "$2" ]; then
         printf 'marker=unavailable\n'
+        return
     elif ! only_entries "$1" marker_directory_entry; then
         printf 'marker=absent\n'
+        return
     elif ! only_entries "$2" staged_temporary_entry; then
         printf 'marker=absent\n'
-    else
-        printf 'marker=staged\n'
+        return
+    fi
+    staged=''
+    for entry in "$2"/.installation.json.tmp-*; do
+        if [ ! -e "$entry" ]; then
+            continue
+        fi
+        if [ ! -r "$entry" ] || ! size="$(stat -c '%s' "$entry" 2>/dev/null)"; then
+            printf 'marker=unavailable\n'
+            return
+        fi
+        if [ $((size)) -eq 0 ]; then
+            continue
+        fi
+        if [ $((size)) -gt 4096 ]; then
+            printf 'marker=invalid\n'
+            return
+        fi
+        content="$(od -An -v -tx1 "$entry" | tr -d ' \n')"
+        if [ -n "$staged" ] && [ "$content" != "$staged" ]; then
+            printf 'marker=invalid\n'
+            return
+        fi
+        staged="$content"
+    done
+    printf 'marker=staged\n'
+    if [ -n "$staged" ]; then
+        printf 'marker-content=%s\n' "$staged"
     fi
 }
 

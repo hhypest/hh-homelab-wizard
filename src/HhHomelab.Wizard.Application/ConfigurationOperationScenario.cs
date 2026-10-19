@@ -123,10 +123,10 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
             return UncertainIfPending(access, true);
         token.ThrowIfCancellationRequested();
         var write = await operation.ApplyAsync(observed, token).ConfigureAwait(false);
+        // Even a proven refusal of this retry says nothing about the earlier sent attempt, which may
+        // still publish; only a fresh Observe/Verify settles the pending intent.
         if (write.Failure is not null)
-            return write.Failure.Kind == OperationOutcomeKind.Rejected
-                ? write.Failure
-                : UncertainIfPending(write.Failure, true);
+            return UncertainIfPending(write.Failure, true);
         return await VerifyAndConfirmAsync(operation, descriptor, intent, null, state, token).ConfigureAwait(false);
     }
 

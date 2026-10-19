@@ -71,6 +71,8 @@ internal static class NasPathProtocol
         if (lines.Length == 0 || !lines[0].StartsWith(prefix, StringComparison.Ordinal))
             throw Invalid();
         var state = lines[0][prefix.Length..];
+        if (state == "staged" && lines.Length == 2)
+            return Staged(lines[1]);
         if (state != "present")
         {
             if (lines.Length != 1)
@@ -85,12 +87,26 @@ internal static class NasPathProtocol
                 _ => throw Invalid(),
             };
         }
-        const string contentPrefix = "marker-content=";
-        if (lines.Length != 2 || !lines[1].StartsWith(contentPrefix, StringComparison.Ordinal))
+        if (lines.Length != 2)
             throw Invalid();
-        var bytes = Hex(lines[1][contentPrefix.Length..]);
-        var marker = OwnershipMarkerJson.Parse(bytes);
+        var marker = Content(lines[1]);
         return marker is null ? new(OwnershipMarkerState.Invalid) : new(OwnershipMarkerState.Present, marker);
+    }
+
+    /// <summary>The common content of the staged temporary files must itself be a valid marker;
+    /// a partially written one is Invalid and blocks like any unreadable marker.</summary>
+    private static OwnershipObservation Staged(string line)
+    {
+        var marker = Content(line);
+        return marker is null ? new(OwnershipMarkerState.Invalid) : new(OwnershipMarkerState.Staged, marker);
+    }
+
+    private static OwnershipMarker? Content(string line)
+    {
+        const string contentPrefix = "marker-content=";
+        if (!line.StartsWith(contentPrefix, StringComparison.Ordinal))
+            throw Invalid();
+        return OwnershipMarkerJson.Parse(Hex(line[contentPrefix.Length..]));
     }
 
     private static byte[] Hex(string value)

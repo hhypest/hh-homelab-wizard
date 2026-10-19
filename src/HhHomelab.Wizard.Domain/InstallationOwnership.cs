@@ -35,7 +35,8 @@ public enum OwnershipMarkerState
 
 /// <summary>Read-only observation of the marker below the configuration root. Staged is the leftover of
 /// an interrupted creation: the root holds only the marker directory with this wizard's temporary
-/// files, so it carries no data and may be completed. Invalid covers a
+/// files, so it carries no data. Their common marker, if any was written, names the only installation
+/// that may complete it. Invalid covers a
 /// non-regular, oversized, unparsable or unknown-schema file; Redirected a symlink anywhere on the
 /// marker path; Unavailable that the SSH user could not tell whether a marker exists.</summary>
 public sealed record OwnershipObservation(OwnershipMarkerState State, OwnershipMarker? Marker = null)
@@ -43,7 +44,8 @@ public sealed record OwnershipObservation(OwnershipMarkerState State, OwnershipM
     public bool IsValid => State switch
     {
         OwnershipMarkerState.Present => Marker is { IsValid: true },
-        OwnershipMarkerState.Absent or OwnershipMarkerState.Staged or OwnershipMarkerState.Invalid
+        OwnershipMarkerState.Staged => Marker is null or { IsValid: true },
+        OwnershipMarkerState.Absent or OwnershipMarkerState.Invalid
             or OwnershipMarkerState.Redirected or OwnershipMarkerState.Unavailable => Marker is null,
         _ => false,
     };
@@ -73,8 +75,20 @@ public static class InstallationOwnershipAssessment
         if (ownership.State == OwnershipMarkerState.Present)
             return MarkerCheck(ownership.Marker!, expected);
         if (ownership.State == OwnershipMarkerState.Staged)
-            return new("ownership.new-installation", PreflightCheckStatus.Passed);
+            return StagedCheck(ownership.Marker, expected);
         return UnmarkedCheck(root);
+    }
+
+    /// <summary>A staged leftover is still a new installation, but only for the owner its temporary
+    /// marker names; an empty leftover names nobody and carries no data.</summary>
+    private static PreflightCheck StagedCheck(OwnershipMarker? marker, InstallationOwner? expected)
+    {
+        if (marker is null)
+            return new("ownership.new-installation", PreflightCheckStatus.Passed);
+        var check = MarkerCheck(marker, expected);
+        if (check.Status != PreflightCheckStatus.Passed)
+            return check;
+        return new("ownership.new-installation", PreflightCheckStatus.Passed);
     }
 
     private static PreflightCheck MarkerCheck(OwnershipMarker marker, InstallationOwner? expected)
