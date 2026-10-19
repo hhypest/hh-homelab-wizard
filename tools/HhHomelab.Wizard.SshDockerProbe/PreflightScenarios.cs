@@ -40,8 +40,30 @@ internal static class PreflightScenarios
         var checks = NasPreflightAssessment.Evaluate(snapshot);
         Require(checks.Any(check => check.Status == PreflightCheckStatus.Blocking), "preflight.not-ready");
         Require(checks.Any(check => check.Status == PreflightCheckStatus.NotChecked), "preflight.unchecked");
+        HostResources(snapshot, "preflight");
         return snapshot;
     }
+
+    /// <summary>The fixture sshd really listens on 2222 and the container has no DSM volume mounts.</summary>
+    internal static void HostResources(NasPreflightSnapshot snapshot, string scope)
+    {
+        var resources = snapshot.Facts.Resources;
+        Require(resources.Model.Status == PreflightFactStatus.Missing, scope + ".non-dsm-model");
+        Require(resources.ListeningStatus == PreflightFactStatus.Available, scope + ".listeners");
+        Require(resources.ListeningTcpPorts.Contains(FixtureSshPort), scope + ".sshd-listener");
+        Require(resources.VolumeStatus == PreflightFactStatus.Available && resources.Volumes.Count == 0, scope + ".no-dsm-volumes");
+        var conflicting = new PreflightRequirements([FixtureSshPort, FreePort], "/volume1", 1);
+        var checks = NasPreflightAssessment.Evaluate(snapshot, conflicting);
+        Require(checks.Any(check => check.Code == "preflight.ports.conflict" && check.Status == PreflightCheckStatus.Blocking), scope + ".port-conflict");
+        Require(NasPreflightAssessment.ConflictingPorts(snapshot, conflicting).SequenceEqual([FixtureSshPort]), scope + ".conflicting-ports");
+        Require(checks.Any(check => check.Code == "preflight.disk-space.volume-missing" && check.Status == PreflightCheckStatus.Blocking), scope + ".volume-missing");
+        var free = NasPreflightAssessment.Evaluate(snapshot, new([FreePort], "/volume1", 1));
+        Require(free.Any(check => check.Code == "preflight.ports" && check.Status == PreflightCheckStatus.Passed), scope + ".free-port");
+    }
+
+    private const int FixtureSshPort = 2222;
+
+    private const int FreePort = 8123;
 
     private static async Task VerifyFailuresAsync(OwnedDockerBench bench, SshProbeCredentials credentials,
         SshHostKey pin, CancellationToken token)

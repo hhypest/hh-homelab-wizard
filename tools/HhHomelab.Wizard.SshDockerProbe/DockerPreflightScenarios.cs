@@ -156,6 +156,7 @@ internal static class DockerPreflightScenarios
         var checks = NasPreflightAssessment.Evaluate(snapshot);
         Require(checks.Any(check => check.Code == "preflight.docker-server" && check.Status == PreflightCheckStatus.Unverified), "compatibility-unverified");
         Require(checks.Any(check => check.Status == PreflightCheckStatus.NotChecked), "remaining-checks");
+        PreflightScenarios.HostResources(snapshot, "ssh-docker");
     }
 
     private static void DockerUnavailable(NasPreflightSnapshot snapshot)
