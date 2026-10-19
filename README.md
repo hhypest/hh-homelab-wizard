@@ -43,6 +43,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 - [Настоящий Docker/Compose через SSH в CI](docs/testing/2026-10-19-docker-preflight.md), [граница изоляции стенда](docs/adr/0014-docker-preflight-runtime.md). Новый privileged режим предназначен только для одноразовой GitHub-hosted VM.
 - [Модель NAS, слушающие порты и место томов](docs/adr/0015-preflight-host-resources.md) в preflight и [протокол](docs/testing/2026-10-19-preflight-resources.md): Passed портов/места возможен только относительно требований плана.
 - [Read-only проверка путей](docs/adr/0016-remote-path-inspection.md) и [протокол](docs/testing/2026-10-19-remote-paths.md): symlink, границы тома и hardlink-устройство; DSM ACL не заявляются.
+- [Маркер владения установкой](docs/adr/0017-installation-ownership-marker.md) и [протокол](docs/testing/2026-10-19-ownership-marker.md): своя установка определяется только точным совпадением маркера.
 
 ## Лицензии
 

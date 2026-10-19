@@ -1,4 +1,4 @@
-# hh-homelab-wizard:nas-paths:v1
+# hh-homelab-wizard:nas-paths:v2
 set -eu
 LC_ALL=C
 export LC_ALL
@@ -70,26 +70,91 @@ inspect() {
     fi
 }
 
+# Ownership marker below the configuration root: symlinks anywhere on its path, a non-regular or
+# oversized file and a hidden (unsearchable) location are reported, never followed or guessed.
+marker_of() {
+    root="$1"
+    dir="$root/.hh-homelab-wizard"
+    file="$dir/installation.json"
+    for candidate in "$root" "$dir" "$file"; do
+        if [ -L "$candidate" ]; then
+            printf 'marker=redirected\n'
+            return
+        fi
+    done
+    # A symlinked ancestor redirects the whole root: never read a marker through it.
+    # A root the SSH user cannot enter is unavailable, not redirected.
+    if [ -d "$root" ]; then
+        if ! resolved="$(cd -P "$root" 2>/dev/null && pwd -P)"; then
+            printf 'marker=unavailable\n'
+            return
+        fi
+        if [ "$resolved" != "$root" ]; then
+            printf 'marker=redirected\n'
+            return
+        fi
+    fi
+    if [ ! -e "$file" ]; then
+        if [ -d "$root" ] && [ ! -x "$root" ]; then
+            printf 'marker=unavailable\n'
+        elif [ -d "$dir" ] && [ ! -x "$dir" ]; then
+            printf 'marker=unavailable\n'
+        elif [ -e "$dir" ] && [ ! -d "$dir" ]; then
+            printf 'marker=invalid\n'
+        else
+            printf 'marker=absent\n'
+        fi
+        return
+    fi
+    if [ ! -f "$file" ]; then
+        printf 'marker=invalid\n'
+        return
+    fi
+    if [ ! -r "$file" ]; then
+        printf 'marker=unavailable\n'
+        return
+    fi
+    # Size from metadata, so an oversized file is rejected without reading it.
+    if ! size="$(stat -c '%s' "$file" 2>/dev/null)"; then
+        printf 'marker=unavailable\n'
+        return
+    fi
+    if [ $((size)) -gt 4096 ]; then
+        printf 'marker=invalid\n'
+        return
+    fi
+    # Content travels as hex so no byte of the file can break the line protocol.
+    printf 'marker=present\nmarker-content=%s\n' "$(od -An -v -tx1 "$file" | tr -d ' \n')"
+}
+
 IFS= read -r header || fail
-[ "$header" = 'hh-homelab-wizard:nas-paths-request:v1' ] || fail
+[ "$header" = 'hh-homelab-wizard:nas-paths-request:v2' ] || fail
 if ! root_device="$(stat -c '%d' / 2>/dev/null)"; then
     fail
 fi
-printf 'hh-homelab-wizard:nas-paths:v1\n'
+printf 'hh-homelab-wizard:nas-paths:v2\n'
 # A path on the device of "/" sits in a leftover mount-point directory, not on a mounted volume.
 printf 'root-device=%s\n' "$root_device"
 count=0
+owner_seen=0
 while IFS= read -r line; do
     if [ "$line" = end ]; then
+        [ "$owner_seen" -eq 1 ] || fail
         printf 'end\n'
         exit 0
     fi
+    [ "$owner_seen" -eq 0 ] || fail
     case "$line" in
-        path=/*) ;;
+        path=/*)
+            count=$((count + 1))
+            [ "$count" -le 8 ] || fail
+            inspect "${line#path=}"
+            ;;
+        owner=/*)
+            owner_seen=1
+            marker_of "${line#owner=}"
+            ;;
         *) fail ;;
     esac
-    count=$((count + 1))
-    [ "$count" -le 8 ] || fail
-    inspect "${line#path=}"
 done
 fail
