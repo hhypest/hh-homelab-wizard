@@ -92,6 +92,6 @@ internal interface INasPathWire : IDisposable
 
     Task<RemotePathFacts> ReadPathsAsync(MediaPathLayout layout, CancellationToken token);
 
-    /// <summary>Calls <paramref name="sending"/> immediately before the command leaves the client.</summary>
+    /// <summary>Calls <paramref name="sending"/> once the complete request was delivered to the command.</summary>
     Task<MarkerWriteOutcome> WriteOwnershipMarkerAsync(OwnershipMarkerRequest request, Action sending, CancellationToken token);
 }

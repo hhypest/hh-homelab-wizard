@@ -5,8 +5,10 @@ namespace HhHomelab.Wizard.Infrastructure;
 
 /// <summary>Creating the ownership marker as a journaled operation. Observe and Verify are fresh read-only
 /// path inspections; ownership is proven only by an absent/empty (or staged) root or by this exact
-/// marker. Any other contents, a changed profile or an unusable root is a conflict, never adopted.</summary>
-public sealed class NasOwnershipMarkerOperation : IConfigurationOperation, IOperationOwnership
+/// marker. Any other contents, a changed profile or an unusable root is a conflict, never adopted.
+/// The write re-checks preconditions and publishes with a no-clobber link, so an interrupted attempt
+/// (staged or not started) may be completed under the same pending intent.</summary>
+public sealed class NasOwnershipMarkerOperation : IConfigurationOperation, IOperationOwnership, IRepeatableConditionalApply
 {
     private readonly OwnershipMarkerRequest request;
     private readonly INasPathProbe probe;
@@ -21,6 +23,9 @@ public sealed class NasOwnershipMarkerOperation : IConfigurationOperation, IOper
         ArgumentNullException.ThrowIfNull(pin);
         if (!request.IsValid())
             throw new ArgumentException("ownership.request.invalid");
+        // The journaled resource must name the NAS that is actually written: the pinned SSH endpoint.
+        if (request.Identity.Resource.EndpointFingerprint != pin.EndpointFingerprint)
+            throw new ArgumentException("ownership.endpoint.mismatch");
         this.request = request;
         this.probe = probe;
         this.writer = writer;
@@ -80,7 +85,11 @@ public sealed class NasOwnershipMarkerOperation : IConfigurationOperation, IOper
         var result = await probe.InspectAsync(request.Layout, pin, token).ConfigureAwait(false);
         if (result.Status != SshProbeStatus.Ready || result.Snapshot is not { } snapshot)
             return OperationRead<StateRead>.Failed(ReadFailure(result.Status));
-        if (snapshot.HostKey != pin || snapshot.Layout.ConfigurationRoot != request.Layout.ConfigurationRoot)
+        var resource = request.Identity.Resource;
+        var sameTarget = snapshot.HostKey == pin && snapshot.HostKey.EndpointFingerprint == resource.EndpointFingerprint;
+        var sameProfile = snapshot.ProfileFingerprint == resource.ProfileFingerprint;
+        var sameRoot = snapshot.Layout.ConfigurationRoot == request.Layout.ConfigurationRoot;
+        if (!sameTarget || !sameProfile || !sameRoot)
             return OperationRead<StateRead>.Failed(OperationResult.Failed(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch));
         var checks = RemotePathAssessment.Evaluate(snapshot, request.Owner);
         var rootPassed = checks.Any(check => check.Code == "paths.configuration-root" && check.Status == PreflightCheckStatus.Passed);
