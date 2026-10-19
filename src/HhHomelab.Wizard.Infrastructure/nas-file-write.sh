@@ -142,21 +142,32 @@ while [ -e "$staging" ] || [ -L "$staging" ]; do
 done
 trap 'rm -f "$staging"' EXIT
 trap 'exit 1' HUP INT TERM PIPE
-(set -C; head -c "$size" > "$staging")
+# Owner-only from creation: a secret is never readable by others while it is being received.
+(umask 077; set -C; head -c "$size" > "$staging")
 chmod "$mode" "$staging"
 same_file "$staging" || reject
+
+# Publication works relative to directories entered one at a time and verified by their resolved path,
+# so a checked parent swapped for a symlink can never redirect the new directories or the file outside
+# the root. The first check precedes any change.
+expected="$current"
+cd -P "$current" 2>/dev/null || reject
+[ "$(pwd -P)" = "$expected" ] || reject
 
 # Changes start here: create the missing parents, then publish with a no-clobber hard link so a
 # concurrent writer or a later manual file is never replaced.
 while [ -n "$missing" ]; do
     case "$missing" in
         */*)
-            current="$current/${missing%%/*}"
+            part="${missing%%/*}"
             missing="${missing#*/}"
-            mkdir "$current"
+            mkdir "$part"
+            expected="$expected/$part"
+            cd -P "$part"
+            [ "$(pwd -P)" = "$expected" ] || exit 1
             ;;
         *) missing='' ;;
     esac
 done
-ln "$staging" "$target"
+ln "$staging" "${path##*/}"
 printf 'file=created\n'

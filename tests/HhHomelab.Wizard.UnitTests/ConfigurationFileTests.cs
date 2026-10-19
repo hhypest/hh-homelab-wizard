@@ -54,7 +54,10 @@ public sealed class ConfigurationFileTests : IDisposable
     {
         Assert.True(request.IsValid());
         Assert.False(Request(request.Owner.InstallationId, "media/compose.yaml", 0x1FF, Compose).IsValid());
-        Assert.False(Request(request.Owner.InstallationId, "media/compose.yaml", 0x1A4, new byte[ConfigurationFileRequest.MaximumContentBytes + 1]).IsValid());
+        var oversized = new byte[ConfigurationFileRequest.MaximumContentBytes + 1];
+        var error = Assert.Throws<ArgumentException>(() => Request(request.Owner.InstallationId, "media/compose.yaml", 0x1A4, oversized));
+        Assert.Equal("file.content.too-large", error.Message);
+        Assert.True(Request(request.Owner.InstallationId, "media/compose.yaml", 0x1A4, new byte[ConfigurationFileRequest.MaximumContentBytes]).IsValid());
         Assert.True(Request(request.Owner.InstallationId, "media/compose.yaml", 0x1A4, []).IsValid());
         var qbittorrent = request.Identity with { Resource = request.Identity.Resource with { Service = "qbittorrent" } };
         Assert.False(new ConfigurationFileRequest(qbittorrent, request.Layout, request.Owner, request.RelativePath, request.Mode, Compose).IsValid());
@@ -82,6 +85,27 @@ public sealed class ConfigurationFileTests : IDisposable
         buffer[0] = (byte)'X';
         Assert.Equal(request.Descriptor, copy.Descriptor);
         Assert.Equal(Compose, copy.Content.ToArray());
+    }
+
+    [Fact]
+    public void DisposalZeroesTheOwnedContentButKeepsTheJournalDescriptor()
+    {
+        var secret = Request(request.Owner.InstallationId, "media/.env", 0x180, Encoding.UTF8.GetBytes("SECRET=synthetic\n"));
+        var descriptor = secret.Descriptor;
+        secret.Dispose();
+        Assert.False(secret.IsValid());
+        Assert.Equal(descriptor, secret.Descriptor);
+        Assert.Throws<ObjectDisposedException>(() => secret.Content.Length);
+    }
+
+    [Fact]
+    public async Task TransientPayloadWithTheFileBytesIsZeroedAfterTheSend()
+    {
+        var nas = new FakeNas();
+        var client = new NasConfigurationFileClient(PreflightData.Target, _ => nas.Wire(), TimeSpan.FromSeconds(5));
+        Assert.Equal(FileDeliveryOutcome.Created, await client.WriteAsync(request, PreflightData.Pin, Token));
+        Assert.NotNull(nas.LastPayload);
+        Assert.All(nas.LastPayload!, value => Assert.Equal(0, value));
     }
 
     [Fact]
@@ -336,6 +360,8 @@ public sealed class ConfigurationFileTests : IDisposable
 
         public int Writes { get; private set; }
 
+        public byte[]? LastPayload { get; private set; }
+
         public INasPathWire Wire() => new FakeWire(this);
 
         private string FileLine()
@@ -378,6 +404,7 @@ public sealed class ConfigurationFileTests : IDisposable
                 if (nas.ChangeKeyOnWrite && !accept!("ssh-ed25519", [1, 2, 3]))
                     throw new SshConnectionException("synthetic-host-key-changed");
                 sending();
+                nas.LastPayload = request;
                 if (nas.WriteOutcome is { } outcome)
                     return Task.FromResult(outcome);
                 if (nas.FailAfterSendWithoutWriting)
@@ -385,7 +412,7 @@ public sealed class ConfigurationFileTests : IDisposable
                 if (nas.Marker != RemoteMarkerMatch.Same || nas.Redirected || nas.File is not null)
                     return Task.FromResult<(int?, string)>((3, ""));
                 nas.Writes++;
-                nas.File = request[^Compose.Length..];
+                nas.File = request[^Compose.Length..].ToArray();
                 nas.Mode = 0x1A4;
                 if (nas.LoseResponseAfterWrite)
                     throw new SshConnectionException("synthetic-lost-response");

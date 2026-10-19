@@ -5,9 +5,9 @@ namespace HhHomelab.Wizard.Domain;
 /// <summary>Create one configuration file of this installation below its own marked configuration root.
 /// The specification binds root, relative path, exact bytes, mode and owner. Only a missing file may be
 /// created; an existing file with other content or mode is never replaced by this request, so a later
-/// manual change is reported instead of overwritten. Contents are copied and never exposed as a
-/// mutable buffer.</summary>
-public sealed class ConfigurationFileRequest
+/// manual change is reported instead of overwritten. Contents are copied into an owned buffer, never
+/// exposed as a mutable one, and zeroed on disposal: a file may carry secrets.</summary>
+public sealed class ConfigurationFileRequest : IDisposable
 {
     public const int MaximumContentBytes = 64 * 1024;
 
@@ -21,6 +21,8 @@ public sealed class ConfigurationFileRequest
 
     private readonly byte[] content;
 
+    private bool disposed;
+
     public ConfigurationFileRequest(OperationIdentity identity, MediaPathLayout layout, InstallationOwner owner,
         string relativePath, int mode, ReadOnlySpan<byte> content)
     {
@@ -28,6 +30,9 @@ public sealed class ConfigurationFileRequest
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(relativePath);
+        // The bound is checked before any copy or hash, so oversized input costs nothing.
+        if (content.Length > MaximumContentBytes)
+            throw new ArgumentException("file.content.too-large");
         Identity = identity;
         Layout = layout;
         Owner = owner;
@@ -53,7 +58,14 @@ public sealed class ConfigurationFileRequest
 
     public int Length => content.Length;
 
-    public ReadOnlySpan<byte> Content => content;
+    public ReadOnlySpan<byte> Content
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            return content;
+        }
+    }
 
     public OwnershipMarker Marker => new(OwnershipMarker.CurrentSchema, Owner.InstallationId, Owner.ProfileFingerprint);
 
@@ -76,9 +88,16 @@ public sealed class ConfigurationFileRequest
             return false;
         if (Identity.Resource.InstallationId != Owner.InstallationId || Identity.Resource.ProfileFingerprint != Owner.ProfileFingerprint)
             return false;
-        if (!AllowedModes.Contains(Mode) || content.Length > MaximumContentBytes)
+        if (disposed || !AllowedModes.Contains(Mode))
             return false;
         return IsRelativePath(RelativePath);
+    }
+
+    /// <summary>Zeroes the owned copy; the descriptor stays valid for journal records.</summary>
+    public void Dispose()
+    {
+        CryptographicOperations.ZeroMemory(content);
+        disposed = true;
     }
 
     /// <summary>ASCII components only, so the path means the same bytes to the shell and the parser; no

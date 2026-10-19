@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using HhHomelab.Wizard.Application;
 using HhHomelab.Wizard.Domain;
@@ -267,6 +268,7 @@ public sealed class NasConfigurationFileClient
     {
         var trust = new SshHostKeyCheck(target.EndpointFingerprint, approvedKey);
         var sent = false;
+        byte[]? payload = null;
         try
         {
             budget.ThrowIfCancellationRequested();
@@ -277,7 +279,8 @@ public sealed class NasConfigurationFileClient
             if (!trust.Accepted)
                 return FileDeliveryOutcome.NotSent;
             budget.ThrowIfCancellationRequested();
-            var (exitCode, output) = await wire.WriteConfigurationFileAsync(NasFileProtocol.WriteRequest(request), () => sent = true, budget).ConfigureAwait(false);
+            payload = NasFileProtocol.WriteRequest(request);
+            var (exitCode, output) = await wire.WriteConfigurationFileAsync(payload, () => sent = true, budget).ConfigureAwait(false);
             return NasFileProtocol.ParseWrite(exitCode, output);
         }
         catch (Exception)
@@ -286,6 +289,12 @@ public sealed class NasConfigurationFileClient
             if (sent)
                 return FileDeliveryOutcome.Unknown;
             return trust.Failure is not null ? FileDeliveryOutcome.IdentityChanged : FileDeliveryOutcome.NotSent;
+        }
+        finally
+        {
+            // The transient copy with the file bytes lives only for this send.
+            if (payload is not null)
+                CryptographicOperations.ZeroMemory(payload);
         }
     }
 }
