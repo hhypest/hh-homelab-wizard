@@ -140,6 +140,12 @@ file_state() {
             printf 'unavailable'
             return
         fi
+        # The same inode must still be reachable at the requested path after hashing: an unlinked or
+        # renamed file stays readable through the descriptor but is no longer this configuration file.
+        if [ "$(readlink /proc/self/fd/3 2>/dev/null)" != "$expected/$part" ] || [ ! "$part" -ef /proc/self/fd/3 ]; then
+            printf 'redirected'
+            return
+        fi
         printf 'present:%s:%s:%s' "$size" "$mode" "${digest%% *}"
         return
     done
