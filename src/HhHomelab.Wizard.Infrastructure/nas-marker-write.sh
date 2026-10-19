@@ -45,6 +45,19 @@ staged_temporary_entry() {
     [ -f "$1" ] && [ ! -L "$1" ]
 }
 
+# Exact byte comparison through the same hex encoder on both sides: shell variables would drop
+# trailing newlines and NUL bytes. The file is size-checked first so a huge file is never read.
+same_marker_bytes() {
+    [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] || return 1
+    [ $(( $(wc -c < "$1") )) -le 4096 ] || return 1
+    [ "$(od -An -v -tx1 "$1" | tr -d ' \n')" = "$(printf '%s' "$2" | od -An -v -tx1 | tr -d ' \n')" ]
+}
+
+# The resolved directory must equal its lexical path: a symlinked ancestor anywhere redirects writes.
+canonical_directory() {
+    [ -d "$1" ] && [ "$(cd -P "$1" 2>/dev/null && pwd -P)" = "$1" ]
+}
+
 IFS= read -r header || framing
 [ "$header" = 'hh-homelab-wizard:nas-marker-request:v1' ] || framing
 IFS= read -r root_line || framing
@@ -68,10 +81,9 @@ for candidate in "$parent" "$root" "$dir" "$file"; do
         reject
     fi
 done
-[ -d "$parent" ] || reject
+canonical_directory "$parent" || reject
 if [ -e "$file" ]; then
-    [ -f "$file" ] || reject
-    if [ "$(cat "$file")" = "$marker" ]; then
+    if same_marker_bytes "$file" "$marker"; then
         printf 'marker=already-present\n'
         exit 0
     fi
