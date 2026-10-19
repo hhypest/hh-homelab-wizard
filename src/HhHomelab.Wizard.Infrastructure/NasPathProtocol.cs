@@ -78,6 +78,7 @@ internal static class NasPathProtocol
             return state switch
             {
                 "absent" => new(OwnershipMarkerState.Absent),
+                "staged" => new(OwnershipMarkerState.Staged),
                 "invalid" => new(OwnershipMarkerState.Invalid),
                 "redirected" => new(OwnershipMarkerState.Redirected),
                 "unavailable" => new(OwnershipMarkerState.Unavailable),
@@ -196,6 +197,16 @@ internal static class OwnershipMarkerJson
         var profile = root.GetProperty("profileFingerprint").GetString();
         var marker = new OwnershipMarker(schema, installationId, profile ?? "");
         return marker.IsValid ? marker : null;
+    }
+
+    /// <summary>Single-line canonical form; the write script compares bytes for idempotency.</summary>
+    internal static string Serialize(OwnershipMarker marker)
+    {
+        if (!marker.IsValid)
+            throw new ArgumentException("ownership.marker.invalid");
+        return "{\"schema\":" + marker.Schema.ToString(CultureInfo.InvariantCulture)
+            + ",\"installationId\":\"" + marker.InstallationId.ToString("D")
+            + "\",\"profileFingerprint\":\"" + marker.ProfileFingerprint + "\"}";
     }
 
 }

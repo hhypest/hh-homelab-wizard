@@ -7,6 +7,7 @@ public enum ConfigurationOperationKind
 {
     QbittorrentCategory,
     ArrRootFolder,
+    OwnershipMarker,
 }
 
 /// <summary>Opaque identities supplied by the ownership/journal boundary, never credentials or URLs.
@@ -15,7 +16,7 @@ public sealed record ResourceIdentity(Guid InstallationId, Guid ResourceId, stri
 {
     public bool IsValid => InstallationId != Guid.Empty
         && ResourceId != Guid.Empty
-        && Service is "qbittorrent" or "radarr" or "sonarr"
+        && Service is "qbittorrent" or "radarr" or "sonarr" or "nas"
         && IsFingerprint(ProfileFingerprint)
         && IsFingerprint(EndpointFingerprint);
 

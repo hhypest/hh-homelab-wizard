@@ -26,13 +26,16 @@ public sealed record OwnershipMarker(int Schema, Guid InstallationId, string Pro
 public enum OwnershipMarkerState
 {
     Absent,
+    Staged,
     Present,
     Invalid,
     Redirected,
     Unavailable,
 }
 
-/// <summary>Read-only observation of the marker below the configuration root. Invalid covers a
+/// <summary>Read-only observation of the marker below the configuration root. Staged is the leftover of
+/// an interrupted creation: the root holds only the marker directory with this wizard's temporary
+/// files, so it carries no data and may be completed. Invalid covers a
 /// non-regular, oversized, unparsable or unknown-schema file; Redirected a symlink anywhere on the
 /// marker path; Unavailable that the SSH user could not tell whether a marker exists.</summary>
 public sealed record OwnershipObservation(OwnershipMarkerState State, OwnershipMarker? Marker = null)
@@ -40,7 +43,7 @@ public sealed record OwnershipObservation(OwnershipMarkerState State, OwnershipM
     public bool IsValid => State switch
     {
         OwnershipMarkerState.Present => Marker is { IsValid: true },
-        OwnershipMarkerState.Absent or OwnershipMarkerState.Invalid
+        OwnershipMarkerState.Absent or OwnershipMarkerState.Staged or OwnershipMarkerState.Invalid
             or OwnershipMarkerState.Redirected or OwnershipMarkerState.Unavailable => Marker is null,
         _ => false,
     };
@@ -65,6 +68,8 @@ public static class InstallationOwnershipAssessment
             return Blocking("ownership.marker-invalid");
         if (ownership.State == OwnershipMarkerState.Present)
             return MarkerCheck(ownership.Marker!, expected);
+        if (ownership.State == OwnershipMarkerState.Staged)
+            return new("ownership.new-installation", PreflightCheckStatus.Passed);
         return UnmarkedCheck(root);
     }
 
@@ -92,4 +97,32 @@ public static class InstallationOwnershipAssessment
     }
 
     private static PreflightCheck Blocking(string code) => new(code, PreflightCheckStatus.Blocking);
+}
+
+/// <summary>Create the ownership marker of a new installation. The resource is the configuration root
+/// on the SSH endpoint; the specification binds root, installation and profile. Only a missing marker
+/// in an absent or empty root may be created; existing contents are never adopted by this request.</summary>
+public sealed record OwnershipMarkerRequest(OperationIdentity Identity, MediaPathLayout Layout, InstallationOwner Owner)
+{
+    public OperationDescriptor Descriptor => new(Identity, ConfigurationOperationKind.OwnershipMarker,
+        ConfigurationRequest.Fingerprint(new
+        {
+            Kind = ConfigurationOperationKind.OwnershipMarker,
+            Layout.ConfigurationRoot,
+            Owner.InstallationId,
+            Owner.ProfileFingerprint,
+        }));
+
+    public OwnershipMarker Marker => new(OwnershipMarker.CurrentSchema, Owner.InstallationId, Owner.ProfileFingerprint);
+
+    public bool IsValid()
+    {
+        if (Layout is null || Owner is not { IsValid: true })
+            return false;
+        if (!Descriptor.IsValid || Identity.Resource.Service != "nas")
+            return false;
+        var sameInstallation = Identity.Resource.InstallationId == Owner.InstallationId;
+        var sameProfile = Identity.Resource.ProfileFingerprint == Owner.ProfileFingerprint;
+        return sameInstallation && sameProfile;
+    }
 }

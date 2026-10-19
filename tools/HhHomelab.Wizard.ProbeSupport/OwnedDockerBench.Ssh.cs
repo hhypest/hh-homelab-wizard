@@ -17,11 +17,12 @@ public enum SshFixtureFault
     SudoDenied,
     SftpDenied,
     DockerOverrides,
+    MarkerLostResponse,
 }
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "docker-control.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
@@ -205,6 +206,17 @@ public sealed partial class OwnedDockerBench
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], ownMarker + "\n" + foreignMarker + "\n", token);
     }
 
+    /// <summary>A directory owned by the SSH user for marker creation, a staged leftover of an
+    /// interrupted creation inside it, and a root-owned directory the SSH user cannot write.</summary>
+    public async Task PrepareSshMarkerWriteTreeAsync(CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        _ = await RunAsync(["exec", Container, "sh", "-c",
+            "set -eu; mkdir -p /volume1/apps/staged/.hh-homelab-wizard /volume1/readonly; "
+            + ": > /volume1/apps/staged/.hh-homelab-wizard/.installation.json.tmp-1; "
+            + "chown -R 1000:1000 /volume1/apps; chmod 0755 /volume1/readonly"], token);
+    }
+
     /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>
     public async Task<bool> SshHomeChangedAsync(CancellationToken token)
     {
@@ -234,6 +246,7 @@ public sealed partial class OwnedDockerBench
             SshFixtureFault.SudoDenied => "sudo-denied",
             SshFixtureFault.SftpDenied => "sftp-denied",
             SshFixtureFault.DockerOverrides => "docker-overrides",
+            SshFixtureFault.MarkerLostResponse => "marker-lost-response",
             _ => throw new InvalidOperationException("bench.ssh.fault.invalid"),
         };
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c",

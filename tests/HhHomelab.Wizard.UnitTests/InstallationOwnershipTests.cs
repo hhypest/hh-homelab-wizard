@@ -48,6 +48,15 @@ public sealed class InstallationOwnershipTests
     }
 
     [Fact]
+    public void StagedLeftoverOfAnInterruptedCreationIsStillANewInstallation()
+    {
+        var output = PathData.Output(configuration: OwnedConfiguration, marker: "marker=staged");
+        Assert.Equal(new PreflightCheck("ownership.new-installation", PreflightCheckStatus.Passed), Evaluate(output, Owner));
+        Assert.Equal(OwnershipMarkerState.Staged, PathData.Snapshot(output).Ownership.State);
+        Assert.Throws<InvalidDataException>(() => NasPathProtocol.Parse(PathData.Layout, 0, PathData.Output(marker: "marker=staged\nmarker-content=7b7d")));
+    }
+
+    [Fact]
     public void NonEmptyRootWithoutMarkerIsUnmarkedContentsEvenForTheExpectedOwner()
     {
         var output = PathData.Output(configuration: OwnedConfiguration);

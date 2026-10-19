@@ -70,6 +70,20 @@ inspect() {
     fi
 }
 
+# Leftover of an interrupted marker creation: the root holds only the marker directory and that
+# holds only this wizard's temporary files. Anything else stays an ordinary absent marker.
+staged_of() {
+    if [ ! -r "$1" ] || [ ! -r "$2" ]; then
+        printf 'marker=unavailable\n'
+    elif [ $(( $(ls -A "$1" | grep -v -x -e '\.hh-homelab-wizard' | head -c 1 | wc -c) )) -gt 0 ]; then
+        printf 'marker=absent\n'
+    elif [ $(( $(ls -A "$2" | grep -v -x -e '\.installation\.json\.tmp-[0-9][0-9]*' | head -c 1 | wc -c) )) -gt 0 ]; then
+        printf 'marker=absent\n'
+    else
+        printf 'marker=staged\n'
+    fi
+}
+
 # Ownership marker below the configuration root: symlinks anywhere on its path, a non-regular or
 # oversized file and a hidden (unsearchable) location are reported, never followed or guessed.
 marker_of() {
@@ -89,6 +103,8 @@ marker_of() {
             printf 'marker=unavailable\n'
         elif [ -e "$dir" ] && [ ! -d "$dir" ]; then
             printf 'marker=invalid\n'
+        elif [ -d "$dir" ]; then
+            staged_of "$root" "$dir"
         else
             printf 'marker=absent\n'
         fi

@@ -43,6 +43,14 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         return NasPathProtocol.Parse(layout, result.ExitCode, result.Output);
     }
 
+    public async Task<MarkerWriteOutcome> WriteOwnershipMarkerAsync(OwnershipMarkerRequest request, Action sending, CancellationToken token)
+    {
+        var input = NasMarkerWriteProtocol.Request(request);
+        sending();
+        var result = await ExecuteAsync(NasMarkerWriteProtocol.Command, retainOutput: true, token, input).ConfigureAwait(false);
+        return NasMarkerWriteProtocol.Parse(result.ExitCode, result.Output);
+    }
+
     internal static SshProbeIdentity ParseIdentity(int? exitCode, string output)
     {
         if (exitCode != 0 || output.Length > 256)
