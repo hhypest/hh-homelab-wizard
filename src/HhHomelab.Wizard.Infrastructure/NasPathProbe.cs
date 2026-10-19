@@ -92,17 +92,17 @@ internal interface INasPathWire : IDisposable
 
     Task<RemotePathFacts> ReadPathsAsync(MediaPathLayout layout, CancellationToken token);
 
-    /// <summary>Calls <paramref name="sending"/> once the complete request was delivered to the command.</summary>
+    /// <summary>Calls <paramref name="sending"/> just before the request is written to the started command.</summary>
     Task<MarkerWriteOutcome> WriteOwnershipMarkerAsync(OwnershipMarkerRequest request, Action sending, CancellationToken token);
 
     /// <summary>Runs the fixed lock script with a prepared stdin request; returns raw exit code and output.
-    /// Calls <paramref name="sending"/> once the complete request was delivered to the command.</summary>
+    /// Calls <paramref name="sending"/> just before the request is written to the started command.</summary>
     Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token);
 
     /// <summary>Runs the fixed read-only file script with a prepared stdin request.</summary>
     Task<(int? ExitCode, string Output)> ReadConfigurationFileAsync(string request, CancellationToken token);
 
     /// <summary>Runs the fixed file write script; the request ends with the raw file bytes. Calls
-    /// <paramref name="sending"/> once the complete request was delivered to the command.</summary>
+    /// <paramref name="sending"/> just before the request is written to the started command.</summary>
     Task<(int? ExitCode, string Output)> WriteConfigurationFileAsync(byte[] request, Action sending, CancellationToken token);
 }

@@ -9,6 +9,7 @@ public enum ConfigurationOperationKind
     ArrRootFolder,
     OwnershipMarker,
     ConfigurationFile,
+    ConfigurationDirectory,
 }
 
 /// <summary>Opaque identities supplied by the ownership/journal boundary, never credentials or URLs.

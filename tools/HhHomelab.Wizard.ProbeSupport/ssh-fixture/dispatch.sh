@@ -7,6 +7,8 @@ marker_command="$(cat /fixture/marker-write.sh)"
 lock_command="$(cat /fixture/lock.sh)"
 file_read_command="$(cat /fixture/file-read.sh)"
 file_write_command="$(cat /fixture/file-write.sh)"
+directory_read_command="$(cat /fixture/directory-read.sh)"
+directory_create_command="$(cat /fixture/directory-create.sh)"
 mode="$(cat /fixture-state/mode 2>/dev/null || printf normal)"
 case "${SSH_ORIGINAL_COMMAND:-}" in
     "$preflight_command")
@@ -62,6 +64,19 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
             exec sleep 60
         fi
         exec /bin/sh /fixture/file-write.sh
+        ;;
+    "$directory_read_command")
+        : > /fixture-state/identity-started
+        exec /bin/sh /fixture/directory-read.sh
+        ;;
+    "$directory_create_command")
+        : > /fixture-state/identity-started
+        if [ "$mode" = directory-lost-response ]; then
+            # The directory really is created; only its response never reaches the client.
+            /bin/sh /fixture/directory-create.sh > /dev/null 2>&1 || true
+            exec sleep 60
+        fi
+        exec /bin/sh /fixture/directory-create.sh
         ;;
     "$identity_command")
         : > /fixture-state/identity-started
