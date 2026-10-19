@@ -1,0 +1,32 @@
+# Удалённая блокировка установки
+
+Дата: 2026-10-19. База: ветка PR #118 (`101789a`, создание маркера). Задачи: [#51](https://github.com/hhypest/hh-homelab-wizard/issues/51), prerequisites [#101](https://github.com/hhypest/hh-homelab-wizard/issues/101). SDK 10.0.401, SSH.NET 2026.0.0, build-time profile hh-homelab 1.3.0; зависимости не изменены. Решение: [ADR 0019](../adr/0019-remote-installation-lock.md).
+
+## Локальные fixtures
+
+- Разбор: доверяются только точные строки успеха для своего действия (код 0) и отказа (код 3); неверное действие, лишняя строка, другой код, пустой вывод, неверный holder или формат `held` — Unknown; код 2 без вывода — Invalid.
+- `held` с GUID и возрастом либо `unknown:unknown`; это не удержание сессией.
+- Запрос: действие, корень, канонический маркер и сессия только как данные stdin; корень не попадает в текст команды.
+- Обрыв после отправки — Unknown; сбой соединения до отправки, пустая сессия или чужой pin — NotSent без запроса.
+- С настоящим `ConfigurationOperationScenario`: занятая блокировка — Conflict/OperationInProgress, события только `lock`/`unlock`, ни одного Observe/Apply и без release; свободная — операция выполняется между acquire и release; Unknown при захвате — конфликт lease с освобождением локального lease.
+
+Скрипт запущен локально (Linux, dash): acquire, чужая сессия (`held` с GUID и возрастом), повтор своей сессией (`reacquired`), чужое освобождение — отказ, своё — `released`, повтор — `not-held`; неверный маркер и отсутствие маркера — `not-owned`; неверная сессия — код 2; каталог блокировки без holder — `held:unknown`.
+
+Локально Linux / SDK 10.0.401: locked restore, Release build без предупреждений и ошибок, все unit/fixture и Desktop тесты, JournalProbe и ProfileCheck. Docker daemon локально недоступен.
+
+## Одноразовый OpenSSH-стенд в CI
+
+ForceCommand исполняет embedded-копию `nas-lock.sh`. На собственном маркере `/volume1/apps/created` (созданном сценарием ADR 0018) две сессии одной установки от пользователя `wizard`:
+
+1. первая — acquired; вторая — held с GUID первой и неотрицательным возрастом; первая повторно — reacquired; освобождение второй — отказ;
+2. сценарий под блокировкой второй сессии — Conflict/OperationInProgress без release; после освобождения первой (повтор — not-held) сценарий второй — AlreadySatisfied, затем released;
+3. режим `lock-lost-response` (скрипт действительно берёт блокировку, ответ удерживается) — Unknown; вторая сессия видит held, первая — reacquired и released;
+4. `/volume1/docker/hh` без маркера — not-owned.
+
+Результат CI, commit и definition hash фиксируются в PR и #51; наличие сценария не объявляется успешным прогоном.
+
+## Не проверено
+
+Heartbeat/таймаут блокировки и UI перехвата, проверка удержания внутри шагов, fsync, два реальных компьютера, DS725+/DSM ACL и утилиты DSM.
+
+Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

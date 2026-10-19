@@ -237,6 +237,9 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
                 return Task.FromResult(MarkerWriteOutcome.Created);
             }
 
+            public Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token) =>
+                throw new InvalidOperationException("test.marker-only");
+
             public void Dispose()
             {
             }

@@ -20,6 +20,8 @@ internal static class MarkerScenarios
             await VerifyLostResponseAsync(context, token);
             await VerifyRefusalsAsync(context, token);
             Console.WriteLine("ssh-runtime.marker-journaled-write: passed");
+            await VerifyInstallationLockAsync(context, token);
+            Console.WriteLine("ssh-runtime.installation-lock: passed");
         }
         finally
         {
@@ -66,6 +68,43 @@ internal static class MarkerScenarios
         Require(await context.OwnershipAsync(unwritable, token) == "ownership.new-installation", "marker.unwritable-unchanged");
     }
 
+    /// <summary>Two sessions of the same installation on the own marker of /volume1/apps/created.</summary>
+    private static async Task VerifyInstallationLockAsync(Context context, CancellationToken token)
+    {
+        var request = context.NewRequest("/volume1/apps/created");
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        RequireLock(await context.LockAsync(request, first, acquire: true, token), InstallationLockStatus.Acquired, "lock.acquire");
+        var held = await context.LockAsync(request, second, acquire: true, token);
+        Require(held.Status == InstallationLockStatus.HeldByOther && held.Holder == first && held.AgeSeconds >= 0, "lock.held-by-first");
+        RequireLock(await context.LockAsync(request, first, acquire: true, token), InstallationLockStatus.Reacquired, "lock.same-session");
+        RequireLock(await context.LockAsync(request, second, acquire: false, token), InstallationLockStatus.HeldByOther, "lock.foreign-release");
+
+        var blocked = await context.RunLockedAsync(request, second, token);
+        Require(blocked.Result.Kind == OperationOutcomeKind.Conflict && blocked.Result.Code == OperationErrorCode.OperationInProgress, "lock.scenario-blocked." + blocked.Result.Kind);
+        Require(blocked.Journal.LastRelease is null, "lock.blocked-no-release");
+
+        RequireLock(await context.LockAsync(request, first, acquire: false, token), InstallationLockStatus.Released, "lock.release");
+        RequireLock(await context.LockAsync(request, first, acquire: false, token), InstallationLockStatus.NotHeld, "lock.release-idempotent");
+        var allowed = await context.RunLockedAsync(request, second, token);
+        Expect(allowed.Result, OperationOutcomeKind.AlreadySatisfied, "lock.scenario-allowed");
+        RequireLock(allowed.Journal.LastRelease!, InstallationLockStatus.Released, "lock.scenario-released");
+
+        await context.Bench.SetSshFaultAsync(SshFixtureFault.LockLostResponse, token);
+        var lost = await context.LockAsync(request, first, acquire: true, token, TimeSpan.FromSeconds(3));
+        await context.Bench.SetSshFaultAsync(SshFixtureFault.Normal, token);
+        RequireLock(lost, InstallationLockStatus.Unknown, "lock.lost-response");
+        RequireLock(await context.LockAsync(request, second, acquire: true, token), InstallationLockStatus.HeldByOther, "lock.lost-was-taken");
+        RequireLock(await context.LockAsync(request, first, acquire: true, token), InstallationLockStatus.Reacquired, "lock.lost-reacquired");
+        RequireLock(await context.LockAsync(request, first, acquire: false, token), InstallationLockStatus.Released, "lock.lost-released");
+
+        var unmarked = context.NewRequest("/volume1/docker/hh");
+        RequireLock(await context.LockAsync(unmarked, first, acquire: true, token), InstallationLockStatus.NotOwned, "lock.not-owned");
+    }
+
+    private static void RequireLock(InstallationLockResult result, InstallationLockStatus status, string code) =>
+        Require(result.Status == status, code + "." + result.Status);
+
     private static void Expect(OperationResult result, OperationOutcomeKind kind, string code) =>
         Require(result.Kind == kind, code + "." + result.Kind + "." + result.Code);
 
@@ -103,6 +142,30 @@ internal static class MarkerScenarios
             var writer = new NasOwnershipMarkerWriter(bench.SshTarget, credentials, writeTimeout);
             var operation = new NasOwnershipMarkerOperation(request, probe, writer, pin);
             return await new ConfigurationOperationScenario(journal, operation).ExecuteAsync(operation, token);
+        }
+
+        public Task<InstallationLockResult> LockAsync(OwnershipMarkerRequest request, Guid session, bool acquire,
+            CancellationToken token, TimeSpan? timeout = null)
+        {
+            var remote = new NasInstallationLock(bench.SshTarget, credentials, timeout);
+            return acquire
+                ? remote.AcquireAsync(request.Layout, Owner, session, pin, token)
+                : remote.ReleaseAsync(request.Layout, Owner, session, pin, token);
+        }
+
+        /// <summary>The marker operation again, now under the remote lock of the given session.</summary>
+        public async Task<(OperationResult Result, RemoteLockedOperationJournal Journal)> RunLockedAsync(
+            OwnershipMarkerRequest request, Guid session, CancellationToken token)
+        {
+            var directory = Path.Combine(root, request.Identity.Resource.ResourceId.ToString("N"));
+            var inner = Directory.Exists(directory) ? FileOperationJournal.Open(directory, scope) : CreateJournal(directory);
+            var journal = new RemoteLockedOperationJournal(inner, new NasInstallationLock(bench.SshTarget, credentials),
+                request.Layout, Owner, session, pin);
+            var probe = new NasPathProbe(bench.SshTarget, credentials);
+            var writer = new NasOwnershipMarkerWriter(bench.SshTarget, credentials);
+            var operation = new NasOwnershipMarkerOperation(request, probe, writer, pin);
+            var result = await new ConfigurationOperationScenario(journal, operation).ExecuteAsync(operation, token);
+            return (result, journal);
         }
 
         public async Task<string> OwnershipAsync(OwnershipMarkerRequest request, CancellationToken token)

@@ -4,6 +4,7 @@ identity_command="printf 'hh-homelab-wizard:ssh-probe:v1\\n'; uname -s; id -u"
 preflight_command="$(cat /fixture/preflight.sh)"
 paths_command="$(cat /fixture/paths.sh)"
 marker_command="$(cat /fixture/marker-write.sh)"
+lock_command="$(cat /fixture/lock.sh)"
 mode="$(cat /fixture-state/mode 2>/dev/null || printf normal)"
 case "${SSH_ORIGINAL_COMMAND:-}" in
     "$preflight_command")
@@ -37,6 +38,15 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
             exec sleep 60
         fi
         exec /bin/sh /fixture/marker-write.sh
+        ;;
+    "$lock_command")
+        : > /fixture-state/identity-started
+        if [ "$mode" = lock-lost-response ]; then
+            # The lock really changes; only its response never reaches the client.
+            /bin/sh /fixture/lock.sh > /dev/null 2>&1 || true
+            exec sleep 60
+        fi
+        exec /bin/sh /fixture/lock.sh
         ;;
     "$identity_command")
         : > /fixture-state/identity-started

@@ -18,11 +18,12 @@ public enum SshFixtureFault
     SftpDenied,
     DockerOverrides,
     MarkerLostResponse,
+    LockLostResponse,
 }
 
 public sealed partial class OwnedDockerBench
 {
-    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "docker-control.sh"];
+    private static readonly string[] SshFixtureFiles = ["Dockerfile", "sshd_config", "entrypoint.sh", "dispatch.sh", "preflight.sh", "paths.sh", "marker-write.sh", "lock.sh", "docker-control.sh"];
 
     private const string SshDefinitionLabel = "com.hh-homelab-wizard.ssh-fixture";
 
@@ -247,6 +248,7 @@ public sealed partial class OwnedDockerBench
             SshFixtureFault.SftpDenied => "sftp-denied",
             SshFixtureFault.DockerOverrides => "docker-overrides",
             SshFixtureFault.MarkerLostResponse => "marker-lost-response",
+            SshFixtureFault.LockLostResponse => "lock-lost-response",
             _ => throw new InvalidOperationException("bench.ssh.fault.invalid"),
         };
         await SshInputAsync(["exec", "--interactive", Container, "sh", "-c",

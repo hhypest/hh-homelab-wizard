@@ -12,5 +12,6 @@
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-preflight.sh" LogicalName="ssh-fixture.preflight.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-paths.sh" LogicalName="ssh-fixture.paths.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-marker-write.sh" LogicalName="ssh-fixture.marker-write.sh" />
+    <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-lock.sh" LogicalName="ssh-fixture.lock.sh" />
   </ItemGroup>
 </Project>

@@ -94,4 +94,7 @@ internal interface INasPathWire : IDisposable
 
     /// <summary>Calls <paramref name="sending"/> immediately before the command leaves the client.</summary>
     Task<MarkerWriteOutcome> WriteOwnershipMarkerAsync(OwnershipMarkerRequest request, Action sending, CancellationToken token);
+
+    /// <summary>Runs the fixed lock script with a prepared stdin request; returns raw exit code and output.</summary>
+    Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token);
 }
