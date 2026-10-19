@@ -148,6 +148,22 @@ public sealed class InstallationLockTests
         Assert.Equal(new[] { "lock", "unlock" }, operation.Events);
     }
 
+    [Fact]
+    public async Task PlanSpecificDecoratorAcquiresAndReleasesTheRemoteLockForTheAuthorizedStep()
+    {
+        using var directory = new JournalDirectory();
+        var wire = new LockWire();
+        var journal = new RemoteLockedPlanJournal(directory.Create(), Lock(wire), PathData.Layout, Owner, Session, PreflightData.Pin);
+        var operation = new OperationFixture { Request = directory.Request };
+        var plan = new ConfigurationOperationPlan([new(operation.Descriptor, [], TimeSpan.FromSeconds(30))]);
+        var result = await new ConfigurationPlanScenario(journal, operation).ExecuteAsync(plan, [operation], Token);
+        Assert.True(result.Result.IsSuccess);
+        Assert.Equal(1, operation.ApplyCount);
+        Assert.Equal(2, wire.Requests.Count);
+        Assert.Contains("action=acquire", wire.Requests[0]);
+        Assert.Contains("action=release", wire.Requests[1]);
+    }
+
     private static NasInstallationLock Lock(LockWire wire) => new(PreflightData.Target, _ => wire, TimeSpan.FromSeconds(5));
 
     private static RemoteLockedOperationJournal Journal(IOperationJournal inner, LockWire wire) =>

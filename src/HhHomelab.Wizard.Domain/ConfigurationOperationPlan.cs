@@ -31,11 +31,15 @@ public sealed class ConfigurationOperationPlan
 {
     public const int MaximumSteps = 1024;
 
+    public const int MaximumDependencyEdges = 4096;
+
     public ConfigurationOperationPlan(IReadOnlyList<ConfigurationPlanStep> steps)
     {
         if (steps is null || steps.Count is < 1 or > MaximumSteps || steps.Any(step => step is null))
             throw new ArgumentException("plan.steps.invalid");
         var copy = steps.ToArray();
+        if (copy.Sum(step => (long)step.Dependencies.Count) > MaximumDependencyEdges)
+            throw new ArgumentException("plan.dependencies.capacity");
         var byId = new Dictionary<Guid, ConfigurationPlanStep>();
         var resources = new Dictionary<Guid, ResourceIdentity>();
         var scope = copy[0].Descriptor.Identity.Resource;

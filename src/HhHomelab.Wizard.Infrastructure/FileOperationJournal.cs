@@ -64,6 +64,9 @@ public sealed class FileOperationJournal : IOperationPlanJournal
                 throw new OperationLeaseUnavailableException();
             using var fileLock = OpenLock(FileMode.Open);
             var snapshot = Load();
+            var resource = plan.Steps[0].Descriptor.Identity.Resource;
+            if (resource.InstallationId != scope.InstallationId || resource.ProfileFingerprint != scope.ProfileFingerprint)
+                throw new OperationPlanMismatchException();
             var binding = OperationPlanBinding.From(plan);
             binding.Validate(scope);
             if (snapshot.Data.Plan is { } previous)
@@ -74,32 +77,50 @@ public sealed class FileOperationJournal : IOperationPlanJournal
             }
             // An existing single-operation history cannot be silently adopted into a new graph.
             if (snapshot.Data.Entries.Length != 0)
-                throw new OperationJournalException("journal.plan-history");
+                throw new OperationPlanMismatchException();
             Save(OperationJournalSnapshot.Create(scope, checked(snapshot.Data.Generation + 1), [], binding), replace: true);
             return true;
         }, token);
     }
 
-    public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token)
+    public IOperationJournal ForPlanStep(OperationPlanStepContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return new PlanStepJournal(this, context);
+    }
+
+    public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token) =>
+        AcquireAsync(descriptor, null, token);
+
+    private Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, OperationPlanStepContext? context, CancellationToken token)
     {
         return RunAsync<IAsyncDisposable>(() =>
         {
             if (activeLease is not null)
                 throw new OperationLeaseUnavailableException();
-            var lease = Acquire(descriptor);
+            var lease = Acquire(descriptor, context);
             activeLease = lease;
             return lease;
         }, token);
     }
 
-    private Lease Acquire(OperationDescriptor descriptor)
+    private Lease Acquire(OperationDescriptor descriptor, OperationPlanStepContext? context)
     {
         OperationJournalSnapshot.ValidateDescriptor(descriptor, scope);
         var fileLock = OpenLock(FileMode.Open);
         try
         {
             var snapshot = Load();
-            snapshot.Data.Plan?.RequireMember(descriptor);
+            if (snapshot.Data.Plan is { } plan)
+            {
+                plan.RequireMember(descriptor);
+                if (context is null || !context.Authorizes(plan.Fingerprint, descriptor))
+                    throw new OperationPlanMismatchException();
+            }
+            else if (context is not null)
+            {
+                throw new OperationPlanMismatchException();
+            }
             FindEntry(snapshot, descriptor, observePlanStep: true);
             return new Lease(this, descriptor, fileLock, snapshot.Hash);
         }
@@ -314,6 +335,19 @@ public sealed class FileOperationJournal : IOperationPlanJournal
         {
             throw new OperationJournalException("journal.storage");
         }
+    }
+
+    private sealed class PlanStepJournal(FileOperationJournal owner, OperationPlanStepContext context) : IOperationJournal
+    {
+        public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token) =>
+            owner.AcquireAsync(descriptor, context, token);
+
+        public Task<OperationJournalEntry?> ReadAsync(OperationDescriptor descriptor, CancellationToken token) => owner.ReadAsync(descriptor, token);
+
+        public Task RecordIntentAsync(OperationIntent intent, CancellationToken token) => owner.RecordIntentAsync(intent, token);
+
+        public Task ConfirmAsync(OperationIntent intent, OperationVerification verification, CancellationToken token) =>
+            owner.ConfirmAsync(intent, verification, token);
     }
 
     private sealed class Lease(FileOperationJournal owner, OperationDescriptor descriptor, FileStream fileLock, string hash) : IAsyncDisposable

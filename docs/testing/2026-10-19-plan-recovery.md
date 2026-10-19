@@ -20,7 +20,7 @@ dotnet run --project tools/HhHomelab.Wizard.ProfileCheck --no-build -c Release -
 
 MSBuild здесь запускался последовательно: параллельная оценка solution в ограниченной среде завершалась без сообщения об ошибке. Это параметр локального запуска, CI workflow не менялся.
 
-Locked restore и Release build прошли: 0 warnings / 0 errors. Полный набор: 1038 unit/fixture (включая 31 новый plan test) и 18 Desktop tests пройдены, без пропусков.
+Locked restore и Release build прошли: 0 warnings / 0 errors. Полный набор: 1046 unit/fixture (включая 38 plan tests и новую проверку удалённого декоратора) и 18 Desktop tests пройдены, без пропусков.
 
 | Сценарий | Наблюдаемый результат |
 | --- | --- |
@@ -32,7 +32,11 @@ Locked restore и Release build прошли: 0 warnings / 0 errors. Полны�
 | Подтверждённая зависимость исчезла / утрачено владение | Conflict; запись из журнала не разрешает продолжение |
 | Изменены dependency, budget, specification, endpoint, добавлен/убран шаг | Conflict/IdentityMismatch до Observe и до intent, в том числе при ещё пустой истории |
 | Адаптер отсутствует или не совпадает | Отказ до привязки плана и первой операции |
+| Прямой одиночный запуск корневого/зависимого шага закреплённого плана, повтор scoped context | Conflict до Observe/Apply; зависимости нельзя обойти public API |
 | Одиночная операция вне закреплённого плана | Journal lease не выдан, Observe/Apply не вызываются |
+| Несовместимый scope / прежняя одиночная история | Conflict/IdentityMismatch, не ошибка доступа к журналу |
+| Максимальные 1024 шага / 4096 рёбер с полной историей | Envelope меньше 4 MiB и успешно открывается; превышение общего лимита рёбер отклоняется до хранения |
+| Удалённый plan-specific декоратор | Журнал с обязательной поддержкой планов; acquire/release вокруг разрешённого шага |
 | Привязка плана к прежней одиночной истории | Отказ без присвоения истории/сброса |
 | Deadline до intent / во время Apply | Transport/DeadlineExceeded / Unknown соответственно; второй шаг не запущен |
 | Caller cancellation между шагами | Cancelled, более ранний проверенный успех остаётся в отчёте |

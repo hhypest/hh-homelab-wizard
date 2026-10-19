@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using HhHomelab.Wizard.Application;
 using HhHomelab.Wizard.Domain;
@@ -172,6 +173,96 @@ public sealed class ConfigurationPlanTests
         Assert.Empty(fixture.Events);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task BoundStepsCannotBeExecutedDirectlyOutsideTheirGraph(bool dependent)
+    {
+        using var fixture = new PlanFixture();
+        var journal = fixture.Open();
+        await journal.BindPlanAsync(fixture.Plan, Token);
+        var operation = dependent ? fixture.Second : fixture.First;
+        var result = await new ConfigurationOperationScenario(journal, fixture).ExecuteAsync(operation, Token);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Kind);
+        Assert.Equal(OperationErrorCode.IdentityMismatch, result.Code);
+        Assert.Empty(fixture.Events);
+    }
+
+    [Fact]
+    public async Task FinishedGraphContextCannotBeReusedForAnotherExecution()
+    {
+        using var fixture = new PlanFixture();
+        var journal = new CapturingPlanJournal(fixture.Open());
+        var result = await new ConfigurationPlanScenario(journal, fixture).ExecuteAsync(fixture.Plan, fixture.Operations, Token);
+        Assert.True(result.Result.IsSuccess);
+        fixture.Events.Clear();
+        var replay = await new ConfigurationOperationScenario(journal.Captured!, fixture).ExecuteAsync(fixture.First, Token);
+        Assert.Equal(OperationOutcomeKind.Conflict, replay.Kind);
+        Assert.Empty(fixture.Events);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IncompatiblePlanScopeIsAConflictRatherThanAJournalAccessFailure(bool profileChanged)
+    {
+        using var fixture = new PlanFixture();
+        var steps = fixture.Plan.Steps.Select(step => new ConfigurationPlanStep(step.Descriptor with
+        {
+            Identity = step.Descriptor.Identity with
+            {
+                Resource = profileChanged
+                    ? step.Descriptor.Identity.Resource with { ProfileFingerprint = new string('b', 64) }
+                    : step.Descriptor.Identity.Resource with { InstallationId = Guid.Parse("993e79b6-064d-49b9-bce0-ae77b2b67bbc") },
+            },
+        }, step.Dependencies, step.Timeout)).ToArray();
+        var plan = new ConfigurationOperationPlan(steps);
+        var operations = steps.Select(step => (IConfigurationOperation)new PlanOperation(step.Descriptor, "foreign", fixture.Events)).ToArray();
+        var before = File.ReadAllBytes(fixture.SnapshotPath);
+        var result = await new ConfigurationPlanScenario(fixture.Open(), fixture).ExecuteAsync(plan, operations, Token);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Result.Kind);
+        Assert.Equal(OperationErrorCode.IdentityMismatch, result.Result.Code);
+        Assert.Equal(before, File.ReadAllBytes(fixture.SnapshotPath));
+        Assert.Empty(fixture.Events);
+    }
+
+    [Fact]
+    public void DenseGraphExceedingTheAggregateEdgeLimitIsRejectedBeforeStorage()
+    {
+        using var fixture = new PlanFixture();
+        var descriptors = Enumerable.Range(0, 100).Select(_ => fixture.NewDescriptor()).ToArray();
+        var steps = descriptors.Select((descriptor, index) => new ConfigurationPlanStep(descriptor,
+            descriptors.Take(index).Select(previous => previous.Identity.OperationId).ToArray(), TimeSpan.FromSeconds(30))).ToArray();
+        Assert.Throws<ArgumentException>(() => new ConfigurationOperationPlan(steps));
+    }
+
+    [Fact]
+    public async Task MaximumAllowedPlanAndFullConfirmedHistoryFitTheJournalCapacity()
+    {
+        using var fixture = new PlanFixture();
+        var descriptors = Enumerable.Range(0, ConfigurationOperationPlan.MaximumSteps).Select(_ => fixture.NewDescriptor()).ToArray();
+        var steps = descriptors.Select((descriptor, index) => new ConfigurationPlanStep(descriptor,
+            descriptors.Take(index == descriptors.Length - 1 ? 14 : Math.Min(index, 4))
+                .Select(previous => previous.Identity.OperationId).ToArray(), TimeSpan.FromHours(1))).ToArray();
+        var plan = new ConfigurationOperationPlan(steps);
+        Assert.Equal(ConfigurationOperationPlan.MaximumDependencyEdges, plan.Steps.Sum(step => step.Dependencies.Count));
+        await fixture.Open().BindPlanAsync(plan, Token);
+        var node = JsonNode.Parse(File.ReadAllText(fixture.SnapshotPath))!;
+        var data = node["Data"]!;
+        var entries = new JsonArray();
+        foreach (var descriptor in descriptors)
+        {
+            var intent = new OperationIntent(descriptor, new(descriptor, ObservedResourceState.Missing, new string('a', 64)));
+            entries.Add(JsonSerializer.SerializeToNode(new OperationJournalEntry(intent,
+                new(descriptor, ObservedResourceState.Satisfied, new string('b', 64)))));
+        }
+        data["Entries"] = entries;
+        node["Hash"] = ConfigurationRequest.Fingerprint(data);
+        File.WriteAllText(fixture.SnapshotPath, node.ToJsonString());
+        Assert.True(new FileInfo(fixture.SnapshotPath).Length < 4 * 1024 * 1024);
+        fixture.Open();
+    }
+
     [Fact]
     public async Task ExistingSingleOperationHistoryCannotBeAdoptedIntoANewPlan()
     {
@@ -181,7 +272,8 @@ public sealed class ConfigurationPlanTests
         await using (await journal.AcquireAsync(descriptor, Token))
             await journal.RecordIntentAsync(new(descriptor, new(descriptor, ObservedResourceState.Missing, new string('a', 64))), Token);
         var result = await fixture.RunAsync(Token);
-        Assert.False(result.Result.IsSuccess);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Result.Kind);
+        Assert.Equal(OperationErrorCode.IdentityMismatch, result.Result.Code);
         Assert.Empty(fixture.Events);
     }
 
@@ -319,6 +411,22 @@ public sealed class ConfigurationPlanTests
         var before = File.ReadAllBytes(fixture.SnapshotPath);
         Assert.Throws<OperationJournalException>(() => fixture.Open());
         Assert.Equal(before, File.ReadAllBytes(fixture.SnapshotPath));
+    }
+
+    private sealed class CapturingPlanJournal(IOperationPlanJournal inner) : IOperationPlanJournal
+    {
+        public IOperationJournal? Captured { get; private set; }
+        public Task BindPlanAsync(ConfigurationOperationPlan plan, CancellationToken token) => inner.BindPlanAsync(plan, token);
+        public IOperationJournal ForPlanStep(OperationPlanStepContext context)
+        {
+            var journal = inner.ForPlanStep(context);
+            Captured ??= journal;
+            return journal;
+        }
+        public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token) => inner.AcquireAsync(descriptor, token);
+        public Task<OperationJournalEntry?> ReadAsync(OperationDescriptor descriptor, CancellationToken token) => inner.ReadAsync(descriptor, token);
+        public Task RecordIntentAsync(OperationIntent intent, CancellationToken token) => inner.RecordIntentAsync(intent, token);
+        public Task ConfirmAsync(OperationIntent intent, OperationVerification verification, CancellationToken token) => inner.ConfirmAsync(intent, verification, token);
     }
 
     private sealed class PlanFixture : IOperationOwnership, IDisposable

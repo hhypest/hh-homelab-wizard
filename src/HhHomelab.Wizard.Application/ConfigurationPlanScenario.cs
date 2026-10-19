@@ -9,6 +9,28 @@ public sealed class OperationPlanMismatchException() : InvalidOperationException
 public interface IOperationPlanJournal : IOperationJournal
 {
     Task BindPlanAsync(ConfigurationOperationPlan plan, CancellationToken token);
+
+    IOperationJournal ForPlanStep(OperationPlanStepContext context);
+}
+
+/// <summary>Short-lived permission issued only by this assembly's graph executor after preceding
+/// steps succeeded in this run. Public callers cannot manufacture a context or reuse a finished one.</summary>
+public sealed class OperationPlanStepContext
+{
+    private readonly string fingerprint;
+    private readonly OperationDescriptor descriptor;
+    private int active = 1;
+
+    internal OperationPlanStepContext(string fingerprint, OperationDescriptor descriptor)
+    {
+        this.fingerprint = fingerprint;
+        this.descriptor = descriptor;
+    }
+
+    public bool Authorizes(string planFingerprint, OperationDescriptor expected) =>
+        Volatile.Read(ref active) != 0 && fingerprint == planFingerprint && descriptor == expected;
+
+    internal void Revoke() => Volatile.Write(ref active, 0);
 }
 
 public sealed record ConfigurationStepResult(Guid OperationId, OperationResult Result);
@@ -48,7 +70,6 @@ public sealed class ConfigurationPlanScenario(IOperationPlanJournal journal, IOp
                 || operation.Descriptor != step.Descriptor))
                 return Report(Failure(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch), results);
             await journal.BindPlanAsync(plan, token).ConfigureAwait(false);
-            var scenario = new ConfigurationOperationScenario(journal, ownership);
             foreach (var step in plan.ExecutionOrder)
             {
                 token.ThrowIfCancellationRequested();
@@ -57,7 +78,17 @@ public sealed class ConfigurationPlanScenario(IOperationPlanJournal journal, IOp
                     return Report(Failure(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch), results);
                 using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
                 budget.CancelAfter(step.Timeout);
-                var result = await scenario.ExecuteAsync(operation, budget.Token).ConfigureAwait(false);
+                var context = new OperationPlanStepContext(plan.Fingerprint, step.Descriptor);
+                OperationResult result;
+                try
+                {
+                    var scenario = new ConfigurationOperationScenario(journal.ForPlanStep(context), ownership);
+                    result = await scenario.ExecuteAsync(operation, budget.Token).ConfigureAwait(false);
+                }
+                finally
+                {
+                    context.Revoke();
+                }
                 // Pending writes already yield Unknown in the single-operation scenario. A budget
                 // expiring before intent is a read/transport deadline, not caller cancellation.
                 if (result.Kind == OperationOutcomeKind.Cancelled && !token.IsCancellationRequested && budget.IsCancellationRequested)

@@ -178,16 +178,11 @@ public sealed class NasInstallationLock
 /// lock, held for the whole Observe/Apply/Verify/confirm and released before the local lease. Any
 /// result other than holding the lock is a lease conflict for the scenario, so no step runs.</summary>
 public sealed class RemoteLockedOperationJournal(IOperationJournal inner, NasInstallationLock remote, MediaPathLayout layout,
-    InstallationOwner owner, Guid session, SshHostKey pin) : IOperationPlanJournal
+    InstallationOwner owner, Guid session, SshHostKey pin) : IOperationJournal
 {
     public InstallationLockResult? LastAcquire { get; private set; }
 
     public InstallationLockResult? LastRelease { get; private set; }
-
-    public Task BindPlanAsync(ConfigurationOperationPlan plan, CancellationToken token) =>
-        inner is IOperationPlanJournal plans
-            ? plans.BindPlanAsync(plan, token)
-            : throw new InvalidOperationException("journal.plan-unavailable");
 
     public async Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token)
     {
@@ -235,4 +230,26 @@ public sealed class RemoteLockedOperationJournal(IOperationJournal inner, NasIns
             }
         }
     }
+}
+
+/// <summary>Plan-capable variant. The constructor requires that capability statically; each scoped
+/// step journal retains the normal remote lock around Observe/Apply/Verify/confirm.</summary>
+public sealed class RemoteLockedPlanJournal(IOperationPlanJournal inner, NasInstallationLock remote, MediaPathLayout layout,
+    InstallationOwner owner, Guid session, SshHostKey pin) : IOperationPlanJournal
+{
+    private readonly RemoteLockedOperationJournal ordinary = new(inner, remote, layout, owner, session, pin);
+
+    public Task BindPlanAsync(ConfigurationOperationPlan plan, CancellationToken token) => inner.BindPlanAsync(plan, token);
+
+    public IOperationJournal ForPlanStep(OperationPlanStepContext context) =>
+        new RemoteLockedOperationJournal(inner.ForPlanStep(context), remote, layout, owner, session, pin);
+
+    public Task<IAsyncDisposable> AcquireAsync(OperationDescriptor descriptor, CancellationToken token) => ordinary.AcquireAsync(descriptor, token);
+
+    public Task<OperationJournalEntry?> ReadAsync(OperationDescriptor descriptor, CancellationToken token) => ordinary.ReadAsync(descriptor, token);
+
+    public Task RecordIntentAsync(OperationIntent intent, CancellationToken token) => ordinary.RecordIntentAsync(intent, token);
+
+    public Task ConfirmAsync(OperationIntent intent, OperationVerification verification, CancellationToken token) =>
+        ordinary.ConfirmAsync(intent, verification, token);
 }

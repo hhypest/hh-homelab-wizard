@@ -25,6 +25,10 @@ public sealed class ConfigurationOperationScenario(IOperationJournal journal, IO
             await using var lease = await journal.AcquireAsync(descriptor, token).ConfigureAwait(false);
             return await ExecuteCoreAsync(operation, descriptor, state, token).ConfigureAwait(false);
         }
+        catch (OperationPlanMismatchException) when (!state.HasPendingIntent)
+        {
+            return Failure(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch);
+        }
         catch (OperationLeaseUnavailableException) when (!state.HasPendingIntent)
         {
             return Failure(OperationOutcomeKind.Conflict, OperationErrorCode.OperationInProgress);
