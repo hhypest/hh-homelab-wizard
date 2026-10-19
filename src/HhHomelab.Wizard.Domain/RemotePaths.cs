@@ -197,8 +197,10 @@ public sealed record RemotePathObservation(
 }
 
 /// <summary>Raw facts of one inspection: the device of "/" (to tell a mounted DSM volume from a
-/// leftover mount-point directory on the system filesystem) and one observation per layout entry.</summary>
-public sealed record RemotePathFacts(long RootDevice, IReadOnlyList<RemotePathObservation> Observations);
+/// leftover mount-point directory on the system filesystem), one observation per layout entry and
+/// the ownership marker below the configuration root, all from the same SSH session.</summary>
+public sealed record RemotePathFacts(long RootDevice, IReadOnlyList<RemotePathObservation> Observations,
+    OwnershipObservation Ownership);
 
 /// <summary>Immutable read-only observation of one layout, bound to the approved host key, the SSH
 /// principal (access and visibility depend on the user) and the build-time profile. It does not
@@ -219,6 +221,8 @@ public sealed class RemotePathSnapshot
 
     public IReadOnlyList<RemotePathObservation> Observations { get; }
 
+    public OwnershipObservation Ownership { get; }
+
     public string EnvironmentFingerprint { get; }
 
     public RemotePathSnapshot(SshConnectionTarget target, MediaPathLayout layout, SshHostKey hostKey,
@@ -235,6 +239,8 @@ public sealed class RemotePathSnapshot
             throw new ArgumentException("paths.endpoint.invalid");
         if (facts.RootDevice < 0)
             throw new ArgumentException("paths.root-device.invalid");
+        if (facts.Ownership is not { IsValid: true })
+            throw new ArgumentException("paths.ownership.invalid");
         var items = facts.Observations.Take(layout.Entries.Count + 1).ToArray();
         if (items.Any(item => item is not { IsValid: true }))
             throw new ArgumentException("paths.observation.invalid");
@@ -249,10 +255,11 @@ public sealed class RemotePathSnapshot
         ObservedAt = observedAt.ToUniversalTime();
         RootDevice = facts.RootDevice;
         Observations = Array.AsReadOnly(items);
+        Ownership = facts.Ownership;
         EnvironmentFingerprint = ConfigurationRequest.Fingerprint(new
         {
             HostKey, PrincipalFingerprint, ProfileFingerprint, layout.DataRoot, layout.ConfigurationRoot,
-            RootDevice, Observations = items,
+            RootDevice, Observations = items, Ownership,
         });
     }
 
@@ -275,12 +282,15 @@ public sealed class RemotePathSnapshot
 /// POSIX mode bits; they stay NotChecked/Unverified until the hardware and profile contracts exist.</summary>
 public static class RemotePathAssessment
 {
-    public static IReadOnlyList<PreflightCheck> Evaluate(RemotePathSnapshot snapshot)
+    /// <summary>Without an expected owner any marker or non-empty configuration root blocks.</summary>
+    public static IReadOnlyList<PreflightCheck> Evaluate(RemotePathSnapshot snapshot) => Evaluate(snapshot, null);
+
+    public static IReadOnlyList<PreflightCheck> Evaluate(RemotePathSnapshot snapshot, InstallationOwner? expected)
     {
         var checks = new List<PreflightCheck>();
         foreach (var observation in snapshot.Observations)
             checks.Add(PathCheck(snapshot.Layout, snapshot.RootDevice, observation));
-        checks.Add(ConfigurationContentsCheck(snapshot.Observation(RemotePathRole.ConfigurationRoot)));
+        checks.Add(InstallationOwnershipAssessment.Evaluate(snapshot, expected));
         checks.Add(HardlinkDeviceCheck(snapshot));
         checks.Add(new("paths.permissions", PreflightCheckStatus.Unverified));
         checks.Add(new("paths.dsm-acl", PreflightCheckStatus.NotChecked));
@@ -314,19 +324,6 @@ public static class RemotePathAssessment
         var path = layout.Entries.Single(entry => entry.Role == observation.Role).HostPath;
         var components = path[1..].Split('/').Length;
         return components - observation.AncestorDepth >= 1;
-    }
-
-    /// <summary>A non-empty configuration root may hold application databases or a foreign stack.
-    /// Only ownership evidence (#51–#53) may later allow continuing an own session.</summary>
-    private static PreflightCheck ConfigurationContentsCheck(RemotePathObservation observation)
-    {
-        if (observation.Kind == RemotePathKind.Missing)
-            return new("paths.configuration-root.absent", PreflightCheckStatus.Passed);
-        if (observation.Contents == RemotePathContents.Empty)
-            return new("paths.configuration-root.empty", PreflightCheckStatus.Passed);
-        if (observation.Contents == RemotePathContents.NotEmpty)
-            return new("paths.configuration-root.ownership-required", PreflightCheckStatus.Blocking);
-        return new("paths.configuration-root.contents-unavailable", PreflightCheckStatus.Blocking);
     }
 
     /// <summary>Downloads and the library must share one filesystem device (one DSM shared folder /

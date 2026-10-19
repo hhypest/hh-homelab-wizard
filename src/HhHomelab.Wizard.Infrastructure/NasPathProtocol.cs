@@ -1,16 +1,18 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using HhHomelab.Wizard.Domain;
 
 namespace HhHomelab.Wizard.Infrastructure;
 
 /// <summary>Fixed read-only path inspection. The layout travels as a stdin request; the response
-/// carries only typed facts per requested index and never echoes paths or directory names.</summary>
+/// carries only typed facts per requested index plus the ownership marker of the configuration
+/// root as hex, and never echoes paths or directory names.</summary>
 internal static class NasPathProtocol
 {
-    internal const string RequestMarker = "hh-homelab-wizard:nas-paths-request:v1";
+    internal const string RequestMarker = "hh-homelab-wizard:nas-paths-request:v2";
 
-    internal const string ResponseMarker = "hh-homelab-wizard:nas-paths:v1";
+    internal const string ResponseMarker = "hh-homelab-wizard:nas-paths:v2";
 
     private static readonly Lazy<string> EmbeddedCommand = new(ReadCommand);
 
@@ -30,6 +32,7 @@ internal static class NasPathProtocol
         builder.Append(RequestMarker).Append('\n');
         foreach (var entry in layout.Entries)
             builder.Append("path=").Append(entry.HostPath).Append('\n');
+        builder.Append("owner=").Append(layout.ConfigurationRoot).Append('\n');
         builder.Append("end\n");
         return builder.ToString();
     }
@@ -39,7 +42,8 @@ internal static class NasPathProtocol
         if (exitCode != 0 || output.Length > SshProbeOutput.MaximumBytes)
             throw Invalid();
         var lines = output.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n');
-        if (lines.Length != layout.Entries.Count + 3)
+        var entriesEnd = layout.Entries.Count + 2;
+        if (lines.Length < entriesEnd + 2)
             throw Invalid();
         if (lines[0] != ResponseMarker || lines[^1] != "end")
             throw Invalid();
@@ -55,7 +59,46 @@ internal static class NasPathProtocol
                 throw Invalid();
             observations.Add(observation);
         }
-        return new(rootDevice, observations.AsReadOnly());
+        var ownership = Ownership(lines[entriesEnd..^1]);
+        return new(rootDevice, observations.AsReadOnly(), ownership);
+    }
+
+    /// <summary>A marker that is present but not a valid schema-1 object is an observation
+    /// (Invalid), not a protocol error; malformed framing or hex rejects the whole response.</summary>
+    private static OwnershipObservation Ownership(string[] lines)
+    {
+        const string prefix = "marker=";
+        if (lines.Length == 0 || !lines[0].StartsWith(prefix, StringComparison.Ordinal))
+            throw Invalid();
+        var state = lines[0][prefix.Length..];
+        if (state != "present")
+        {
+            if (lines.Length != 1)
+                throw Invalid();
+            return state switch
+            {
+                "absent" => new(OwnershipMarkerState.Absent),
+                "invalid" => new(OwnershipMarkerState.Invalid),
+                "redirected" => new(OwnershipMarkerState.Redirected),
+                "unavailable" => new(OwnershipMarkerState.Unavailable),
+                _ => throw Invalid(),
+            };
+        }
+        const string contentPrefix = "marker-content=";
+        if (lines.Length != 2 || !lines[1].StartsWith(contentPrefix, StringComparison.Ordinal))
+            throw Invalid();
+        var bytes = Hex(lines[1][contentPrefix.Length..]);
+        var marker = OwnershipMarkerJson.Parse(bytes);
+        return marker is null ? new(OwnershipMarkerState.Invalid) : new(OwnershipMarkerState.Present, marker);
+    }
+
+    private static byte[] Hex(string value)
+    {
+        if (value.Length > OwnershipMarker.MaximumBytes * 2 || value.Length % 2 != 0)
+            throw Invalid();
+        if (!value.All(char.IsAsciiHexDigitLower))
+            throw Invalid();
+        return Convert.FromHexString(value);
     }
 
     private static RemotePathObservation Entry(RemotePathRole role, string line)
@@ -116,4 +159,43 @@ internal static class NasPathProtocol
     }
 
     private static InvalidDataException Invalid() => new("paths.response.invalid");
+}
+
+/// <summary>Strict marker format: one UTF-8 JSON object with exactly schema, installationId and
+/// profileFingerprint. Duplicates, unknown properties, trailing data or wrong types are not a marker.</summary>
+internal static class OwnershipMarkerJson
+{
+    private static readonly string[] Properties = ["schema", "installationId", "profileFingerprint"];
+
+    internal static OwnershipMarker? Parse(byte[] bytes)
+    {
+        try
+        {
+            var text = new UTF8Encoding(false, true).GetString(bytes);
+            using var document = JsonDocument.Parse(text, new JsonDocumentOptions { MaxDepth = 4 });
+            return Marker(document.RootElement);
+        }
+        catch (Exception exception) when (exception is JsonException or DecoderFallbackException or FormatException or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private static OwnershipMarker? Marker(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object)
+            return null;
+        var names = root.EnumerateObject().Select(property => property.Name).ToArray();
+        if (names.Length != Properties.Length || !names.Order().SequenceEqual(Properties.Order()))
+            return null;
+        if (!root.GetProperty("schema").TryGetInt32(out var schema))
+            return null;
+        var installation = root.GetProperty("installationId").GetString();
+        if (!Guid.TryParseExact(installation, "D", out var installationId))
+            return null;
+        var profile = root.GetProperty("profileFingerprint").GetString();
+        var marker = new OwnershipMarker(schema, installationId, profile ?? "");
+        return marker.IsValid ? marker : null;
+    }
+
 }

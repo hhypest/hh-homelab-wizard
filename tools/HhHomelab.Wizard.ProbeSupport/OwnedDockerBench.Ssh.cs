@@ -186,6 +186,25 @@ public sealed partial class OwnedDockerBench
             + "ln -sfn /volume1/data /volume1/link; chmod 0700 /volume1/locked /volume1/lockedleaf; printf 'x\\n' > /volume1/file"], token);
     }
 
+    /// <summary>Ownership markers below /volume1/docker: own and foreign JSON arrive on stdin, plus a
+    /// corrupt marker, a symlinked marker directory and a marker directory the SSH user cannot search.</summary>
+    public async Task WriteSshOwnershipMarkersAsync(string ownMarker, string foreignMarker, CancellationToken token)
+    {
+        await RequireSshOwnershipAsync(token);
+        var script = "set -eu; IFS= read -r own; IFS= read -r foreign; "
+            + "for name in owned foreign corrupt linked locked; do mkdir -p /volume1/docker/$name; done; "
+            + "mkdir -p /volume1/docker/owned/.hh-homelab-wizard /volume1/docker/foreign/.hh-homelab-wizard "
+            + "/volume1/docker/corrupt/.hh-homelab-wizard /volume1/docker/locked/.hh-homelab-wizard; "
+            + "printf '%s' \"$own\" > /volume1/docker/owned/.hh-homelab-wizard/installation.json; "
+            + "printf 'synthetic\\n' > /volume1/docker/owned/qbittorrent.conf; "
+            + "printf '%s' \"$foreign\" > /volume1/docker/foreign/.hh-homelab-wizard/installation.json; "
+            + "printf '{' > /volume1/docker/corrupt/.hh-homelab-wizard/installation.json; "
+            + "ln -sfn /volume1/docker/owned/.hh-homelab-wizard /volume1/docker/linked/.hh-homelab-wizard; "
+            + "printf '%s' \"$own\" > /volume1/docker/locked/.hh-homelab-wizard/installation.json; "
+            + "chmod 0700 /volume1/docker/locked/.hh-homelab-wizard";
+        await SshInputAsync(["exec", "--interactive", Container, "sh", "-c", script], ownMarker + "\n" + foreignMarker + "\n", token);
+    }
+
     /// <summary>True when any file appeared in the SSH user's home, e.g. from an evaluated path.</summary>
     public async Task<bool> SshHomeChangedAsync(CancellationToken token)
     {
