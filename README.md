@@ -49,6 +49,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 - [Граф конфигурационных операций и recovery](docs/adr/0020-configuration-plan-recovery.md), [протокол](docs/testing/2026-10-19-plan-recovery.md): зависимости, неизменяемый план в журнале schema 2 и повторное наблюдение после перезапуска; прежние журналы schema 1 автоматически не мигрируются.
 - [Создание конфигурационных каталогов](docs/adr/0024-configuration-directories.md) и [протокол](docs/testing/2026-10-19-configuration-directories.md): каталоги монтирования под собственным маркером, существующие не меняются.
 - [Удалённая блокировка установки](docs/adr/0019-remote-installation-lock.md) и [протокол](docs/testing/2026-10-19-remote-lock.md): второй мастер не меняет ту же установку; чужая блокировка не перехватывается.
+- [Compose/.env qBittorrent и исполняемый граф](docs/adr/0023-qbittorrent-configuration-graph.md) и [протокол](docs/testing/2026-10-19-qbittorrent-configuration-graph.md): маркер → файлы из плана, возобновление новым процессом; контейнер ещё не запускается.
 - [Создание конфигурационного файла](docs/adr/0022-configuration-file-delivery.md) и [протокол](docs/testing/2026-10-19-configuration-file-delivery.md): только создание под собственным маркером; ручные изменения не перезаписываются, замена и компенсация ещё не реализованы.
 
 ## Лицензии
