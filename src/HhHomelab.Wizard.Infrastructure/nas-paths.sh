@@ -13,15 +13,19 @@ unavailable() {
     printf 'entry=unavailable:0:unavailable:-:-:-:-:unavailable\n'
 }
 
+# Counts bytes rather than capturing names: a name made only of newlines must not look empty.
 contents_of() {
     if [ ! -r "$1" ] || [ ! -x "$1" ]; then
         printf 'unavailable'
     elif ! ls -A "$1" >/dev/null 2>&1; then
         printf 'unavailable'
-    elif [ -n "$(ls -A "$1" | head -n 1)" ]; then
-        printf 'not-empty'
     else
-        printf 'empty'
+        bytes="$(ls -A "$1" | head -c 1 | wc -c)"
+        if [ $((bytes)) -gt 0 ]; then
+            printf 'not-empty'
+        else
+            printf 'empty'
+        fi
     fi
 }
 
@@ -68,7 +72,12 @@ inspect() {
 
 IFS= read -r header || fail
 [ "$header" = 'hh-homelab-wizard:nas-paths-request:v1' ] || fail
+if ! root_device="$(stat -c '%d' / 2>/dev/null)"; then
+    fail
+fi
 printf 'hh-homelab-wizard:nas-paths:v1\n'
+# A path on the device of "/" sits in a leftover mount-point directory, not on a mounted volume.
+printf 'root-device=%s\n' "$root_device"
 count=0
 while IFS= read -r line; do
     if [ "$line" = end ]; then

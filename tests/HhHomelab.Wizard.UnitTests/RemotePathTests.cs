@@ -58,6 +58,60 @@ public sealed class RemotePathTests
     }
 
     [Fact]
+    public void ComponentLimitCountsUtf8BytesNotCharacters()
+    {
+        Assert.True(MediaPathLayout.IsVolumePath("/volume1/" + new string('ф', 127)));
+        Assert.False(MediaPathLayout.IsVolumePath("/volume1/" + new string('ф', 128)));
+        Assert.True(MediaPathLayout.IsVolumePath("/volume1/" + new string('a', 200)));
+        var unpairedSurrogate = "/volume1/bad" + (char)0xD800 + "name";
+        Assert.False(MediaPathLayout.IsVolumePath(unpairedSurrogate));
+    }
+
+    [Fact]
+    public void DeepestGeneratedEntryOfAMaximalMissingRootIsStillAValidObservation()
+    {
+        var root = "/volume1/" + string.Join('/', Enumerable.Repeat("a", MediaPathLayout.MaximumComponents - 1));
+        var layout = new MediaPathLayout(root, "/volume1/docker");
+        var deepest = layout.Entries.Single(entry => entry.Role == RemotePathRole.TorrentsMovies);
+        Assert.Equal(MediaPathLayout.MaximumEntryComponents, deepest.HostPath[1..].Split('/').Length);
+        var observation = new RemotePathObservation(RemotePathRole.TorrentsMovies, RemotePathKind.Missing,
+            MediaPathLayout.MaximumEntryComponents - 1, RemotePathCanonical.Same, 41, 0, 0, 493, RemotePathContents.NotApplicable);
+        Assert.True(observation.IsValid);
+        Assert.False((observation with { AncestorDepth = MediaPathLayout.MaximumEntryComponents + 1 }).IsValid);
+    }
+
+    [Fact]
+    public void LeftoverMountPointOnTheSystemDeviceIsNotAMountedVolume()
+    {
+        var unmounted = PathData.Output(media: "entry=missing:2:same:2:0:0:755:not-applicable");
+        var checks = RemotePathAssessment.Evaluate(PathData.Snapshot(unmounted));
+        Assert.Contains(checks, check => check.Code == "paths.media-movies.volume-unmounted" && check.Status == PreflightCheckStatus.Blocking);
+        var allOnRoot = PathData.Output().Replace(":41:", ":2:", StringComparison.Ordinal);
+        var rootChecks = RemotePathAssessment.Evaluate(PathData.Snapshot(allOnRoot));
+        Assert.Contains(rootChecks, check => check.Code == "paths.data-root.volume-unmounted" && check.Status == PreflightCheckStatus.Blocking);
+        Assert.DoesNotContain(rootChecks, check => check.Code == "paths.data-root" && check.Status == PreflightCheckStatus.Passed);
+    }
+
+    [Fact]
+    public void ExistingDirectoryThatCannotBeListedIsBlockedNotPassed()
+    {
+        var locked = PathData.Output(media: "entry=directory:0:same:41:0:0:700:unavailable");
+        var checks = RemotePathAssessment.Evaluate(PathData.Snapshot(locked));
+        Assert.Contains(checks, check => check.Code == "paths.media-movies.unavailable" && check.Status == PreflightCheckStatus.Blocking);
+        Assert.DoesNotContain(checks, check => check.Code == "paths.media-movies" && check.Status == PreflightCheckStatus.Passed);
+    }
+
+    [Fact]
+    public void SnapshotBindingRequiresTheSameSshPrincipal()
+    {
+        var snapshot = PathData.Snapshot(PathData.Output());
+        Assert.True(snapshot.IsBoundTo(PreflightData.Target, PreflightData.Pin, PreflightData.Profile));
+        Assert.False(snapshot.IsBoundTo(PreflightData.Target with { Username = "root" }, PreflightData.Pin, PreflightData.Profile));
+        Assert.False(snapshot.IsBoundTo(PreflightData.Target, PreflightData.OtherPin, PreflightData.Profile));
+        Assert.False(snapshot.IsBoundTo(PreflightData.Target, PreflightData.Pin, new string('b', 64)));
+    }
+
+    [Fact]
     public void SiblingPrefixIsNotAnOverlap()
     {
         var layout = new MediaPathLayout("/volume1/data", "/volume1/data-config");
@@ -157,6 +211,9 @@ public sealed class RemotePathTests
     [InlineData("entry=directory:0:same:41:1026:100:755:empty", "entry=missing:0:same:41:1026:100:755:not-applicable")]
     [InlineData("entry=directory:0:same:41:1026:100:755:empty", "entry=directory:0:same:41:1026:100:755:empty\nentry=directory:0:same:41:1026:100:755:empty")]
     [InlineData("hh-homelab-wizard:nas-paths:v1", "hh-homelab-wizard:nas-preflight:v2")]
+    [InlineData("root-device=2", "root-device=")]
+    [InlineData("root-device=2", "root-device=-2")]
+    [InlineData("root-device=2\n", "")]
     [InlineData("end", "")]
     public void MalformedOrInconsistentEntriesRejectTheWholeResponse(string original, string replacement)
     {
@@ -190,18 +247,28 @@ public sealed class RemotePathTests
         var created = PathData.Output(configuration: "entry=directory:0:same:41:1026:100:755:empty");
         Assert.NotEqual(baseline, PathData.Snapshot(created).EnvironmentFingerprint);
         var otherLayout = new MediaPathLayout("/volume1/data", "/volume1/docker/other");
-        var observations = NasPathProtocol.Parse(otherLayout, 0, PathData.Output());
-        var moved = new RemotePathSnapshot(otherLayout, PreflightData.Pin, PreflightData.Profile, PreflightData.Now, observations);
+        var facts = NasPathProtocol.Parse(otherLayout, 0, PathData.Output());
+        var moved = new RemotePathSnapshot(PreflightData.Target, otherLayout, PreflightData.Pin, PreflightData.Profile, PreflightData.Now, facts);
         Assert.NotEqual(baseline, moved.EnvironmentFingerprint);
+        var otherUser = PreflightData.Target with { Username = "other-synthetic-user" };
+        var asOtherUser = new RemotePathSnapshot(otherUser, PathData.Layout, PreflightData.Pin, PreflightData.Profile, PreflightData.Now,
+            NasPathProtocol.Parse(PathData.Layout, 0, PathData.Output()));
+        Assert.NotEqual(baseline, asOtherUser.EnvironmentFingerprint);
     }
 
     [Fact]
     public void SnapshotRequiresOneObservationPerLayoutEntryInOrder()
     {
-        var observations = NasPathProtocol.Parse(PathData.Layout, 0, PathData.Output()).ToList();
-        observations.Reverse();
-        Assert.Throws<ArgumentException>(() => new RemotePathSnapshot(PathData.Layout, PreflightData.Pin, PreflightData.Profile, PreflightData.Now, observations));
-        Assert.Throws<ArgumentException>(() => new RemotePathSnapshot(PathData.Layout, PreflightData.Pin, PreflightData.Profile, PreflightData.Now, observations.Skip(1)));
+        var facts = NasPathProtocol.Parse(PathData.Layout, 0, PathData.Output());
+        var reversed = facts.Observations.Reverse().ToArray();
+        Assert.Throws<ArgumentException>(() => Snapshot(facts with { Observations = reversed }));
+        Assert.Throws<ArgumentException>(() => Snapshot(facts with { Observations = facts.Observations.Skip(1).ToArray() }));
+        Assert.Throws<ArgumentException>(() => Snapshot(facts with { RootDevice = -1 }));
+        var otherEndpoint = new SshConnectionTarget("other.example.invalid", 22, "synthetic-user");
+        Assert.Throws<ArgumentException>(() => new RemotePathSnapshot(otherEndpoint, PathData.Layout, PreflightData.Pin, PreflightData.Profile, PreflightData.Now, facts));
+
+        static RemotePathSnapshot Snapshot(RemotePathFacts facts) => new(PreflightData.Target, PathData.Layout,
+            PreflightData.Pin, PreflightData.Profile, PreflightData.Now, facts);
     }
 
     [Theory]
@@ -261,7 +328,7 @@ public sealed class RemotePathTests
             {
                 entered.TrySetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);
-                return [];
+                return new(PathData.RootDevice, []);
             },
         };
         var probe = Probe(wire);
@@ -300,7 +367,7 @@ public sealed class RemotePathTests
 
         internal MediaPathLayout? Layout { get; private set; }
 
-        internal Func<CancellationToken, Task<IReadOnlyList<RemotePathObservation>>>? Read { get; init; }
+        internal Func<CancellationToken, Task<RemotePathFacts>>? Read { get; init; }
 
         public Task ConnectAsync(Func<string, byte[], bool> acceptKey, CancellationToken token)
         {
@@ -310,7 +377,7 @@ public sealed class RemotePathTests
             return Task.CompletedTask;
         }
 
-        public Task<IReadOnlyList<RemotePathObservation>> ReadPathsAsync(MediaPathLayout layout, CancellationToken token)
+        public Task<RemotePathFacts> ReadPathsAsync(MediaPathLayout layout, CancellationToken token)
         {
             ReadCount++;
             Layout = layout;
@@ -326,8 +393,11 @@ internal static class PathData
     internal static readonly MediaPathLayout Layout = new("/volume1/data", "/volume1/docker/hh-homelab");
 
     /// <summary>Fresh layout: data root exists and is empty on device 41, everything else is missing.</summary>
+    internal const long RootDevice = 2;
+
     internal static string Output(string? media = null, string? configuration = null) => string.Join("\n",
         "hh-homelab-wizard:nas-paths:v1",
+        "root-device=2",
         "entry=directory:0:same:41:1026:100:755:empty",
         "entry=missing:1:same:41:1026:100:755:not-applicable",
         "entry=missing:2:same:41:1026:100:755:not-applicable",
@@ -338,6 +408,6 @@ internal static class PathData
         configuration ?? "entry=missing:2:same:42:0:0:755:not-applicable",
         "end") + "\n";
 
-    internal static RemotePathSnapshot Snapshot(string output) => new(Layout, PreflightData.Pin, PreflightData.Profile,
-        PreflightData.Now, NasPathProtocol.Parse(Layout, 0, output));
+    internal static RemotePathSnapshot Snapshot(string output) => new(PreflightData.Target, Layout, PreflightData.Pin,
+        PreflightData.Profile, PreflightData.Now, NasPathProtocol.Parse(Layout, 0, output));
 }

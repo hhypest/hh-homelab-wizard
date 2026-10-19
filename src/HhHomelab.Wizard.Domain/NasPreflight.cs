@@ -256,7 +256,8 @@ public sealed class NasPreflightSnapshot
         return now >= CompletedAt && now - StartedAt <= maximumAge;
     }
 
-    private static string PrincipalIdentity(SshConnectionTarget target) =>
+    /// <summary>Endpoint plus SSH user: observed access depends on the principal, not only the host.</summary>
+    internal static string PrincipalIdentity(SshConnectionTarget target) =>
         ConfigurationRequest.Fingerprint(new { target.EndpointFingerprint, target.Username });
 
     public override string ToString() => "preflight.snapshot";

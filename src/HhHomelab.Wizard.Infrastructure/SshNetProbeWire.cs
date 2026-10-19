@@ -36,7 +36,7 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         return NasPreflightProtocol.Parse(result.ExitCode, result.Output);
     }
 
-    public async Task<IReadOnlyList<RemotePathObservation>> ReadPathsAsync(MediaPathLayout layout, CancellationToken token)
+    public async Task<RemotePathFacts> ReadPathsAsync(MediaPathLayout layout, CancellationToken token)
     {
         var request = NasPathProtocol.Request(layout);
         var result = await ExecuteAsync(NasPathProtocol.Command, retainOutput: true, token, request).ConfigureAwait(false);

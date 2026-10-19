@@ -64,11 +64,11 @@ public sealed class NasPathProbe : INasPathProbe
             await wire.ConnectAsync(trust.Accept, budget).ConfigureAwait(false);
             if (!trust.Accepted)
                 return RemotePathResult.Failed(trust.Failure ?? SshProbeResult.Failed(SshProbeStatus.InvalidResponse));
-            var observations = await wire.ReadPathsAsync(layout, budget).ConfigureAwait(false);
+            var facts = await wire.ReadPathsAsync(layout, budget).ConfigureAwait(false);
             budget.ThrowIfCancellationRequested();
             if (trust.Failure is not null)
                 return RemotePathResult.Failed(trust.Failure);
-            var snapshot = new RemotePathSnapshot(layout, approvedKey!, PinnedRuntimeProfile.Fingerprint, clock.GetUtcNow(), observations);
+            var snapshot = new RemotePathSnapshot(target, layout, approvedKey!, PinnedRuntimeProfile.Fingerprint, clock.GetUtcNow(), facts);
             return RemotePathResult.Observed(snapshot);
         }
         catch (Exception exception)
@@ -90,5 +90,5 @@ internal interface INasPathWire : IDisposable
 {
     Task ConnectAsync(Func<string, byte[], bool> acceptKey, CancellationToken token);
 
-    Task<IReadOnlyList<RemotePathObservation>> ReadPathsAsync(MediaPathLayout layout, CancellationToken token);
+    Task<RemotePathFacts> ReadPathsAsync(MediaPathLayout layout, CancellationToken token);
 }

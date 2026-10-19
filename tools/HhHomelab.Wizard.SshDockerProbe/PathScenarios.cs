@@ -3,7 +3,7 @@ using HhHomelab.Wizard.Infrastructure;
 using HhHomelab.Wizard.ProbeSupport;
 
 /// <summary>Read-only path inspection through the real OpenSSH server as an unprivileged user.
-/// The container writable layer is one device; device mismatch stays a fixture scenario.</summary>
+/// /volume1 is one tmpfs device; downloads/library device mismatch stays a fixture scenario.</summary>
 internal static class PathScenarios
 {
     internal static async Task RunAsync(OwnedDockerBench bench, SshProbeCredentials credentials, SshHostKey pin, CancellationToken token)
@@ -46,6 +46,14 @@ internal static class PathScenarios
 
         var absent = RemotePathAssessment.Evaluate(await InspectAsync(bench, credentials, pin, new("/volume2/data", "/volume2/docker"), token));
         Require(Has(absent, "paths.data-root.volume-missing", PreflightCheckStatus.Blocking), "paths.volume-missing");
+
+        var leftover = RemotePathAssessment.Evaluate(await InspectAsync(bench, credentials, pin, new("/volume3/data", "/volume3/docker"), token));
+        Require(Has(leftover, "paths.data-root.volume-unmounted", PreflightCheckStatus.Blocking), "paths.leftover-mount-point");
+        Require(Has(leftover, "paths.configuration-root.volume-unmounted", PreflightCheckStatus.Blocking), "paths.leftover-ancestor");
+
+        var unlisted = RemotePathAssessment.Evaluate(await InspectAsync(bench, credentials, pin, new("/volume1/lockedleaf", "/volume1/docker/newline"), token));
+        Require(Has(unlisted, "paths.data-root.unavailable", PreflightCheckStatus.Blocking), "paths.existing-unsearchable");
+        Require(Has(unlisted, "paths.configuration-root.ownership-required", PreflightCheckStatus.Blocking), "paths.newline-name-not-empty");
     }
 
     private static async Task VerifyInjectionAsync(OwnedDockerBench bench, SshProbeCredentials credentials, SshHostKey pin, CancellationToken token)

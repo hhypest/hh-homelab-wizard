@@ -22,8 +22,14 @@ public sealed class MediaPathLayout
 {
     public const int MaximumPathLength = 240;
 
-    /// <summary>Keeps every ancestor depth inside the observation contract.</summary>
     public const int MaximumComponents = 32;
+
+    /// <summary>Deepest generated entry: a maximal root plus the two fixed levels such as torrents/movies.</summary>
+    public const int MaximumEntryComponents = MaximumComponents + 2;
+
+    public const int MaximumComponentBytes = 255;
+
+    private static readonly System.Text.UTF8Encoding StrictUtf8 = new(false, true);
 
     private static readonly (RemotePathRole Role, string Relative)[] DataDirectories =
     [
@@ -79,9 +85,22 @@ public sealed class MediaPathLayout
     {
         if (component is "" or "." or "..")
             return false;
-        if (component.Length > 255)
+        if (component.Any(character => char.IsControl(character) || character == '\\'))
             return false;
-        return !component.Any(character => char.IsControl(character) || character == '\\');
+        return EncodedLength(component) is > 0 and <= MaximumComponentBytes;
+    }
+
+    /// <summary>Filesystem limits count UTF-8 bytes; an unpaired surrogate cannot be encoded at all.</summary>
+    private static int EncodedLength(string component)
+    {
+        try
+        {
+            return StrictUtf8.GetByteCount(component);
+        }
+        catch (System.Text.EncoderFallbackException)
+        {
+            return -1;
+        }
     }
 
     private static bool Overlaps(string first, string second)
@@ -147,7 +166,7 @@ public sealed record RemotePathObservation(
                 return false;
             if (!Enum.IsDefined(Canonical) || !Enum.IsDefined(Contents))
                 return false;
-            if (AncestorDepth is < 0 or > MediaPathLayout.MaximumComponents)
+            if (AncestorDepth is < 0 or > MediaPathLayout.MaximumEntryComponents)
                 return false;
             return Kind == RemotePathKind.Unavailable ? UnavailableShape() : ObservedShape();
         }
@@ -177,30 +196,46 @@ public sealed record RemotePathObservation(
     }
 }
 
-/// <summary>Immutable read-only observation of one layout, bound to the approved host key and the
-/// build-time profile. It does not create, chmod or adopt anything and is not an Apply permission.</summary>
+/// <summary>Raw facts of one inspection: the device of "/" (to tell a mounted DSM volume from a
+/// leftover mount-point directory on the system filesystem) and one observation per layout entry.</summary>
+public sealed record RemotePathFacts(long RootDevice, IReadOnlyList<RemotePathObservation> Observations);
+
+/// <summary>Immutable read-only observation of one layout, bound to the approved host key, the SSH
+/// principal (access and visibility depend on the user) and the build-time profile. It does not
+/// create, chmod or adopt anything and is not an Apply permission.</summary>
 public sealed class RemotePathSnapshot
 {
     public MediaPathLayout Layout { get; }
 
     public SshHostKey HostKey { get; }
 
+    public string PrincipalFingerprint { get; }
+
     public string ProfileFingerprint { get; }
 
     public DateTimeOffset ObservedAt { get; }
+
+    public long RootDevice { get; }
 
     public IReadOnlyList<RemotePathObservation> Observations { get; }
 
     public string EnvironmentFingerprint { get; }
 
-    public RemotePathSnapshot(MediaPathLayout layout, SshHostKey hostKey, string profileFingerprint,
-        DateTimeOffset observedAt, IEnumerable<RemotePathObservation> observations)
+    public RemotePathSnapshot(SshConnectionTarget target, MediaPathLayout layout, SshHostKey hostKey,
+        string profileFingerprint, DateTimeOffset observedAt, RemotePathFacts facts)
     {
         ArgumentNullException.ThrowIfNull(layout);
-        ArgumentNullException.ThrowIfNull(observations);
+        ArgumentNullException.ThrowIfNull(facts);
+        ArgumentNullException.ThrowIfNull(facts.Observations);
+        if (target is not { IsValid: true })
+            throw new ArgumentException("paths.target.invalid");
         if (hostKey is not { IsValid: true } || !ResourceIdentity.IsFingerprint(profileFingerprint))
             throw new ArgumentException("paths.binding.invalid");
-        var items = observations.Take(layout.Entries.Count + 1).ToArray();
+        if (hostKey.EndpointFingerprint != target.EndpointFingerprint)
+            throw new ArgumentException("paths.endpoint.invalid");
+        if (facts.RootDevice < 0)
+            throw new ArgumentException("paths.root-device.invalid");
+        var items = facts.Observations.Take(layout.Entries.Count + 1).ToArray();
         if (items.Any(item => item is not { IsValid: true }))
             throw new ArgumentException("paths.observation.invalid");
         var roles = items.Select(item => item.Role);
@@ -209,13 +244,26 @@ public sealed class RemotePathSnapshot
 
         Layout = layout;
         HostKey = hostKey;
+        PrincipalFingerprint = NasPreflightSnapshot.PrincipalIdentity(target);
         ProfileFingerprint = profileFingerprint;
         ObservedAt = observedAt.ToUniversalTime();
+        RootDevice = facts.RootDevice;
         Observations = Array.AsReadOnly(items);
         EnvironmentFingerprint = ConfigurationRequest.Fingerprint(new
         {
-            HostKey, ProfileFingerprint, layout.DataRoot, layout.ConfigurationRoot, Observations = items,
+            HostKey, PrincipalFingerprint, ProfileFingerprint, layout.DataRoot, layout.ConfigurationRoot,
+            RootDevice, Observations = items,
         });
+    }
+
+    /// <summary>True only for the same endpoint, SSH user, host key and profile; never a reason to skip a fresh inspection before Apply.</summary>
+    public bool IsBoundTo(SshConnectionTarget target, SshHostKey approvedKey, string profileFingerprint)
+    {
+        if (target is not { IsValid: true })
+            return false;
+        if (PrincipalFingerprint != NasPreflightSnapshot.PrincipalIdentity(target))
+            return false;
+        return HostKey == approvedKey && ProfileFingerprint == profileFingerprint;
     }
 
     public RemotePathObservation Observation(RemotePathRole role) => Observations.Single(item => item.Role == role);
@@ -231,7 +279,7 @@ public static class RemotePathAssessment
     {
         var checks = new List<PreflightCheck>();
         foreach (var observation in snapshot.Observations)
-            checks.Add(PathCheck(snapshot.Layout, observation));
+            checks.Add(PathCheck(snapshot.Layout, snapshot.RootDevice, observation));
         checks.Add(ConfigurationContentsCheck(snapshot.Observation(RemotePathRole.ConfigurationRoot)));
         checks.Add(HardlinkDeviceCheck(snapshot));
         checks.Add(new("paths.permissions", PreflightCheckStatus.Unverified));
@@ -239,7 +287,7 @@ public static class RemotePathAssessment
         return checks.AsReadOnly();
     }
 
-    private static PreflightCheck PathCheck(MediaPathLayout layout, RemotePathObservation observation)
+    private static PreflightCheck PathCheck(MediaPathLayout layout, long rootDevice, RemotePathObservation observation)
     {
         var code = "paths." + Name(observation.Role);
         if (observation.Kind == RemotePathKind.Unavailable)
@@ -252,10 +300,15 @@ public static class RemotePathAssessment
             return new(code + ".redirected", PreflightCheckStatus.Blocking);
         if (!AncestorInsideVolume(layout, observation))
             return new(code + ".volume-missing", PreflightCheckStatus.Blocking);
+        if (observation.Device == rootDevice)
+            return new(code + ".volume-unmounted", PreflightCheckStatus.Blocking);
+        if (observation.Contents == RemotePathContents.Unavailable)
+            return new(code + ".unavailable", PreflightCheckStatus.Blocking);
         return new(code, PreflightCheckStatus.Passed);
     }
 
-    /// <summary>Only the volume mount itself or a directory below it may be the existing ancestor.</summary>
+    /// <summary>Only the volume mount itself or a directory below it may be the existing ancestor.
+    /// A path on the device of "/" is a leftover mount-point directory, not a mounted volume.</summary>
     private static bool AncestorInsideVolume(MediaPathLayout layout, RemotePathObservation observation)
     {
         var path = layout.Entries.Single(entry => entry.Role == observation.Role).HostPath;

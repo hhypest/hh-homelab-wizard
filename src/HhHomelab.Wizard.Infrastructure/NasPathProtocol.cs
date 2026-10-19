@@ -34,24 +34,28 @@ internal static class NasPathProtocol
         return builder.ToString();
     }
 
-    internal static IReadOnlyList<RemotePathObservation> Parse(MediaPathLayout layout, int? exitCode, string output)
+    internal static RemotePathFacts Parse(MediaPathLayout layout, int? exitCode, string output)
     {
         if (exitCode != 0 || output.Length > SshProbeOutput.MaximumBytes)
             throw Invalid();
         var lines = output.Replace("\r\n", "\n", StringComparison.Ordinal).TrimEnd('\n').Split('\n');
-        if (lines.Length != layout.Entries.Count + 2)
+        if (lines.Length != layout.Entries.Count + 3)
             throw Invalid();
         if (lines[0] != ResponseMarker || lines[^1] != "end")
             throw Invalid();
+        const string rootPrefix = "root-device=";
+        if (!lines[1].StartsWith(rootPrefix, StringComparison.Ordinal))
+            throw Invalid();
+        var rootDevice = Number(lines[1][rootPrefix.Length..], 20);
         var observations = new List<RemotePathObservation>();
         for (var index = 0; index < layout.Entries.Count; index++)
         {
-            var observation = Entry(layout.Entries[index].Role, lines[index + 1]);
+            var observation = Entry(layout.Entries[index].Role, lines[index + 2]);
             if (!observation.IsValid)
                 throw Invalid();
             observations.Add(observation);
         }
-        return observations.AsReadOnly();
+        return new(rootDevice, observations.AsReadOnly());
     }
 
     private static RemotePathObservation Entry(RemotePathRole role, string line)
