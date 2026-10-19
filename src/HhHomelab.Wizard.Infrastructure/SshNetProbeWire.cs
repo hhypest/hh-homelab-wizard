@@ -56,6 +56,18 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         return (result.ExitCode, result.Output);
     }
 
+    public async Task<(int? ExitCode, string Output)> ReadConfigurationFileAsync(string request, CancellationToken token)
+    {
+        var result = await ExecuteAsync(NasFileProtocol.ReadCommandText, retainOutput: true, token, request).ConfigureAwait(false);
+        return (result.ExitCode, result.Output);
+    }
+
+    public async Task<(int? ExitCode, string Output)> WriteConfigurationFileAsync(byte[] request, Action sending, CancellationToken token)
+    {
+        var result = await ExecuteAsync(NasFileProtocol.WriteCommandText, retainOutput: true, token, request, sending).ConfigureAwait(false);
+        return (result.ExitCode, result.Output);
+    }
+
     internal static SshProbeIdentity ParseIdentity(int? exitCode, string output)
     {
         if (exitCode != 0 || output.Length > 256)
@@ -102,8 +114,12 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
     /// <paramref name="delivered"/> runs once the whole request and its end-of-input reached the channel:
     /// the mutating scripts read the complete request before changing anything, so earlier failures prove
     /// that nothing changed.</summary>
+    private Task<CommandEvidence> ExecuteAsync(string fixedCommand, bool retainOutput, CancellationToken token,
+        string? input = null, Action? delivered = null) =>
+        ExecuteAsync(fixedCommand, retainOutput, token, input is null ? null : new UTF8Encoding(false, true).GetBytes(input), delivered);
+
     private async Task<CommandEvidence> ExecuteAsync(string fixedCommand, bool retainOutput, CancellationToken token,
-        string? input = null, Action? delivered = null)
+        byte[]? input, Action? delivered)
     {
         if (client is null)
             throw new InvalidOperationException("ssh.connection.missing");
@@ -114,7 +130,7 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         if (input is not null)
         {
             using (var stdin = command.CreateInputStream())
-                await stdin.WriteAsync(new UTF8Encoding(false, true).GetBytes(input), abort.Token).ConfigureAwait(false);
+                await stdin.WriteAsync(input, abort.Token).ConfigureAwait(false);
             delivered?.Invoke();
         }
         var output = SshProbeOutput.ReadAsync(command.OutputStream, retainOutput, abort);

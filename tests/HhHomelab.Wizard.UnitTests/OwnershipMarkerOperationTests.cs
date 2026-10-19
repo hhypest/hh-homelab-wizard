@@ -338,6 +338,12 @@ public sealed class OwnershipMarkerOperationTests : IDisposable
             public Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token) =>
                 throw new InvalidOperationException("test.marker-only");
 
+            public Task<(int? ExitCode, string Output)> ReadConfigurationFileAsync(string request, CancellationToken token) =>
+                throw new InvalidOperationException("test.marker-only");
+
+            public Task<(int? ExitCode, string Output)> WriteConfigurationFileAsync(byte[] request, Action sending, CancellationToken token) =>
+                throw new InvalidOperationException("test.marker-only");
+
             public void Dispose()
             {
             }

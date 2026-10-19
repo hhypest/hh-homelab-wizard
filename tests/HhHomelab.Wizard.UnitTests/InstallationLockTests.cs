@@ -215,6 +215,12 @@ public sealed class InstallationLockTests
             return Task.FromResult<(int?, string)>(release ? (0, "lock=released\n") : (AcquireExit, Acquire));
         }
 
+        public Task<(int? ExitCode, string Output)> ReadConfigurationFileAsync(string request, CancellationToken token) =>
+            throw new InvalidOperationException("test.lock-only");
+
+        public Task<(int? ExitCode, string Output)> WriteConfigurationFileAsync(byte[] request, Action sending, CancellationToken token) =>
+            throw new InvalidOperationException("test.lock-only");
+
         public void Dispose()
         {
         }
