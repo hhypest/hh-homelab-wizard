@@ -55,6 +55,11 @@ public sealed class InstallationOwnershipTests
         var output = PathData.Output(configuration: OwnedConfiguration, marker: MarkerLines(Json(Installation, oldProfile)));
         Assert.Equal(new PreflightCheck("ownership.profile-changed", PreflightCheckStatus.Blocking), Evaluate(output, oldOwner));
         Assert.Equal(new PreflightCheck("ownership.profile-changed", PreflightCheckStatus.Blocking), Evaluate(PathData.Output(), oldOwner));
+        foreach (var marker in new[] { "marker=unavailable", "marker=redirected", "marker=invalid" })
+        {
+            var unusable = PathData.Output(configuration: OwnedConfiguration, marker: marker);
+            Assert.Equal(new PreflightCheck("ownership.profile-changed", PreflightCheckStatus.Blocking), Evaluate(unusable, oldOwner));
+        }
     }
 
     [Fact]
