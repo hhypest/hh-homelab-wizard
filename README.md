@@ -41,6 +41,7 @@ ProfileCheck проверяет каталог; вторым аргументо�
 - [Выбор SSH.NET и read-only порт подключения](docs/adr/0012-ssh-connection-probe.md), [fixture/TCP протокол](docs/testing/2026-10-18-ssh-probe.md) и [одноразовый OpenSSH-стенд](docs/testing/2026-10-19-ssh-runtime.md). Аппаратная DSM проверяется отдельно.
 - [Read-only preflight inventory](docs/adr/0013-read-only-nas-preflight.md) и [его протокол](docs/testing/2026-10-19-nas-preflight.md): snapshot фактов не заменяет проверку совместимости, путей и ownership.
 - [Настоящий Docker/Compose через SSH в CI](docs/testing/2026-10-19-docker-preflight.md), [граница изоляции стенда](docs/adr/0014-docker-preflight-runtime.md). Новый privileged режим предназначен только для одноразовой GitHub-hosted VM.
+- [Модель NAS, слушающие порты и место томов](docs/adr/0015-preflight-host-resources.md) в preflight и [протокол](docs/testing/2026-10-19-preflight-resources.md): Passed портов/места возможен только относительно требований плана.
 
 ## Лицензии
 
