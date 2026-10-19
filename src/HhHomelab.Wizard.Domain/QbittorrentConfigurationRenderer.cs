@@ -3,8 +3,9 @@ using System.Text;
 
 namespace HhHomelab.Wizard.Domain;
 
-/// <summary>One generated file below the configuration root: path, permission bits and exact bytes.</summary>
-public sealed class RenderedConfigurationFile
+/// <summary>One generated file below the configuration root: path, permission bits and exact bytes.
+/// Disposal zeroes the bytes once they have been copied into a delivery request.</summary>
+public sealed class RenderedConfigurationFile : IDisposable
 {
     private readonly byte[] content;
 
@@ -20,14 +21,21 @@ public sealed class RenderedConfigurationFile
     public int Mode { get; }
 
     public ReadOnlySpan<byte> Content => content;
+
+    public void Dispose() => System.Security.Cryptography.CryptographicOperations.ZeroMemory(content);
 }
 
 /// <summary>Deterministic Compose and .env text for the qBittorrent service of a concrete plan. The service
 /// follows the pinned upstream definition (image, mods, mounts, publications, network, logging); the only
-/// intended difference is the aligned WebUI port of the plan's host-and-container policy. Values live in
-/// .env; nothing is fetched or evaluated, and no secret is written.</summary>
+/// intended difference is the aligned WebUI port of the plan's host-and-container policy, plus an own
+/// project name so the stack never merges with another `media` project. The structure was verified against
+/// exactly one source revision; a profile pointing at another source is refused rather than mislabelled.
+/// Values live in .env; nothing is fetched or evaluated, and no secret is written.</summary>
 public static class QbittorrentConfigurationRenderer
 {
+    /// <summary>hh-homelab media/compose.yaml whose qbittorrent service this renderer reproduces.</summary>
+    public const string SourceComposeSha256 = "a07918982051b11f4064b91026325bdb12e372ccc02e7991c0075a089c7ffde8";
+
     public const int ComposeMode = 0x1A4;
 
     public const int EnvironmentMode = 0x180;
@@ -36,6 +44,8 @@ public static class QbittorrentConfigurationRenderer
     {
         ArgumentNullException.ThrowIfNull(plan);
         var profile = plan.Profile;
+        if (profile.ComposeSha256 != SourceComposeSha256)
+            throw new ArgumentException("render.source.unsupported");
         var directory = DirectoryOf(profile.ComposePath);
         // Compose reads .env and resolves ./ mounts from its own directory.
         if (DirectoryOf(profile.EnvironmentPath) != directory)
@@ -46,8 +56,8 @@ public static class QbittorrentConfigurationRenderer
         // A single-quoted .env value is literal; a colon would split the short volume syntax.
         if (dataRoot.Contains('\'', StringComparison.Ordinal) || dataRoot.Contains(':', StringComparison.Ordinal))
             throw new ArgumentException("render.data-root.unsupported");
-        var compose = Compose(plan, configuration, watch);
-        var environment = Environment(plan, dataRoot);
+        var compose = RenderCompose(plan, configuration, watch);
+        var environment = RenderEnvironment(plan, dataRoot);
         return Array.AsReadOnly(new[]
         {
             new RenderedConfigurationFile(profile.ComposePath, ComposeMode, Utf8(compose)),
@@ -55,7 +65,7 @@ public static class QbittorrentConfigurationRenderer
         });
     }
 
-    private static string Compose(QbittorrentInstallationPlan plan, string configuration, string watch)
+    private static string RenderCompose(QbittorrentInstallationPlan plan, string configuration, string watch)
     {
         var profile = plan.Profile;
         var text = new StringBuilder();
@@ -63,6 +73,9 @@ public static class QbittorrentConfigurationRenderer
         text.Append("# Источник: hh-homelab ").Append(profile.SourceCommit).Append(", media/compose.yaml (sha256 ")
             .Append(profile.ComposeSha256).Append("), сервис qbittorrent.\n");
         text.Append("# Значения — в .env рядом с этим файлом. Мастер не перезаписывает ручные изменения.\n");
+        // Own project name: without it Compose names the project after the directory and would treat another
+        // stack in a `media` folder, such as hh-homelab itself, as the same project.
+        text.Append("name: ").Append(ProjectName(plan)).Append('\n');
         text.Append("services:\n");
         text.Append("  ").Append(profile.ContainerName).Append(":\n");
         text.Append("    image: ").Append(profile.Image).Append('\n');
@@ -101,7 +114,7 @@ public static class QbittorrentConfigurationRenderer
         return text.ToString();
     }
 
-    private static string Environment(QbittorrentInstallationPlan plan, string dataRoot)
+    private static string RenderEnvironment(QbittorrentInstallationPlan plan, string dataRoot)
     {
         var request = plan.Request;
         var text = new StringBuilder();
@@ -118,6 +131,9 @@ public static class QbittorrentConfigurationRenderer
         text.Append("QBITTORRENT_TORRENT_PORT=").Append(Number(request.TorrentPort)).Append('\n');
         return text.ToString();
     }
+
+    /// <summary>Lowercase letters and digits only, as Compose requires; unique per installation.</summary>
+    public static string ProjectName(QbittorrentInstallationPlan plan) => "hhw-" + plan.Owner.InstallationId.ToString("N");
 
     private static string DirectoryOf(string relativePath)
     {

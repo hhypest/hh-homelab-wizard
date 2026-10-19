@@ -43,6 +43,8 @@ public sealed class QbittorrentInstallationPlan
         Request = request;
         Profile = profile;
         ObservedAt = now;
+        HostKey = pin;
+        EvidenceStartedAt = preflight.StartedAt;
         Owner = new(request.InstallationId, profile.ResearchFingerprint);
         Resources = BuildResources(request, profile, Owner);
         Publications = Array.AsReadOnly(new[]
@@ -83,6 +85,9 @@ public sealed class QbittorrentInstallationPlan
         checks.Add(new("plan.docker-storage", PreflightCheckStatus.NotChecked));
         if (request.BindAddress == "127.0.0.1")
             checks.Add(new("plan.computer-access.proxy-required", PreflightCheckStatus.Blocking));
+        // .env carries the data root literally in single quotes and Compose splits short volumes on ':'.
+        if (request.Layout.DataRoot.Contains('\'', StringComparison.Ordinal) || request.Layout.DataRoot.Contains(':', StringComparison.Ordinal))
+            checks.Add(new("plan.data-root.unsupported-characters", PreflightCheckStatus.Blocking));
         Checks = checks.AsReadOnly();
         Fingerprint = ConfigurationRequest.Fingerprint(new
         {
@@ -97,6 +102,10 @@ public sealed class QbittorrentInstallationPlan
     public int ContainerWebUiPort => Request.WebUiPort;
     public InstallationOwner Owner { get; }
     public DateTimeOffset ObservedAt { get; }
+    /// <summary>The approved host key every snapshot of this plan was collected with.</summary>
+    public SshHostKey HostKey { get; }
+    /// <summary>Start of the oldest evidence; freshness of any later use is measured from here.</summary>
+    public DateTimeOffset EvidenceStartedAt { get; }
     public IReadOnlyList<PlannedResource> Resources { get; }
     public IReadOnlyList<PlannedPublication> Publications { get; }
     public IReadOnlyList<PlannedEndpoint> Endpoints { get; }

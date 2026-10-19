@@ -15,21 +15,25 @@ public sealed class QbittorrentInstallationGraph : IDisposable
     public static TimeSpan StepTimeout { get; } = TimeSpan.FromMinutes(2);
 
     private readonly ConfigurationFileRequest[] files;
+    private readonly ConfigurationOperationPlan plan;
+    private readonly IReadOnlyList<IConfigurationOperation> operations;
+    private readonly IOperationOwnership ownership;
+    private bool disposed;
 
     private QbittorrentInstallationGraph(ConfigurationOperationPlan plan, IReadOnlyList<IConfigurationOperation> operations,
         ConfigurationFileRequest[] files)
     {
-        Plan = plan;
-        Operations = operations;
-        Ownership = new OperationOwnershipRouter(operations);
+        this.plan = plan;
+        this.operations = operations;
+        ownership = new OperationOwnershipRouter(operations);
         this.files = files;
     }
 
-    public ConfigurationOperationPlan Plan { get; }
+    public ConfigurationOperationPlan Plan => Live(plan);
 
-    public IReadOnlyList<IConfigurationOperation> Operations { get; }
+    public IReadOnlyList<IConfigurationOperation> Operations => Live(operations);
 
-    public IOperationOwnership Ownership { get; }
+    public IOperationOwnership Ownership => Live(ownership);
 
     public static QbittorrentInstallationGraph Create(QbittorrentInstallationPlan plan, SshHostKey pin, DateTimeOffset now,
         INasPathProbe paths, NasOwnershipMarkerWriter markerWriter, NasConfigurationFileClient fileClient)
@@ -41,18 +45,21 @@ public sealed class QbittorrentInstallationGraph : IDisposable
         ArgumentNullException.ThrowIfNull(fileClient);
         if (plan.HasBlockingChecks)
             throw new ArgumentException("graph.plan.blocking");
-        if (now < plan.ObservedAt || now - plan.ObservedAt > QbittorrentInstallationPlan.MaximumEvidenceAge)
+        // Measured from the oldest evidence, not from when the plan object was built.
+        if (now < plan.ObservedAt || now - plan.EvidenceStartedAt > QbittorrentInstallationPlan.MaximumEvidenceAge)
             throw new ArgumentException("graph.plan.stale");
-        if (!pin.IsValid || pin.EndpointFingerprint != plan.Request.Target.EndpointFingerprint)
+        // Writes use exactly the host key the plan's evidence was collected with.
+        if (pin != plan.HostKey)
             throw new ArgumentException("graph.pin.mismatch");
         var marker = new OwnershipMarkerRequest(Identity(plan, "marker"), plan.Request.Layout, plan.Owner);
         var markerStep = new ConfigurationPlanStep(marker.Descriptor, [], StepTimeout);
         var operations = new List<IConfigurationOperation> { new NasOwnershipMarkerOperation(marker, paths, markerWriter, pin) };
         var steps = new List<ConfigurationPlanStep> { markerStep };
         var requests = new List<ConfigurationFileRequest>();
+        var rendered = QbittorrentConfigurationRenderer.Render(plan);
         try
         {
-            foreach (var file in QbittorrentConfigurationRenderer.Render(plan))
+            foreach (var file in rendered)
             {
                 var request = new ConfigurationFileRequest(Identity(plan, "file:" + file.RelativePath), plan.Request.Layout,
                     plan.Owner, file.RelativePath, file.Mode, file.Content);
@@ -68,13 +75,26 @@ public sealed class QbittorrentInstallationGraph : IDisposable
                 request.Dispose();
             throw;
         }
+        finally
+        {
+            // The requests hold their own copies; the rendered buffers are not kept.
+            foreach (var file in rendered)
+                file.Dispose();
+        }
     }
 
-    /// <summary>Zeroes the rendered file contents held by the file requests.</summary>
+    /// <summary>Zeroes the rendered file contents held by the file requests; the graph is unusable afterwards.</summary>
     public void Dispose()
     {
+        disposed = true;
         foreach (var request in files)
             request.Dispose();
+    }
+
+    private T Live<T>(T value)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return value;
     }
 
     private static OperationIdentity Identity(QbittorrentInstallationPlan plan, string role)

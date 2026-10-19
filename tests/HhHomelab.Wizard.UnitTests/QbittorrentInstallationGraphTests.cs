@@ -33,6 +33,8 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         Assert.Contains("      - ./config/qbittorrent:/config\n      - ./watch:/watch\n      - ${MEDIA_ROOT:?см. .env}:/data\n", compose, StringComparison.Ordinal);
         Assert.Contains("    name: ${MEDIA_NETWORK:?см. .env}\n", compose, StringComparison.Ordinal);
         Assert.Contains(plan.Profile.ComposeSha256, compose, StringComparison.Ordinal);
+        Assert.Equal(QbittorrentConfigurationRenderer.SourceComposeSha256, plan.Profile.ComposeSha256);
+        Assert.Contains("\nname: hhw-" + plan.Owner.InstallationId.ToString("N") + "\nservices:\n", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("9080", compose, StringComparison.Ordinal);
         Assert.DoesNotContain("192.168.", compose, StringComparison.Ordinal);
     }
@@ -61,7 +63,10 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
     {
         var fixture = new QbittorrentPlanTests.PlanData { Layout = new MediaPathLayout(dataRoot, PathData.Layout.ConfigurationRoot) };
         var plan = (await fixture.Compiler.CompileAsync(fixture.Request(), PreflightData.Pin, Token)).Value!;
+        Assert.Contains(plan.Checks, check => check.Code == "plan.data-root.unsupported-characters" && check.Status == PreflightCheckStatus.Blocking);
         Assert.Equal("render.data-root.unsupported", Assert.Throws<ArgumentException>(() => QbittorrentConfigurationRenderer.Render(plan)).Message);
+        var nas = new FakeNas();
+        Assert.Equal("graph.plan.blocking", Assert.Throws<ArgumentException>(() => Graph(plan, nas)).Message);
     }
 
     [Fact]
@@ -97,9 +102,49 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         var plan = await PlanAsync();
         Assert.True(plan.HasUnresolvedChecks);
         Assert.Equal("graph.plan.stale", Assert.Throws<ArgumentException>(() => Graph(plan, nas, plan.ObservedAt + TimeSpan.FromMinutes(3))).Message);
+        // Same endpoint, another approved key: not the key the plan's evidence was collected with.
         Assert.Equal("graph.pin.mismatch", Assert.Throws<ArgumentException>(() =>
-            QbittorrentInstallationGraph.Create(plan, PreflightData.OtherPin with { EndpointFingerprint = new string('d', 64) }, plan.ObservedAt,
+            QbittorrentInstallationGraph.Create(plan, PreflightData.OtherPin, plan.ObservedAt,
                 nas.PathProbe(), nas.MarkerWriter(), nas.FileClient())).Message);
+    }
+
+    [Fact]
+    public async Task FreshnessIsMeasuredFromTheOldestEvidenceNotFromPlanConstruction()
+    {
+        var plan = await PlanAsync();
+        var nas = new FakeNas();
+        var limit = plan.EvidenceStartedAt + QbittorrentInstallationPlan.MaximumEvidenceAge;
+        using var atLimit = Graph(plan, nas, limit);
+        Assert.Equal("graph.plan.stale", Assert.Throws<ArgumentException>(() => Graph(plan, nas, limit + TimeSpan.FromSeconds(1))).Message);
+    }
+
+    [Fact]
+    public async Task PlanRecompiledByANewProcessAfterInstallationYieldsTheSameGraph()
+    {
+        var before = await PlanAsync();
+        var nas = new FakeNas();
+        using var first = Graph(before, nas);
+        var after = new QbittorrentPlanTests.PlanData
+        {
+            PathOutput = PathData.Output(configuration: "entry=directory:0:same:42:1026:100:755:not-empty"),
+            Ownership = new(OwnershipMarkerState.Present, new(1, before.Owner.InstallationId, before.Owner.ProfileFingerprint)),
+        };
+        var recompiled = (await after.Compiler.CompileAsync(after.Request(), PreflightData.Pin, Token)).Value!;
+        Assert.Empty(recompiled.Checks.Where(check => check.Status == PreflightCheckStatus.Blocking).Select(check => check.Code));
+        Assert.NotEqual(before.Fingerprint, recompiled.Fingerprint);
+        using var second = Graph(recompiled, nas);
+        Assert.Equal(first.Plan.Fingerprint, second.Plan.Fingerprint);
+    }
+
+    [Fact]
+    public async Task DisposedGraphCannotBeExecuted()
+    {
+        var plan = await PlanAsync();
+        var graph = Graph(plan, new FakeNas());
+        graph.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => graph.Operations);
+        Assert.Throws<ObjectDisposedException>(() => graph.Plan);
+        Assert.Throws<ObjectDisposedException>(() => graph.Ownership);
     }
 
     [Fact]
