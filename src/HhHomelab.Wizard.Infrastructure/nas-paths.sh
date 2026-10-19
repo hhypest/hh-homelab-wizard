@@ -13,19 +13,17 @@ unavailable() {
     printf 'entry=unavailable:0:unavailable:-:-:-:-:unavailable\n'
 }
 
-# Counts bytes rather than capturing names: a name made only of newlines must not look empty.
+# Read at most one full pathname and retain find's exit status. Even a newline-only basename
+# keeps the nonempty directory prefix. No name is echoed or parsed; a failed listing is unknown.
 contents_of() {
     if [ ! -r "$1" ] || [ ! -x "$1" ]; then
         printf 'unavailable'
-    elif ! ls -A "$1" >/dev/null 2>&1; then
+    elif ! first="$(find "$1" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)"; then
         printf 'unavailable'
+    elif [ -n "$first" ]; then
+        printf 'not-empty'
     else
-        bytes="$(ls -A "$1" | head -c 1 | wc -c)"
-        if [ $((bytes)) -gt 0 ]; then
-            printf 'not-empty'
-        else
-            printf 'empty'
-        fi
+        printf 'empty'
     fi
 }
 

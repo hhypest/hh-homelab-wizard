@@ -79,7 +79,16 @@ public sealed class MediaPathLayout
         return components.All(ValidComponent);
     }
 
-    public static string VolumeOf(string path) => "/" + path[1..].Split('/')[0];
+    /// <summary>Extracts the mount only from a validated normalized path below a DSM volume.</summary>
+    public static string VolumeOf(string? path)
+    {
+        if (path is null)
+            throw new ArgumentException("paths.volume.invalid");
+        if (!IsVolumePath(path))
+            throw new ArgumentException("paths.volume.invalid");
+
+        return "/" + path[1..].Split('/')[0];
+    }
 
     private static bool ValidComponent(string component)
     {

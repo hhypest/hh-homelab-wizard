@@ -19,7 +19,7 @@ dotnet run --project tools/HhHomelab.Wizard.ProfileCheck --no-build -c Release -
 sh -n src/HhHomelab.Wizard.Infrastructure/nas-paths.sh
 ```
 
-Locked restore и Release build успешны, 0 warnings / 0 errors. **1202 unit/fixture + 18 Desktop tests** пройдены без пропусков. JournalProbe: `journal.probe.restart-and-exclusive-lock.passed`, `journal.probe.plan-recovery.passed`, `journal.probe.passed`. ProfileCheck: 9 services / 19 artifacts / 118 steps, research inventory only. Последовательный MSBuild — параметр локальной среды; workflow не менялся.
+Locked restore и Release build успешны, 0 warnings / 0 errors. **1213 unit/fixture + 18 Desktop tests** пройдены без пропусков. JournalProbe: `journal.probe.restart-and-exclusive-lock.passed`, `journal.probe.plan-recovery.passed`, `journal.probe.passed`. ProfileCheck: 9 services / 19 artifacts / 118 steps, research inventory only. Последовательный MSBuild — параметр локальной среды; workflow не менялся.
 
 | Сценарий | Наблюдаемый результат |
 | --- | --- |
@@ -34,6 +34,12 @@ Locked restore и Release build успешны, 0 warnings / 0 errors. **1202 un
 | Существующая медиатека другого владельца | Данные не присваиваются и не меняются; проверка реального доступа остаётся открытой |
 
 Дополнительно встроенный read-only скрипт выполнен локально через `/bin/sh` с запросом v3 и восемью путями. Проверено соответствие строки identity действующим `geteuid/getegid` процесса и полное число наблюдений. Запрос v2 отвергнут с exit 2 без ответа. В отдельном временном PATH подставлен `id`, возвращающий ошибку: exit 2 без частичного успешного ответа. Каталоги данных/конфигурации не создавались, права не менялись. Это локальный Linux-процесс, не SSH/DSM доказательство.
+
+## Замечания review
+
+Perch исходного `b940785` предположил null в `VolumeOf` и неверный результат `contents_of`. У первого все текущие production callers получают уже валидированный layout, но public helper теперь явно отклоняет null, пустой/неполный/traversal path безопасным доменным кодом; регрессии проверяют отказ и прежний корректный том.
+
+Для второго воспроизведён настоящий отказ: первая команда `ls` успешна, повторная завершается с ошибкой, а pipeline `head | wc` теряет её код и выдаёт `empty`. Чтение заменено `find` с остановкой после первого элемента и проверкой exit code; при ошибке, даже после частичного вывода, результат Unavailable. Вывод ограничен одним полным pathname и наружу не возвращается. Шесть Linux shell tests выполняют саму функцию из embedded source: пустота, hidden file, newline-only имя, broken symlink и отказ перечисления с/без частичного вывода. На Windows эти шесть случаев явно skipped; прежний Linux symlink test также skipped. Опции `find` на DSM требуют отдельного аппаратного подтверждения; при отсутствии команды успех не выдумывается.
 
 ## Сценарий настоящего SSH в CI
 

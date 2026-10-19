@@ -67,6 +67,20 @@ public sealed class RemotePathTests
         Assert.False(MediaPathLayout.IsVolumePath(unpairedSurrogate));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("/")]
+    [InlineData("/volume1")]
+    [InlineData("/volume1/a/../data")]
+    public void VolumeExtractionRejectsInvalidPathsWithTheDomainCode(string? path)
+    {
+        var error = Assert.Throws<ArgumentException>(() => MediaPathLayout.VolumeOf(path));
+
+        Assert.Equal("paths.volume.invalid", error.Message);
+        Assert.Equal("/volume12", MediaPathLayout.VolumeOf("/volume12/data"));
+    }
+
     [Fact]
     public void DeepestGeneratedEntryOfAMaximalMissingRootIsStillAValidObservation()
     {
