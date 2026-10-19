@@ -2,7 +2,7 @@
 
 - Дата: 2026-10-19.
 - Статус: разработческий инкремент [#101](https://github.com/hhypest/hh-homelab-wizard/issues/101), части [#50](https://github.com/hhypest/hh-homelab-wizard/issues/50), [#52](https://github.com/hhypest/hh-homelab-wizard/issues/52) и [#53](https://github.com/hhypest/hh-homelab-wizard/issues/53); fixtures по [ADR 0008](0008-audit-development-sequence.md).
-- Основа: [граф и recovery](0020-configuration-plan-recovery.md), [план qBittorrent](0021-qbittorrent-installation-plan.md), [создание файла](0022-configuration-file-delivery.md), [маркер](0018-ownership-marker-creation.md).
+- Основа: [граф и recovery](0020-configuration-plan-recovery.md), [план qBittorrent](0021-qbittorrent-installation-plan.md), [создание файла](0022-configuration-file-delivery.md), [маркер](0018-ownership-marker-creation.md), [каталоги](0024-configuration-directories.md).
 
 ## Решение
 
@@ -30,7 +30,10 @@
 `QbittorrentInstallationGraph.Create` строит из плана `ConfigurationOperationPlan` ADR 0020:
 
 1. маркер владения (`OwnershipMarker`);
-2. `media/compose.yaml` и `media/.env` (`ConfigurationFile`), каждый зависит от маркера.
+2. каталоги монтирования `media/config/qbittorrent` (`/config`) и `media/watch` (`/watch`) (`ConfigurationDirectory`, режим 750), каждый зависит от маркера;
+3. `media/compose.yaml` и `media/.env` (`ConfigurationFile`), каждый зависит от маркера.
+
+Каталоги монтирования создаются до запуска контейнера, иначе Docker создаст их сам от root. Режим 750: владелец — пользователь SSH, группа DSM может читать, остальные — нет. Существующий каталог с другим режимом или чужим владельцем (например, созданный Docker) — Conflict без изменений (ADR 0024). Каталоги и файлы друг от друга не зависят: родитель `media` создаётся тем шагом, который выполнится первым.
 
 Граф строится только из **свежего** плана **без Blocking**-проверок и только для того же одобренного host key, с которым собраны его снимки (`plan.HostKey`); иначе — `graph.plan.blocking`, `graph.plan.stale` или `graph.pin.mismatch`. Свежесть отсчитывается от начала самого старого доказательства (`EvidenceStartedAt`, начало preflight), а не от создания объекта плана: не больше двух минут. Unverified/NotChecked остаются на плане: граф не является разрешением установки, а план по-прежнему не имеет `CanApply`.
 
@@ -40,7 +43,8 @@ ID операций и ресурсов — именованные GUID верс
 
 ## Границы
 
-- Каталоги монтирования (`media/config/qbittorrent`, `media/watch`, данные), сеть, `docker compose up`, readiness и настройка qBittorrent — следующие шаги графа. Без них контейнер не запускается.
+- Каталоги данных под корнем данных (`PreserveOrCreate`), сеть, `docker compose up`, readiness и настройка qBittorrent — следующие шаги графа. Без них контейнер не запускается.
+- Совпадение пользователя SSH с PUID/PGID контейнера не проверяется (#49): при несовпадении контейнер может не получить права записи в каталоги 750.
 - `docker compose config` на отрисованных файлах не запускался: синтаксис подтвердит стендовый шаг с Compose.
 - Публичного пути запуска графа и экрана #50/#55 нет; реальная DSM не затрагивается.
 - Удалённая блокировка для графа (`RemoteLockedPlanJournal`) подключается вызывающим так же, как в ADR 0020.

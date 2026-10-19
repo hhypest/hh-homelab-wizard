@@ -70,22 +70,23 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
     }
 
     [Fact]
-    public async Task GraphPutsTheMarkerBeforeBothFilesAndIsStableAcrossProcesses()
+    public async Task GraphPutsTheMarkerBeforeMountDirectoriesAndFilesAndIsStableAcrossProcesses()
     {
         var plan = await PlanAsync();
         var nas = new FakeNas();
         using var first = Graph(plan, nas);
         using var second = Graph(plan, nas);
         Assert.Equal(first.Plan.Fingerprint, second.Plan.Fingerprint);
-        Assert.Equal(3, first.Plan.Steps.Count);
+        Assert.Equal(5, first.Plan.Steps.Count);
         var marker = first.Plan.ExecutionOrder[0];
         Assert.Equal(ConfigurationOperationKind.OwnershipMarker, marker.Descriptor.Kind);
-        Assert.All(first.Plan.Steps.Skip(1), step =>
-        {
-            Assert.Equal(ConfigurationOperationKind.ConfigurationFile, step.Descriptor.Kind);
-            Assert.Equal([marker.Descriptor.Identity.OperationId], step.Dependencies);
-        });
-        Assert.Equal(3, first.Plan.Steps.Select(step => step.Descriptor.Identity.Resource.ResourceId).Distinct().Count());
+        Assert.All(first.Plan.Steps.Skip(1), step => Assert.Equal([marker.Descriptor.Identity.OperationId], step.Dependencies));
+        Assert.Equal(
+        [
+            ConfigurationOperationKind.ConfigurationDirectory, ConfigurationOperationKind.ConfigurationDirectory,
+            ConfigurationOperationKind.ConfigurationFile, ConfigurationOperationKind.ConfigurationFile,
+        ], first.Plan.Steps.Skip(1).Select(step => step.Descriptor.Kind));
+        Assert.Equal(5, first.Plan.Steps.Select(step => step.Descriptor.Identity.Resource.ResourceId).Distinct().Count());
 
         var otherPort = await PlanAsync(webPort: 19081);
         using var changed = Graph(otherPort, nas);
@@ -105,7 +106,7 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         // Same endpoint, another approved key: not the key the plan's evidence was collected with.
         Assert.Equal("graph.pin.mismatch", Assert.Throws<ArgumentException>(() =>
             QbittorrentInstallationGraph.Create(plan, PreflightData.OtherPin, plan.ObservedAt,
-                nas.PathProbe(), nas.MarkerWriter(), nas.FileClient())).Message);
+                nas.PathProbe(), nas.MarkerWriter(), nas.DirectoryClient(), nas.FileClient())).Message);
     }
 
     [Fact]
@@ -148,15 +149,18 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
     }
 
     [Fact]
-    public async Task GraphCreatesMarkerAndBothFilesOnceAndAResumedRunOnlyObserves()
+    public async Task GraphCreatesMarkerMountDirectoriesAndBothFilesOnceAndAResumedRunOnlyObserves()
     {
         var plan = await PlanAsync();
         var nas = new FakeNas();
         var first = await RunAsync(plan, nas);
         Assert.Equal(OperationOutcomeKind.Applied, first.Result.Kind);
-        Assert.Equal(3, first.Steps.Count);
+        Assert.Equal(5, first.Steps.Count);
         Assert.Equal(1, nas.MarkerWrites);
+        Assert.Equal(2, nas.DirectoryWrites);
         Assert.Equal(2, nas.FileWrites);
+        Assert.Equal(QbittorrentInstallationGraph.MountDirectoryMode, nas.Directories["media/config/qbittorrent"]);
+        Assert.Equal(QbittorrentInstallationGraph.MountDirectoryMode, nas.Directories["media/watch"]);
         var rendered = QbittorrentConfigurationRenderer.Render(plan);
         Assert.Equal(rendered[0].Content.ToArray(), nas.Files["media/compose.yaml"].Content);
         Assert.Equal(0x180, nas.Files["media/.env"].Mode);
@@ -164,7 +168,37 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         var resumed = await RunAsync(plan, nas);
         Assert.Equal(OperationOutcomeKind.AlreadySatisfied, resumed.Result.Kind);
         Assert.Equal(1, nas.MarkerWrites);
+        Assert.Equal(2, nas.DirectoryWrites);
         Assert.Equal(2, nas.FileWrites);
+    }
+
+    [Fact]
+    public async Task MountDirectoryCreatedByDockerAsRootIsAConflictAndIsNeverChanged()
+    {
+        var plan = await PlanAsync();
+        var nas = new FakeNas();
+        nas.Directories["media/watch"] = 0x1ED;
+        nas.ForeignDirectories.Add("media/watch");
+        var result = await RunAsync(plan, nas);
+        Assert.Equal(OperationOutcomeKind.Conflict, result.Result.Kind);
+        Assert.Equal(0x1ED, nas.Directories["media/watch"]);
+        Assert.Contains("media/watch", nas.ForeignDirectories);
+        Assert.DoesNotContain("media/watch", nas.CreatedDirectories);
+    }
+
+    [Fact]
+    public async Task LostResponseOfAMountDirectoryIsUnknownThenANewProcessConfirmsWithoutRecreating()
+    {
+        var plan = await PlanAsync();
+        var nas = new FakeNas { LoseResponseFor = "media/config/qbittorrent" };
+        var lost = await RunAsync(plan, nas);
+        Assert.Equal(OperationOutcomeKind.Unknown, lost.Result.Kind);
+        Assert.Equal(1, nas.DirectoryWrites);
+        nas.LoseResponseFor = null;
+        var resumed = await RunAsync(plan, nas);
+        Assert.Equal(OperationOutcomeKind.Applied, resumed.Result.Kind);
+        Assert.Equal(2, nas.DirectoryWrites);
+        Assert.Equal(QbittorrentInstallationGraph.MountDirectoryMode, nas.Directories["media/config/qbittorrent"]);
     }
 
     [Fact]
@@ -174,7 +208,7 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         var nas = new FakeNas { LoseResponseFor = "media/.env" };
         var lost = await RunAsync(plan, nas);
         Assert.Equal(OperationOutcomeKind.Unknown, lost.Result.Kind);
-        Assert.Equal(3, lost.Steps.Count);
+        Assert.Equal(5, lost.Steps.Count);
         nas.LoseResponseFor = null;
         var resumed = await RunAsync(plan, nas);
         Assert.Equal(OperationOutcomeKind.Applied, resumed.Result.Kind);
@@ -203,6 +237,7 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         var result = await RunAsync(plan, nas);
         Assert.Equal(OperationOutcomeKind.Conflict, result.Result.Kind);
         Assert.Single(result.Steps);
+        Assert.Equal(0, nas.DirectoryWrites);
         Assert.Equal(0, nas.FileWrites);
     }
 
@@ -238,7 +273,7 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
     }
 
     private static QbittorrentInstallationGraph Graph(QbittorrentInstallationPlan plan, FakeNas nas, DateTimeOffset? now = null) =>
-        QbittorrentInstallationGraph.Create(plan, PreflightData.Pin, now ?? plan.ObservedAt, nas.PathProbe(), nas.MarkerWriter(), nas.FileClient());
+        QbittorrentInstallationGraph.Create(plan, PreflightData.Pin, now ?? plan.ObservedAt, nas.PathProbe(), nas.MarkerWriter(), nas.DirectoryClient(), nas.FileClient());
 
     /// <summary>Every run reopens the same journal and rebuilds the graph, as a new process would.</summary>
     private async Task<ConfigurationPlanResult> RunAsync(QbittorrentInstallationPlan plan, FakeNas nas)
@@ -292,17 +327,28 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
         public Task<OperationRead<OperationVerification>> VerifyAsync(CancellationToken token) => throw new NotSupportedException();
     }
 
-    /// <summary>One synthetic NAS for paths, marker and files, following the fixed scripts' rules: the marker
-    /// is published once, files only below the exact marker, never replaced.</summary>
+    /// <summary>One synthetic NAS for paths, marker, directories and files, following the fixed scripts' rules:
+    /// the marker is published once; directories and files only below the exact marker; an existing directory
+    /// or file is never changed.</summary>
     private sealed class FakeNas
     {
         public string? MarkerJson { get; set; }
 
         public Dictionary<string, (byte[] Content, int Mode)> Files { get; } = new(StringComparer.Ordinal);
 
+        /// <summary>Directory path to its permission bits.</summary>
+        public Dictionary<string, int> Directories { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Directories not owned by the SSH user, for example created by Docker as root.</summary>
+        public HashSet<string> ForeignDirectories { get; } = new(StringComparer.Ordinal);
+
+        public HashSet<string> CreatedDirectories { get; } = new(StringComparer.Ordinal);
+
         public string? LoseResponseFor { get; set; }
 
         public int MarkerWrites { get; private set; }
+
+        public int DirectoryWrites { get; private set; }
 
         public int FileWrites { get; private set; }
 
@@ -310,9 +356,11 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
 
         public NasOwnershipMarkerWriter MarkerWriter() => new(PreflightData.Target, _ => new Wire(this), TimeSpan.FromSeconds(5));
 
+        public NasConfigurationDirectoryClient DirectoryClient() => new(PreflightData.Target, _ => new Wire(this), TimeSpan.FromSeconds(5));
+
         public NasConfigurationFileClient FileClient() => new(PreflightData.Target, _ => new Wire(this), TimeSpan.FromSeconds(5));
 
-        private sealed class Wire(FakeNas nas) : INasPathWire
+        private sealed class Wire(FakeNas nas) : INasPathWire, INasDirectoryWire
         {
             public Task ConnectAsync(Func<string, byte[], bool> acceptKey, CancellationToken token)
             {
@@ -367,6 +415,42 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
                 if (nas.LoseResponseFor == path)
                     throw new SshConnectionException("synthetic-lost-response");
                 return Task.FromResult<(int?, string)>((0, "file=created\n"));
+            }
+
+            public Task<(int? ExitCode, string Output)> ReadConfigurationDirectoryAsync(string request, CancellationToken token)
+            {
+                var lines = request.Split('\n');
+                var marker = Match(lines[2]["marker=".Length..]);
+                var directory = "not-checked";
+                if (marker == "same")
+                {
+                    var path = lines[3]["path=".Length..];
+                    directory = nas.Directories.TryGetValue(path, out var mode)
+                        ? $"present:{Convert.ToString(mode, 8)}:{(nas.ForeignDirectories.Contains(path) ? "other" : "own")}"
+                        : "absent";
+                }
+                return Task.FromResult<(int?, string)>((0, $"hh-homelab-wizard:nas-directory:v1\nmarker={marker}\ndirectory={directory}\nend\n"));
+            }
+
+            public Task<(int? ExitCode, string Output)> CreateConfigurationDirectoryAsync(string request, Action sending, CancellationToken token)
+            {
+                sending();
+                var lines = request.Split('\n');
+                var path = lines[3]["path=".Length..];
+                var mode = Convert.ToInt32(lines[4]["mode=".Length..], 8);
+                if (Match(lines[2]["marker=".Length..]) != "same")
+                    return Task.FromResult<(int?, string)>((3, ""));
+                if (nas.Directories.TryGetValue(path, out var existing))
+                {
+                    var same = existing == mode && !nas.ForeignDirectories.Contains(path);
+                    return Task.FromResult<(int?, string)>(same ? (0, "directory=already-present\n") : (3, ""));
+                }
+                nas.DirectoryWrites++;
+                nas.Directories[path] = mode;
+                nas.CreatedDirectories.Add(path);
+                if (nas.LoseResponseFor == path)
+                    throw new SshConnectionException("synthetic-lost-response");
+                return Task.FromResult<(int?, string)>((0, "directory=created\n"));
             }
 
             public Task<(int? ExitCode, string Output)> RunLockAsync(string request, Action sending, CancellationToken token) =>
