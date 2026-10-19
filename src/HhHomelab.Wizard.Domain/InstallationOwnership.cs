@@ -62,16 +62,17 @@ public static class InstallationOwnershipAssessment
             throw new ArgumentException("ownership.owner.invalid");
         var root = snapshot.Observation(RemotePathRole.ConfigurationRoot);
         var ownership = snapshot.Ownership;
+        // The owner comes from a journal; this build observes under its own profile. A journal of
+        // another profile never continues here, whatever the marker says, so this is reported first:
+        // repairing marker access or content would not help.
+        if (expected is not null && expected.ProfileFingerprint != snapshot.ProfileFingerprint)
+            return Blocking("ownership.profile-changed");
         if (ownership.State == OwnershipMarkerState.Unavailable)
             return Blocking("ownership.marker-unavailable");
         if (ownership.State == OwnershipMarkerState.Redirected)
             return Blocking("ownership.marker-redirected");
         if (ownership.State == OwnershipMarkerState.Invalid)
             return Blocking("ownership.marker-invalid");
-        // The owner comes from a journal; this build observes under its own profile. A journal of
-        // another profile never continues here, whatever the marker says.
-        if (expected is not null && expected.ProfileFingerprint != snapshot.ProfileFingerprint)
-            return Blocking("ownership.profile-changed");
         if (ownership.State == OwnershipMarkerState.Present)
             return MarkerCheck(ownership.Marker!, expected);
         if (ownership.State == OwnershipMarkerState.Staged)
