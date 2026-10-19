@@ -23,6 +23,16 @@ public sealed class ConfigurationDirectoryRequest
         Owner = owner;
         RelativePath = relativePath;
         Mode = mode;
+        Descriptor = new(Identity, ConfigurationOperationKind.ConfigurationDirectory,
+            ConfigurationRequest.Fingerprint(new
+            {
+                Kind = ConfigurationOperationKind.ConfigurationDirectory,
+                Layout.ConfigurationRoot,
+                RelativePath,
+                Mode,
+                Owner.InstallationId,
+                Owner.ProfileFingerprint,
+            }));
     }
 
     public OperationIdentity Identity { get; }
@@ -38,16 +48,8 @@ public sealed class ConfigurationDirectoryRequest
 
     public OwnershipMarker Marker => new(OwnershipMarker.CurrentSchema, Owner.InstallationId, Owner.ProfileFingerprint);
 
-    public OperationDescriptor Descriptor => new(Identity, ConfigurationOperationKind.ConfigurationDirectory,
-        ConfigurationRequest.Fingerprint(new
-        {
-            Kind = ConfigurationOperationKind.ConfigurationDirectory,
-            Layout.ConfigurationRoot,
-            RelativePath,
-            Mode,
-            Owner.InstallationId,
-            Owner.ProfileFingerprint,
-        }));
+    /// <summary>Computed once: the request is immutable.</summary>
+    public OperationDescriptor Descriptor { get; }
 
     public bool IsValid()
     {

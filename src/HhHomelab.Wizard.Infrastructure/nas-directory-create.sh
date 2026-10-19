@@ -56,6 +56,13 @@ case "$mode_line" in
     *) framing ;;
 esac
 
+# Permission bits only: a setgid bit inherited from a parent share is kept and does not count.
+same_directory() {
+    actual="$(stat -c '%a' . 2>/dev/null)" || return 1
+    [ "${actual#"${actual%???}"}" = "$mode" ] || return 1
+    [ "$(stat -c '%u' . 2>/dev/null)" = "$(id -u)" ]
+}
+
 # Only below this installation's own marker, reached without any symlink or redirected ancestor.
 dir="$root/.hh-homelab-wizard"
 owned_root() {
@@ -97,8 +104,8 @@ while [ -n "$remaining" ]; do
     esac
 done
 if [ -z "$remaining" ]; then
-    # The whole path exists: only the identical mode is accepted, never changed.
-    if [ "$(stat -c '%a' . 2>/dev/null)" = "$mode" ]; then
+    # The whole path exists: only this user's directory with the identical mode is accepted, never changed.
+    if same_directory; then
         printf 'directory=already-present\n'
         exit 0
     fi
@@ -127,6 +134,6 @@ while [ -n "$remaining" ]; do
     cd -P "$part"
     [ "$(pwd -P)" = "$expected" ] || exit 1
 done
-[ "$(stat -c '%a' . 2>/dev/null)" = "$mode" ] || exit 1
+same_directory || exit 1
 owned_root || exit 1
 printf 'directory=created\n'

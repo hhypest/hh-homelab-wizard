@@ -123,9 +123,9 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
     }
 
     /// <summary>Runs a fixed command; optional parameters travel only as stdin data, never in the command line.
-    /// <paramref name="delivered"/> runs once the whole request and its end-of-input reached the channel:
-    /// the mutating scripts read the complete request before changing anything, so earlier failures prove
-    /// that nothing changed.</summary>
+    /// <paramref name="delivered"/> runs just before the request is written: the command has started and only
+    /// a failure before that point (connection, authentication, starting the command) proves that nothing
+    /// changed. Everything later is Unknown for the mutating scripts.</summary>
     private Task<CommandEvidence> ExecuteAsync(string fixedCommand, bool retainOutput, CancellationToken token,
         string? input = null, Action? delivered = null) =>
         ExecuteAsync(fixedCommand, retainOutput, token, input is null ? null : new UTF8Encoding(false, true).GetBytes(input), delivered);
@@ -141,9 +141,12 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         var execution = command.ExecuteAsync(abort.Token);
         if (input is not null)
         {
+            // Counted as possibly delivered from the moment the request starts leaving: a script acts on its
+            // last request line without waiting for end-of-input, so a failure during the write or close is
+            // Unknown, never proof that nothing changed.
+            delivered?.Invoke();
             using (var stdin = command.CreateInputStream())
                 await stdin.WriteAsync(input, abort.Token).ConfigureAwait(false);
-            delivered?.Invoke();
         }
         var output = SshProbeOutput.ReadAsync(command.OutputStream, retainOutput, abort);
         var error = SshProbeOutput.ReadAsync(command.ExtendedOutputStream, retain: false, abort);

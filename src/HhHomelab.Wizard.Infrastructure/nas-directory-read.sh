@@ -65,7 +65,8 @@ marker_state() {
 }
 
 # Enters each directory with cd -P and compares its resolved path, so a component swapped for a symlink
-# is reported, never followed. A missing component means the directory is absent. Runs in a subshell.
+# is reported, never followed. A missing component means the directory is absent. The full mode (with any
+# inherited setgid bit) and whether the SSH user owns the directory are reported. Runs in a subshell.
 directory_state() {
     expected="$1"
     if ! cd -P "$expected" 2>/dev/null; then
@@ -110,11 +111,16 @@ directory_state() {
             return
         fi
     done
-    if ! mode="$(stat -c '%a' . 2>/dev/null)"; then
+    if ! mode="$(stat -c '%a' . 2>/dev/null)" || ! owner="$(stat -c '%u' . 2>/dev/null)"; then
         printf 'unavailable'
         return
     fi
-    printf 'present:%s' "$mode"
+    # Owned by the SSH user, or created by someone else (for example Docker as root).
+    if [ "$owner" = "$(id -u)" ]; then
+        printf 'present:%s:own' "$mode"
+    else
+        printf 'present:%s:other' "$mode"
+    fi
 }
 
 IFS= read -r header || fail

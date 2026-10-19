@@ -67,10 +67,14 @@ public sealed class ConfigurationDirectoryTests : IDisposable
         Assert.Equal(DirectoryCreateOutcome.Unknown, NasDirectoryProtocol.ParseCreate(3, "directory=created\n"));
         Assert.Equal(DirectoryCreateOutcome.Unknown, NasDirectoryProtocol.ParseCreate(1, ""));
         Assert.Equal(DirectoryCreateOutcome.Unknown, NasDirectoryProtocol.ParseCreate(null, ""));
-        Assert.Equal(new RemoteDirectoryObservation(RemoteMarkerMatch.Same, RemoteDirectoryState.Present, 0x1E8),
-            NasDirectoryProtocol.ParseRead(0, Read("same", "present:750")));
+        Assert.Equal(new RemoteDirectoryObservation(RemoteMarkerMatch.Same, RemoteDirectoryState.Present, 0x1E8, true),
+            NasDirectoryProtocol.ParseRead(0, Read("same", "present:750:own")));
+        var inherited = NasDirectoryProtocol.ParseRead(0, Read("same", "present:2750:other"));
+        Assert.False(inherited.OwnedBySshUser);
+        Assert.True(inherited.HasPermissions(0x1E8));
         Assert.Equal(RemoteDirectoryState.NotDirectory, NasDirectoryProtocol.ParseRead(0, Read("same", "not-directory")).Directory);
-        string[] malformed = [Read("different", "absent"), Read("same", "not-checked"), Read("same", "present:9"), Read("same", "present:"), Read("same", "absent") + "x\n"];
+        string[] malformed = [Read("different", "absent"), Read("same", "not-checked"), Read("same", "present:9:own"), Read("same", "present::own"),
+            Read("same", "present:750"), Read("same", "present:750:root"), Read("same", "absent") + "x\n"];
         foreach (var output in malformed)
             Assert.Throws<InvalidDataException>(() => NasDirectoryProtocol.ParseRead(0, output));
     }
@@ -84,6 +88,14 @@ public sealed class ConfigurationDirectoryTests : IDisposable
         Assert.Equal(0x1E8, nas.Mode);
         Assert.Equal(OperationOutcomeKind.AlreadySatisfied, (await RunAsync(nas)).Kind);
         Assert.Equal(1, nas.Creates);
+    }
+
+    [Fact]
+    public async Task SetgidInheritedFromAParentShareStillSatisfiesTheRequestedPermissions()
+    {
+        var nas = new FakeNas { Mode = 0x5E8 };
+        Assert.Equal(OperationOutcomeKind.AlreadySatisfied, (await RunAsync(nas)).Kind);
+        Assert.Equal(0, nas.Creates);
     }
 
     [Fact]
@@ -103,6 +115,7 @@ public sealed class ConfigurationDirectoryTests : IDisposable
     [InlineData("redirected")]
     [InlineData("foreign")]
     [InlineData("unmarked")]
+    [InlineData("created-by-docker-as-root")]
     public async Task AnythingButTheExactDirectoryUnderTheOwnMarkerIsNeverChanged(string state)
     {
         var nas = new FakeNas();
@@ -122,6 +135,10 @@ public sealed class ConfigurationDirectoryTests : IDisposable
                 break;
             case "unmarked":
                 nas.Marker = "absent";
+                break;
+            case "created-by-docker-as-root":
+                nas.Mode = 0x1E8;
+                nas.OwnedBySshUser = false;
                 break;
         }
         var result = await RunAsync(nas);
@@ -210,6 +227,8 @@ public sealed class ConfigurationDirectoryTests : IDisposable
 
         public int Mode { get; set; }
 
+        public bool OwnedBySshUser { get; set; } = true;
+
         public bool LoseResponse { get; set; }
 
         public bool FailCreateConnect { get; set; }
@@ -228,7 +247,7 @@ public sealed class ConfigurationDirectoryTests : IDisposable
                 return "not-checked";
             if (State is { } state)
                 return state;
-            return Mode == 0 ? "absent" : "present:" + Convert.ToString(Mode, 8);
+            return Mode == 0 ? "absent" : "present:" + Convert.ToString(Mode, 8) + (OwnedBySshUser ? ":own" : ":other");
         }
 
         private sealed class FakeWire(FakeNas nas) : INasDirectoryWire

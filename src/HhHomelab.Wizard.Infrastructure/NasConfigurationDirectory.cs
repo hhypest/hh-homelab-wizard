@@ -26,10 +26,15 @@ public enum RemoteDirectoryState
     Unavailable,
 }
 
-/// <summary>Read-only facts of one directory below the root; contents are never listed.</summary>
-public sealed record RemoteDirectoryObservation(RemoteMarkerMatch Marker, RemoteDirectoryState Directory, int Mode = 0)
+/// <summary>Read-only facts of one directory below the root; contents are never listed. Mode carries the full
+/// bits including an inherited setgid; OwnedBySshUser tells this user's directory from, say, Docker's.</summary>
+public sealed record RemoteDirectoryObservation(RemoteMarkerMatch Marker, RemoteDirectoryState Directory, int Mode = 0,
+    bool OwnedBySshUser = false)
 {
-    public string Revision => ConfigurationRequest.Fingerprint(new { Marker, Directory, Mode });
+    public string Revision => ConfigurationRequest.Fingerprint(new { Marker, Directory, Mode, OwnedBySshUser });
+
+    /// <summary>Only the permission bits are compared; special bits a parent share passes down do not count.</summary>
+    public bool HasPermissions(int mode) => (Mode & 0x1FF) == mode;
 }
 
 public sealed record RemoteDirectoryRead(SshProbeStatus Status, RemoteDirectoryObservation? Observation)
@@ -45,7 +50,7 @@ internal interface INasDirectoryWire : IDisposable
 
     Task<(int? ExitCode, string Output)> ReadConfigurationDirectoryAsync(string request, CancellationToken token);
 
-    /// <summary>Calls <paramref name="sending"/> once the complete request was delivered to the command.</summary>
+    /// <summary>Calls <paramref name="sending"/> just before the request is written to the started command.</summary>
     Task<(int? ExitCode, string Output)> CreateConfigurationDirectoryAsync(string request, Action sending, CancellationToken token);
 }
 
@@ -135,12 +140,13 @@ internal static class NasDirectoryProtocol
 
     private static RemoteDirectoryObservation Present(RemoteMarkerMatch marker, string value)
     {
-        if (!value.StartsWith("present:", StringComparison.Ordinal))
+        var fields = value.Split(':');
+        if (fields.Length != 3 || fields[0] != "present" || fields[2] is not ("own" or "other"))
             throw Invalid();
-        var mode = value["present:".Length..];
+        var mode = fields[1];
         if (mode.Length is 0 or > 4 || !mode.All(character => character is >= '0' and <= '7'))
             throw Invalid();
-        return new(marker, RemoteDirectoryState.Present, Convert.ToInt32(mode, 8));
+        return new(marker, RemoteDirectoryState.Present, Convert.ToInt32(mode, 8), fields[2] == "own");
     }
 
     private static InvalidDataException Invalid() => new("directory.response.invalid");
@@ -261,7 +267,7 @@ public sealed class NasConfigurationDirectoryClient
         }
         catch (Exception)
         {
-            // After the whole request left the client a timeout, cancellation or lost channel proves nothing.
+            // Once the request started leaving the client, a timeout, cancellation or lost channel proves nothing.
             if (sent)
                 return DirectoryCreateOutcome.Unknown;
             return trust.Failure is not null ? DirectoryCreateOutcome.IdentityChanged : DirectoryCreateOutcome.NotSent;
@@ -270,7 +276,8 @@ public sealed class NasConfigurationDirectoryClient
 }
 
 /// <summary>Creating one configuration directory as a journaled operation. Only this installation's exact
-/// marker proves ownership; only a directory with exactly this mode satisfies the request. Anything else on
+/// marker proves ownership; only a directory of the SSH user with exactly these permission bits satisfies the
+/// request, so a directory Docker created as root is a conflict, not a success. Anything else on
 /// the path is a conflict and is never changed; the create script re-checks every precondition and never
 /// touches an existing directory, so an interrupted attempt may be completed under the same pending intent.</summary>
 public sealed class NasConfigurationDirectoryOperation : IConfigurationOperation, IOperationOwnership, IRepeatableConditionalApply
@@ -355,7 +362,7 @@ public sealed class NasConfigurationDirectoryOperation : IConfigurationOperation
         {
             { Marker: not RemoteMarkerMatch.Same } => ObservedResourceState.Conflict,
             { Directory: RemoteDirectoryState.Absent } => ObservedResourceState.Missing,
-            { Directory: RemoteDirectoryState.Present } when observation.Mode == request.Mode => ObservedResourceState.Satisfied,
+            { Directory: RemoteDirectoryState.Present, OwnedBySshUser: true } when observation.HasPermissions(request.Mode) => ObservedResourceState.Satisfied,
             _ => ObservedResourceState.Conflict,
         };
         return OperationRead<StateRead>.Observed(new(state, observation.Revision));

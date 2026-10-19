@@ -285,7 +285,7 @@ public sealed class NasConfigurationFileClient
         }
         catch (Exception)
         {
-            // After the whole request left the client a timeout, cancellation or lost channel proves nothing.
+            // Once the request started leaving the client, a timeout, cancellation or lost channel proves nothing.
             if (sent)
                 return FileDeliveryOutcome.Unknown;
             return trust.Failure is not null ? FileDeliveryOutcome.IdentityChanged : FileDeliveryOutcome.NotSent;
@@ -349,7 +349,7 @@ public sealed class NasConfigurationFileOperation : IConfigurationOperation, IOp
             FileDeliveryOutcome.Created or FileDeliveryOutcome.AlreadyPresent => OperationWriteAttempt.Acknowledged(),
             FileDeliveryOutcome.Rejected => Write(OperationOutcomeKind.Rejected, OperationErrorCode.WriteRejected),
             FileDeliveryOutcome.IdentityChanged => Write(OperationOutcomeKind.Conflict, OperationErrorCode.IdentityMismatch),
-            // The connection failed before the whole request left the client: nothing was changed.
+            // The command never received the request: connection, authentication or start failed.
             FileDeliveryOutcome.NotSent when token.IsCancellationRequested => Write(OperationOutcomeKind.Cancelled, OperationErrorCode.Cancelled),
             FileDeliveryOutcome.NotSent => Write(OperationOutcomeKind.Transport, OperationErrorCode.ReadFailed),
             _ => Write(OperationOutcomeKind.Unknown, OperationErrorCode.WriteUncertain),
