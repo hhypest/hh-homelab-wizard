@@ -43,6 +43,9 @@ public sealed class ConfigurationFileTests : IDisposable
     [InlineData("media/конфиг.yaml", false)]
     [InlineData("media/compose yaml", false)]
     [InlineData("a/b/c/d/e/f/g/h/i", false)]
+    [InlineData("media/-f", false)]
+    [InlineData("-T/compose.yaml", false)]
+    [InlineData("media/a-b.yaml", true)]
     public void RelativePathIsAsciiBelowTheRootAndOutsideTheMarkerDirectory(string path, bool valid)
     {
         Assert.Equal(valid, ConfigurationFileRequest.IsRelativePath(path));
@@ -58,6 +61,8 @@ public sealed class ConfigurationFileTests : IDisposable
         var error = Assert.Throws<ArgumentException>(() => Request(request.Owner.InstallationId, "media/compose.yaml", 0x1A4, oversized));
         Assert.Equal("file.content.too-large", error.Message);
         Assert.True(Request(request.Owner.InstallationId, "media/compose.yaml", 0x1A4, new byte[ConfigurationFileRequest.MaximumContentBytes]).IsValid());
+        var longPath = new string('a', ConfigurationFileRequest.MaximumPathLength + 1);
+        Assert.Equal("file.path.too-long", Assert.Throws<ArgumentException>(() => Request(request.Owner.InstallationId, longPath, 0x1A4, Compose)).Message);
         Assert.True(Request(request.Owner.InstallationId, "media/compose.yaml", 0x1A4, []).IsValid());
         var qbittorrent = request.Identity with { Resource = request.Identity.Resource with { Service = "qbittorrent" } };
         Assert.False(new ConfigurationFileRequest(qbittorrent, request.Layout, request.Owner, request.RelativePath, request.Mode, Compose).IsValid());
