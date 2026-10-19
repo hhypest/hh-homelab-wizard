@@ -18,7 +18,7 @@ sh -n src/HhHomelab.Wizard.Infrastructure/nas-network-read.sh
 sh -n tools/HhHomelab.Wizard.ProbeSupport/ssh-fixture/dispatch.sh
 ```
 
-Locked restore, Release build успешны: 0 warnings / 0 errors. **1251 unit/fixture + 18 Desktop tests**, без пропусков. JournalProbe restart/exclusive-lock и plan-recovery passed, итог `journal.probe.passed`. ProfileCheck: 9 services / 19 artifacts / 118 steps, research inventory only. Последовательный MSBuild — параметр локальной среды, workflow не менялся.
+Для исходного `33f7a75` locked restore, Release build успешны: 0 warnings / 0 errors. **1251 unit/fixture + 18 Desktop tests**, без пропусков. JournalProbe restart/exclusive-lock и plan-recovery passed, итог `journal.probe.passed`. ProfileCheck: 9 services / 19 artifacts / 118 steps, research inventory only. Последовательный MSBuild — параметр локальной среды, workflow не менялся.
 
 ## Fixtures и локальный shell
 
@@ -43,6 +43,12 @@ Locked restore, Release build успешны: 0 warnings / 0 errors. **1251 unit
 `DockerNetworkScenarios` читает production probe на прежнем одноразовом nested Engine 29.8.2 / OpenSSH стенде: встроенная сеть `host`, password/key с одинаковым fingerprint, гарантированно отсутствующее имя, `hos` не совпадает с `host`, Docker overrides не меняют endpoint, отказ socket не выдаётся за отсутствие, восстановление возвращает прежний fingerprint. Полный logical resource snapshot до/после одинаков: сети/контейнеры/образы/тома не меняются. Диагностический итог: `ssh-docker.network-name-read-only: passed`. Режим повторяется дважды на свежих контейнерах. Прежний SSH-only compiler получает Unavailable при отсутствии Docker, сохраняя Blocking, а PUID/PGID-проверки продолжают работать.
 
 Fixture embedding/COPY/forced-command whitelist включают production `nas-network-read.sh`; definition hash вычисляется автоматически. Наличие сценария не считается успехом: CI точного head фиксируется отдельно в PR. Native Win32/X11/Wayland и прежние runtime jobs оцениваются CI отдельно от обычной клиентской и DSM-приёмки.
+
+## Исправление по review
+
+Codex Review `33f7a75` выявил неверное ограничение ID только 64 hex: Docker network ls включает Swarm/overlay с 25-символьными base36 ID. Формат подтверждён [официальным CLI контрактом](https://docs.docker.com/reference/cli/docker/network/ls/), [upstream примером](https://github.com/moby/moby/issues/34493) и [SwarmKit generator](https://github.com/moby/swarmkit/blob/master/identity/randomid.go). Теперь обе формы принимаются с прежними bounds/нормализацией; существующая Swarm-сеть даёт plan.network-name.conflict, а не response.invalid. Новые регрессии проверяют parser → revalidation → Blocking, case-insensitive duplicate, truncated/неверные длины/символы, отказ графа до writes. Итоговый локальный повтор: Release build 0 warnings/errors, **1258 unit/fixture + 18 Desktop**, без пропусков; JournalProbe/ProfileCheck passed. Реальный Swarm не запускался.
+
+Perch исходного `33f7a75` сообщил вероятностное wrong order в неизменённом RotateSshHostKeyAsync. Проверен порядок замены ключей до HUP и отдельный bounded gate VerifyKeyRotationAsync, требующий HostKeyChanged с ожидаемым новым ключом и затем Ready с новым pin. CI job [118200820335](https://github.com/hhypest/hh-homelab-wizard/actions/runs/39293750599/job/118200820335) подтвердил ротацию дважды. В thread дано объяснение, предупреждение закрыто как неподтверждённое, unrelated код не менялся; локального perch check нет. Исходный CI [39293750599](https://github.com/hhypest/hh-homelab-wizard/actions/runs/39293750599): 12/12 jobs success, network-name-read-only passed дважды, fixture definition ef452a4144d8fb1b1e433e2eabdb49092b52730b3d51180ee1178e3b0d760615. Это результаты исходного commit; CI итогового head фиксируется в PR.
 
 ## SonarQube и ограничения
 

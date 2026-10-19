@@ -138,12 +138,13 @@ public sealed class QbittorrentInstallationGraphTests : IDisposable
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ExistingOrUnreadableNetworkStopsBeforeGraphWrites(bool available)
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    [InlineData("retqaqtrgpy0jb8gv95yi9tnd")]
+    [InlineData(null)]
+    public async Task ExistingOrUnreadableNetworkStopsBeforeGraphWrites(string? networkId)
     {
         var fixture = new QbittorrentPlanTests.PlanData();
-        fixture.Networks.Facts = available ? new(PreflightFactStatus.Available, [new string('a', 64)])
+        fixture.Networks.Facts = networkId is not null ? new(PreflightFactStatus.Available, [networkId])
             : new(PreflightFactStatus.Unavailable, []);
         var plan = (await fixture.Compiler.CompileAsync(fixture.Request(), PreflightData.Pin, Token)).Value!;
         var nas = new FakeNas();

@@ -17,7 +17,7 @@ public sealed class DockerNetworkFacts
             throw new ArgumentException("network.status.invalid");
 
         var ids = networkIds.Take(MaximumMatches + 1).ToArray();
-        if (ids.Length > MaximumMatches || ids.Any(id => !ResourceIdentity.IsFingerprint(id)))
+        if (ids.Length > MaximumMatches || ids.Any(id => !IsNetworkId(id)))
             throw new ArgumentException("network.ids.invalid");
         if (ids.Distinct(StringComparer.OrdinalIgnoreCase).Count() != ids.Length)
             throw new ArgumentException("network.ids.duplicate");
@@ -26,6 +26,14 @@ public sealed class DockerNetworkFacts
 
         Status = status;
         NetworkIds = Array.AsReadOnly(ids.Select(id => id.ToLowerInvariant()).Order(StringComparer.Ordinal).ToArray());
+    }
+
+    private static bool IsNetworkId(string? id)
+    {
+        // Local networks use SHA-256 IDs; Swarm networks use 25-character base-36 IDs.
+        // Neither form is an ownership or compatibility assertion.
+        var swarmId = id is { Length: 25 } && id.All(char.IsAsciiLetterOrDigit);
+        return ResourceIdentity.IsFingerprint(id) || swarmId;
     }
 }
 

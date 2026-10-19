@@ -72,6 +72,35 @@ public sealed class DockerNetworkTests
             Enumerable.Range(0, DockerNetworkFacts.MaximumMatches + 1).Select(number => number.ToString("x64"))));
     }
 
+    [Fact]
+    public async Task SwarmNetworkIdsRoundTripAndProduceAConflictInsteadOfAnInvalidResponse()
+    {
+        const string swarmId = "retqaqtrgpy0jb8gv95yi9tnd";
+        var fixture = new QbittorrentPlanTests.PlanData();
+        var before = (await fixture.Compiler.CompileAsync(fixture.Request(), PreflightData.Pin, Token)).Value!;
+        var facts = NasDockerNetworkProtocol.Parse(0, Output([swarmId.ToUpperInvariant(), NetworkId]));
+        Assert.Equal([NetworkId, swarmId], facts.NetworkIds);
+        Assert.Throws<InvalidDataException>(() => NasDockerNetworkProtocol.Parse(0, Output([swarmId, swarmId.ToUpperInvariant()])));
+        fixture.Networks.Facts = facts;
+
+        var renewed = await fixture.Compiler.RevalidateAsync(before, PreflightData.Pin, Token);
+
+        Assert.False(renewed.Unchanged);
+        Assert.Contains(renewed.Fresh.Value!.Checks, check => check.Code == "plan.network-name.conflict"
+            && check.Status == PreflightCheckStatus.Blocking);
+    }
+
+    [Theory]
+    [InlineData("0123456789ab")]
+    [InlineData("retqaqtrgpy0jb8gv95yi9tn")]
+    [InlineData("retqaqtrgpy0jb8gv95yi9tnd0")]
+    [InlineData("retqaqtrgpy0jb8gv95yi9tn_")]
+    [InlineData("gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg")]
+    public void TruncatedMalformedOrUnsupportedIdFormsAreRejected(string id)
+    {
+        Assert.Throws<InvalidDataException>(() => NasDockerNetworkProtocol.Parse(0, Output([id])));
+    }
+
     [Theory]
     [InlineData("bad-id")]
     [InlineData("partial-denial")]
