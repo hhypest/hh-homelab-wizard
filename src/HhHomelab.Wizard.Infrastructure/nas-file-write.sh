@@ -58,8 +58,9 @@ esac
 case "$path" in
     /* | */ | *//* | .hh-homelab-wizard | .hh-homelab-wizard/* | *[!A-Za-z0-9._/-]*) framing ;;
 esac
+# No dot, dot-dot or dash-leading component: a name is never read as an option by mkdir or ln.
 case "/$path/" in
-    */./* | */../*) framing ;;
+    */./* | */../* | */-*) framing ;;
 esac
 case "$mode_line" in
     mode=600 | mode=640 | mode=644) mode="${mode_line#mode=}" ;;
@@ -83,14 +84,17 @@ esac
 
 # Only below this installation's own marker, reached without any symlink or redirected ancestor.
 dir="$root/.hh-homelab-wizard"
-for candidate in "$root" "$dir" "$dir/installation.json"; do
-    if [ -L "$candidate" ]; then
-        reject
-    fi
-done
-[ -d "$root" ] || reject
-[ "$(cd -P "$root" 2>/dev/null && pwd -P)" = "$root" ] || reject
-same_marker_bytes "$dir/installation.json" "$marker" || reject
+owned_root() {
+    for candidate in "$root" "$dir" "$dir/installation.json"; do
+        if [ -L "$candidate" ]; then
+            return 1
+        fi
+    done
+    [ -d "$root" ] || return 1
+    [ "$(cd -P "$root" 2>/dev/null && pwd -P)" = "$root" ] || return 1
+    same_marker_bytes "$dir/installation.json" "$marker"
+}
+owned_root || reject
 [ -w "$dir" ] && [ -x "$dir" ] || reject
 
 # Every existing parent must be a real searchable directory; missing parents are created only after
@@ -153,6 +157,9 @@ same_file "$staging" || reject
 expected="$current"
 cd -P "$current" 2>/dev/null || reject
 [ "$(pwd -P)" = "$expected" ] || reject
+# Ownership is checked again just before the first change, not only before the transfer; a marker
+# replaced during the transfer is a refusal. The remote installation lock keeps other wizards out.
+owned_root || reject
 
 # Changes start here: create the missing parents, then publish with a no-clobber hard link so a
 # concurrent writer or a later manual file is never replaced.
@@ -169,5 +176,12 @@ while [ -n "$missing" ]; do
         *) missing='' ;;
     esac
 done
-ln "$staging" "${path##*/}"
+# -T: an entry raced in under the final name, even a directory or a symlink to one, makes ln fail
+# instead of receiving the link inside it.
+name="${path##*/}"
+ln -T "$staging" "$name"
+# The published name must hold the verified bytes and the root must still be this installation's;
+# otherwise the outcome is unknown and the next observation reports it.
+same_file "$name" || exit 1
+owned_root || exit 1
 printf 'file=created\n'

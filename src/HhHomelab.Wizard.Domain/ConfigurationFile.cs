@@ -15,6 +15,8 @@ public sealed class ConfigurationFileRequest : IDisposable
 
     public const int MaximumComponentLength = 64;
 
+    public const int MaximumPathLength = 255;
+
     /// <summary>The only modes a delivered file may get: owner-only for secrets, group- or world-readable
     /// for plain configuration. Directories and special bits are never set by this request.</summary>
     public static IReadOnlyList<int> AllowedModes { get; } = Array.AsReadOnly(new[] { 0x180, 0x1A0, 0x1A4 });
@@ -30,9 +32,11 @@ public sealed class ConfigurationFileRequest : IDisposable
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(relativePath);
-        // The bound is checked before any copy or hash, so oversized input costs nothing.
+        // The bounds are checked before any copy or hash, so oversized input costs nothing.
         if (content.Length > MaximumContentBytes)
             throw new ArgumentException("file.content.too-large");
+        if (relativePath.Length > MaximumPathLength)
+            throw new ArgumentException("file.path.too-long");
         Identity = identity;
         Layout = layout;
         Owner = owner;
@@ -84,13 +88,11 @@ public sealed class ConfigurationFileRequest : IDisposable
 
     public bool IsValid()
     {
-        if (!Owner.IsValid || !Descriptor.IsValid || Identity.Resource.Service != "nas")
+        if (!IsRelativePath(RelativePath) || !Owner.IsValid || !Descriptor.IsValid || Identity.Resource.Service != "nas")
             return false;
         if (Identity.Resource.InstallationId != Owner.InstallationId || Identity.Resource.ProfileFingerprint != Owner.ProfileFingerprint)
             return false;
-        if (disposed || !AllowedModes.Contains(Mode))
-            return false;
-        return IsRelativePath(RelativePath);
+        return !disposed && AllowedModes.Contains(Mode);
     }
 
     /// <summary>Zeroes the owned copy; the descriptor stays valid for journal records.</summary>
@@ -101,10 +103,11 @@ public sealed class ConfigurationFileRequest : IDisposable
     }
 
     /// <summary>ASCII components only, so the path means the same bytes to the shell and the parser; no
-    /// empty, dot or dot-dot component and nothing inside the wizard's own marker directory.</summary>
+    /// empty, dot, dot-dot or dash-leading component (never read as a utility option) and nothing inside
+    /// the wizard's own marker directory.</summary>
     public static bool IsRelativePath(string? path)
     {
-        if (string.IsNullOrEmpty(path) || path.Length > 255)
+        if (string.IsNullOrEmpty(path) || path.Length > MaximumPathLength)
             return false;
         var components = path.Split('/');
         if (components.Length > MaximumRelativeComponents || components[0] == ".hh-homelab-wizard")
@@ -114,7 +117,7 @@ public sealed class ConfigurationFileRequest : IDisposable
 
     private static bool ValidComponent(string component)
     {
-        if (component.Length is 0 or > MaximumComponentLength || component is "." or "..")
+        if (component.Length is 0 or > MaximumComponentLength || component is "." or ".." || component[0] == '-')
             return false;
         return component.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
     }

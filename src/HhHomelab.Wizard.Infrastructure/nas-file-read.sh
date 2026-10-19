@@ -64,10 +64,21 @@ marker_state() {
     fi
 }
 
-# Walks the relative path one component at a time: a symlink anywhere is reported, never followed; a
-# missing parent means the file is absent. Contents travel only as size, mode and SHA-256.
+# Walks the relative path one directory at a time: each directory is entered and its resolved path
+# compared, so a component swapped for a symlink mid-walk is reported, never followed. The file itself is
+# opened once and its real path read back through /proc, binding size, mode and digest to that inode.
+# A missing parent means the file is absent. Runs in a subshell; contents travel only as size, mode and
+# SHA-256.
 file_state() {
-    current="$1"
+    expected="$1"
+    if ! cd -P "$expected" 2>/dev/null; then
+        printf 'unavailable'
+        return
+    fi
+    if [ "$(pwd -P)" != "$expected" ]; then
+        printf 'redirected'
+        return
+    fi
     remaining="$2"
     while :; do
         case "$remaining" in
@@ -80,36 +91,44 @@ file_state() {
                 remaining=''
                 ;;
         esac
-        if [ ! -x "$current" ]; then
-            printf 'unavailable'
-            return
-        fi
-        next="$current/$part"
-        if [ -L "$next" ]; then
+        if [ -L "$part" ]; then
             printf 'redirected'
             return
         fi
-        if [ ! -e "$next" ]; then
+        if [ ! -e "$part" ]; then
             printf 'absent'
             return
         fi
         if [ -n "$remaining" ]; then
-            if [ ! -d "$next" ]; then
+            if [ ! -d "$part" ]; then
                 printf 'not-regular'
                 return
             fi
-            current="$next"
+            if ! cd -P "$part" 2>/dev/null; then
+                printf 'unavailable'
+                return
+            fi
+            expected="$expected/$part"
+            if [ "$(pwd -P)" != "$expected" ]; then
+                printf 'redirected'
+                return
+            fi
             continue
         fi
-        if [ ! -f "$next" ]; then
+        if [ ! -f "$part" ]; then
             printf 'not-regular'
             return
         fi
-        if [ ! -r "$next" ]; then
+        if [ ! -r "$part" ]; then
             printf 'unavailable'
             return
         fi
-        if ! size="$(stat -c '%s' "$next" 2>/dev/null)" || ! mode="$(stat -c '%a' "$next" 2>/dev/null)"; then
+        exec 3< "$part"
+        if [ "$(readlink /proc/self/fd/3 2>/dev/null)" != "$expected/$part" ] || [ ! -f /proc/self/fd/3 ]; then
+            printf 'redirected'
+            return
+        fi
+        if ! size="$(stat -L -c '%s' /proc/self/fd/3 2>/dev/null)" || ! mode="$(stat -L -c '%a' /proc/self/fd/3 2>/dev/null)"; then
             printf 'unavailable'
             return
         fi
@@ -117,7 +136,7 @@ file_state() {
             printf 'oversized'
             return
         fi
-        if ! digest="$(sha256sum < "$next")"; then
+        if ! digest="$(sha256sum <&3)"; then
             printf 'unavailable'
             return
         fi
@@ -149,8 +168,9 @@ esac
 case "$path" in
     /* | */ | *//* | .hh-homelab-wizard | .hh-homelab-wizard/* | *[!A-Za-z0-9._/-]*) fail ;;
 esac
+# No dot, dot-dot or dash-leading component: a name is never read as an option by a utility.
 case "/$path/" in
-    */./* | */../*) fail ;;
+    */./* | */../* | */-*) fail ;;
 esac
 
 state="$(marker_state "$root" "$marker")"
