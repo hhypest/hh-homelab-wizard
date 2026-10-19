@@ -7,4 +7,7 @@ mkdir -p /run/sshd
 rm -f /run/sshd/hostkey /run/sshd/hostkey.pub /run/sshd/sshd.pid
 rm -f /fixture-state/mode /fixture-state/identity-started
 ssh-keygen -q -t ed25519 -N '' -f /run/sshd/hostkey
+if [ "${1:-}" = docker ]; then
+    /fixture/docker-control.sh start
+fi
 exec /usr/sbin/sshd -D -e -f /fixture/sshd_config

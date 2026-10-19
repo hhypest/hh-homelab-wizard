@@ -113,6 +113,10 @@ jobs:
           retention-days: 14
 
   ssh-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [ssh, docker]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -128,7 +132,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base_image="$(sed -n 's/^FROM //p' tools/HhHomelab.Wizard.ProbeSupport/ssh-fixture/Dockerfile)"
+          base_image="$(awk 'NR == 1 { print $2 }' tools/HhHomelab.Wizard.ProbeSupport/ssh-fixture/Dockerfile)"
           [[ "$base_image" =~ ^alpine:[0-9.]+@sha256:[a-f0-9]{64}$ ]]
           bash .github/scripts/pull-image.sh "$base_image"
       - name: Verify SSH authentication, trust, SFTP and disconnect twice on fresh containers
@@ -136,7 +140,11 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in 1 2; do
-            dotnet run --project tools/HhHomelab.Wizard.SshDockerProbe --no-build --configuration Release
+            if [ '${{ matrix.fixture }}' = docker ]; then
+              dotnet run --project tools/HhHomelab.Wizard.SshDockerProbe --no-build --configuration Release -- --docker-preflight
+            else
+              dotnet run --project tools/HhHomelab.Wizard.SshDockerProbe --no-build --configuration Release
+            fi
           done
 
   qb-runtime:

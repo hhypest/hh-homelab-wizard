@@ -10,6 +10,11 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
             delay) exec sleep 60 ;;
             oversized) head -c 20000 /dev/zero | tr '\000' x; exit 0 ;;
             malformed) printf 'invalid-preflight\n'; exit 0 ;;
+            docker-overrides)
+                export DOCKER_HOST=tcp://127.0.0.1:1 DOCKER_CONTEXT=fixture-missing
+                export DOCKER_TLS_VERIFY=1 DOCKER_CERT_PATH=/fixture-missing DOCKER_API_VERSION=invalid
+                export DOCKER_CUSTOM_HEADERS=Authorization=synthetic-not-a-secret
+                ;;
         esac
         exec /bin/sh /fixture/preflight.sh
         ;;

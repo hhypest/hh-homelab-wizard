@@ -8,6 +8,7 @@
     <EmbeddedResource Include="ssh-fixture/sshd_config" LogicalName="ssh-fixture.sshd_config" />
     <EmbeddedResource Include="ssh-fixture/entrypoint.sh" LogicalName="ssh-fixture.entrypoint.sh" />
     <EmbeddedResource Include="ssh-fixture/dispatch.sh" LogicalName="ssh-fixture.dispatch.sh" />
+    <EmbeddedResource Include="ssh-fixture/docker-control.sh" LogicalName="ssh-fixture.docker-control.sh" />
     <EmbeddedResource Include="../../src/HhHomelab.Wizard.Infrastructure/nas-preflight.sh" LogicalName="ssh-fixture.preflight.sh" />
   </ItemGroup>
 </Project>
