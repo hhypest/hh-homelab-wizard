@@ -76,7 +76,18 @@ public sealed class InstallationLockTests
         Assert.Equal(InstallationLockStatus.NotSent, (await Lock(beforeSend).AcquireAsync(PathData.Layout, Owner, Session, PreflightData.Pin, Token)).Status);
         Assert.Empty(beforeSend.Requests);
         Assert.Equal(InstallationLockStatus.NotSent, (await Lock(new LockWire()).AcquireAsync(PathData.Layout, Owner, Guid.Empty, PreflightData.Pin, Token)).Status);
-        Assert.Equal(InstallationLockStatus.NotSent, (await Lock(new LockWire()).AcquireAsync(PathData.Layout, Owner, Session, PreflightData.OtherPin, Token)).Status);
+    }
+
+    [Fact]
+    public async Task ChangedHostKeyIsAnIdentityChangeNotATransportFailureAndNothingIsSent()
+    {
+        var changed = new LockWire { Fail = WireFailure.HostKeyChanged };
+        var result = await Lock(changed).AcquireAsync(PathData.Layout, Owner, Session, PreflightData.Pin, Token);
+        Assert.Equal(InstallationLockStatus.IdentityChanged, result.Status);
+        Assert.Empty(changed.Requests);
+        var otherPin = new LockWire();
+        Assert.Equal(InstallationLockStatus.IdentityChanged, (await Lock(otherPin).AcquireAsync(PathData.Layout, Owner, Session, PreflightData.OtherPin, Token)).Status);
+        Assert.Empty(otherPin.Requests);
     }
 
     [Fact]
@@ -146,6 +157,7 @@ public sealed class InstallationLockTests
     {
         None,
         Connect,
+        HostKeyChanged,
         AfterSend,
     }
 
@@ -165,7 +177,8 @@ public sealed class InstallationLockTests
         {
             OnConnect?.Invoke();
             token.ThrowIfCancellationRequested();
-            if (Fail == WireFailure.Connect || !acceptKey("ssh-ed25519", PreflightData.PublicKey))
+            byte[] presented = Fail == WireFailure.HostKeyChanged ? [1, 2, 3] : PreflightData.PublicKey;
+            if (Fail == WireFailure.Connect || !acceptKey("ssh-ed25519", presented))
                 throw new SshConnectionException("synthetic-connect-failure");
             return Task.CompletedTask;
         }

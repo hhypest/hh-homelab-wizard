@@ -15,6 +15,7 @@ public enum InstallationLockStatus
     NotOwned,
     Invalid,
     NotSent,
+    IdentityChanged,
     Unknown,
 }
 
@@ -155,7 +156,9 @@ public sealed class NasInstallationLock
             budget.ThrowIfCancellationRequested();
             using var wire = createWire(timeout);
             await wire.ConnectAsync(trust.Accept, budget).ConfigureAwait(false);
-            if (!trust.Accepted || trust.Failure is not null)
+            if (trust.Failure is not null)
+                return new(InstallationLockStatus.IdentityChanged);
+            if (!trust.Accepted)
                 return new(InstallationLockStatus.NotSent);
             budget.ThrowIfCancellationRequested();
             var (exitCode, output) = await wire.RunLockAsync(request, () => sent = true, budget).ConfigureAwait(false);
@@ -163,7 +166,10 @@ public sealed class NasInstallationLock
         }
         catch (Exception)
         {
-            return new(sent ? InstallationLockStatus.Unknown : InstallationLockStatus.NotSent);
+            if (sent)
+                return new(InstallationLockStatus.Unknown);
+            // A refused host key surfaces as a connection error; it is a changed identity, not transport.
+            return new(trust.Failure is not null ? InstallationLockStatus.IdentityChanged : InstallationLockStatus.NotSent);
         }
     }
 }
