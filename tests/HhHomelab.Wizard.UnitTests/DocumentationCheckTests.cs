@@ -99,6 +99,16 @@ public sealed class DocumentationCheckTests
     }
 
     [Fact]
+    public void FencedExampleBeforeCatalogTableDoesNotShiftRows()
+    {
+        var sources = Documentation();
+        var example = "```text\nпример\nещё строка\n```\n\n| Документ | Тип |";
+        sources["docs/catalog.md"] = Catalog.Replace("| Документ | Тип |", example, StringComparison.Ordinal);
+
+        Assert.Empty(Check(sources));
+    }
+
+    [Fact]
     public void DocumentWithoutTypeIsReported()
     {
         var sources = Documentation();

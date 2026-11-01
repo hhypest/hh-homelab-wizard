@@ -12,11 +12,17 @@ public sealed record MarkdownLink(int Line, string Target);
 /// </summary>
 public sealed partial class MarkdownDocument
 {
-    private MarkdownDocument(IReadOnlySet<string> anchors, IReadOnlyList<MarkdownLink> links, string visibleText)
+    private MarkdownDocument(
+        IReadOnlySet<string> anchors,
+        IReadOnlyList<MarkdownLink> links,
+        string visibleText,
+        IReadOnlyList<string> sourceLines
+    )
     {
         Anchors = anchors;
         Links = links;
         VisibleText = visibleText;
+        SourceLines = sourceLines;
     }
 
     public IReadOnlySet<string> Anchors { get; }
@@ -24,6 +30,9 @@ public sealed partial class MarkdownDocument
     public IReadOnlyList<MarkdownLink> Links { get; }
 
     public string VisibleText { get; }
+
+    /// <summary>All source lines, fences included; <see cref="MarkdownLink.Line"/> is a 1-based index into them.</summary>
+    public IReadOnlyList<string> SourceLines { get; }
 
     /// <summary>Text before the first second-level heading, where type, status and provenance are declared.</summary>
     public string Preamble
@@ -66,7 +75,7 @@ public sealed partial class MarkdownDocument
             AddLinks(line, index + 1, links);
         }
 
-        return new MarkdownDocument(anchors, links, visible.ToString());
+        return new MarkdownDocument(anchors, links, visible.ToString(), lines);
     }
 
     /// <summary>GitHub anchor of a heading text: lowercase, punctuation removed, spaces as hyphens.</summary>

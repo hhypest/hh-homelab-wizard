@@ -261,15 +261,22 @@ public static partial class DocumentationChecker
     /// <summary>Targets linked from catalog table rows before the map of old paths.</summary>
     private static HashSet<string> CataloguedTargets(MarkdownDocument catalog)
     {
-        var lines = catalog.VisibleText.Split('\n');
-        var mapStart = Array.FindIndex(lines, line => line.StartsWith(OldPathsHeading, StringComparison.Ordinal));
-        var lastLine = mapStart < 0 ? int.MaxValue : mapStart + 1;
-        var targets = new HashSet<string>(StringComparer.Ordinal);
+        var lines = catalog.SourceLines;
+        var mapStart = -1;
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (lines[index].StartsWith(OldPathsHeading, StringComparison.Ordinal))
+            {
+                mapStart = index;
+                break;
+            }
+        }
 
+        var targets = new HashSet<string>(StringComparer.Ordinal);
         foreach (var link in catalog.Links)
         {
-            var beforeMap = link.Line < lastLine;
-            var tableRow = link.Line <= lines.Length && lines[link.Line - 1].StartsWith('|');
+            var beforeMap = mapStart < 0 || link.Line <= mapStart;
+            var tableRow = lines[link.Line - 1].StartsWith('|');
             var resolved = Resolve(CatalogPath, link.Target);
             if (beforeMap && tableRow && resolved is not null)
                 targets.Add(resolved.Value.Target);
