@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifiers>win-x64;linux-x64</RuntimeIdentifiers>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/HhHomelab.Wizard.Infrastructure/HhHomelab.Wizard.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

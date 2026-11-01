@@ -63,6 +63,7 @@ jobs:
         run: |
           dotnet publish src/HhHomelab.Wizard.Desktop -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o artifacts/desktop
           dotnet publish tools/HhHomelab.Wizard.DesktopProbe -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o artifacts/probe
+          dotnet publish tools/HhHomelab.Wizard.NasReadOnlyCheck -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -o artifacts/nas-read-only-check
       - name: Install X11 and Wayland dependencies for native smoke checks
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y xvfb weston libx11-6 libice6 libsm6 libfontconfig1 libgl1 libegl1 libegl-mesa0 libgles2 libgl1-mesa-dri libwayland-client0 libwayland-egl1 libxkbcommon0 fonts-dejavu-core
@@ -99,11 +100,21 @@ jobs:
           Copy-Item -Recurse LICENSES artifacts/desktop/LICENSES
           Copy-Item THIRD_PARTY_NOTICES.md artifacts/desktop/THIRD_PARTY_NOTICES.md
           Copy-Item docs/guide/demo-package.md artifacts/desktop/DEMO.md
+          Copy-Item LICENSE artifacts/nas-read-only-check/LICENSE
+          Copy-Item -Recurse LICENSES artifacts/nas-read-only-check/LICENSES
+          Copy-Item THIRD_PARTY_NOTICES.md artifacts/nas-read-only-check/THIRD_PARTY_NOTICES.md
       - name: Upload trial application
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: hh-homelab-wizard-m1-demo-${{ matrix.rid }}
           path: artifacts/desktop/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload read-only NAS check
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hh-homelab-wizard-nas-read-only-check-${{ matrix.rid }}
+          path: artifacts/nas-read-only-check/
           if-no-files-found: error
           retention-days: 14
       - name: Upload native rendering evidence

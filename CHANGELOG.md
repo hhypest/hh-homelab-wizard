@@ -6,6 +6,8 @@
 
 ### Added
 
+- Инструмент `NasReadOnlyCheck` и [чек-лист](docs/verification/checklists/nas-read-only.md) read-only проверки настоящего NAS для #46/#48/#49: production-пробы SSH (с одобрением ключа сервера по отпечатку), preflight, путей с маркером владения, имени Docker-сети и Compose-проекта новой установки. Секреты вводятся без отображения и не принимаются аргументами; JSON-отчёт без секретов, адреса, имени пользователя и ID контейнеров. CI публикует самостоятельные сборки для win-x64 и linux-x64. Ничего на NAS не меняется.
+
 - Read-only наблюдение Compose-проекта qBittorrent #50/#51/#101: фиксированный SSH-скрипт на локальном Docker socket находит сеть и контейнер по точному имени и сравнивает в shell метки Compose — проект `hhw-<ID установки>`, ключ сети, сервис, `oneoff` и каталог проекта; значения меток наружу не выходят. Оценка Absent/Owned/Foreign/Ambiguous/Unavailable, любой сбой Docker — только Unavailable без частичных записей. Ничего не запускается, не удаляется и не присваивается по имени; план новой установки не изменён. [ADR 0027](docs/adr/0027-compose-project-observation.md), [протокол](docs/verification/reports/2026-11-01-compose-project-observation.md).
 
 - Read-only проверка имени Docker-сети #50/#48/#101: отдельный SSH probe на локальном Docker socket, имя через stdin и точное сравнение поверх substring-фильтра. Свежий snapshot привязан к name/key/principal/profile/time и входит в fingerprint; существующая сеть или Unavailable блокируют план до графа. Нет присвоения по имени, сетевых мутаций или cached success после ошибки. [ADR 0026](docs/adr/0026-docker-network-preflight.md), [протокол](docs/verification/reports/2026-10-19-docker-network-preflight.md).

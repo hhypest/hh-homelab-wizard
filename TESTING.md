@@ -10,6 +10,7 @@
 | Понять уровни доказательств и задания CI | [Методика](docs/engineering/testing.md) |
 | Запустить изолированную пробу qBittorrent, Arr, Jellyfin/Seerr, HA или DesktopProbe | [Инструменты разработчика](docs/engineering/developer-probes.md) |
 | Проверить демонстрацию «Фокус» на клиентской ОС | [Чек-лист демонстрации](docs/verification/checklists/client-demo.md) |
+| Прочитать настоящий NAS без изменений: SSH, preflight, пути, сеть, Compose | [Read-only проверка NAS](docs/verification/checklists/nas-read-only.md) |
 | Узнать, что принято и что осталось в M0 и M1 | [Сводка M0](docs/verification/m0.md) · [Сводка M1](docs/verification/m1.md) |
 | Найти факт проверки конкретного инкремента | [Протоколы](docs/catalog.md#протоколы-конкретных-проверок) |
 
