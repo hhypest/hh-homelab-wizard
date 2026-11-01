@@ -28,7 +28,8 @@ public sealed class DockerNetworkFacts
         NetworkIds = Array.AsReadOnly(ids.Select(id => id.ToLowerInvariant()).Order(StringComparer.Ordinal).ToArray());
     }
 
-    private static bool IsNetworkId(string? id)
+    /// <summary>A full local (64 hex) or Swarm (25 base36) network ID; truncated IDs are rejected.</summary>
+    public static bool IsNetworkId(string? id)
     {
         // Local networks use SHA-256 IDs; Swarm networks use 25-character base-36 IDs.
         // Neither form is an ownership or compatibility assertion.

@@ -4,6 +4,7 @@ identity_command="printf 'hh-homelab-wizard:ssh-probe:v1\\n'; uname -s; id -u"
 preflight_command="$(cat /fixture/preflight.sh)"
 paths_command="$(cat /fixture/paths.sh)"
 network_command="$(cat /fixture/network-read.sh)"
+compose_command="$(cat /fixture/compose-read.sh)"
 marker_command="$(cat /fixture/marker-write.sh)"
 lock_command="$(cat /fixture/lock.sh)"
 file_read_command="$(cat /fixture/file-read.sh)"
@@ -38,6 +39,19 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
                 ;;
         esac
         exec /bin/sh /fixture/network-read.sh
+        ;;
+    "$compose_command")
+        : > /fixture-state/identity-started
+        case "$mode" in
+            delay) exec sleep 60 ;;
+            malformed) printf 'invalid-compose\n'; exit 0 ;;
+            docker-overrides)
+                export DOCKER_HOST=tcp://127.0.0.1:1 DOCKER_CONTEXT=fixture-missing
+                export DOCKER_TLS_VERIFY=1 DOCKER_CERT_PATH=/fixture-missing DOCKER_API_VERSION=invalid
+                export DOCKER_CUSTOM_HEADERS=Authorization=synthetic-not-a-secret
+                ;;
+        esac
+        exec /bin/sh /fixture/compose-read.sh
         ;;
     "$paths_command")
         : > /fixture-state/identity-started

@@ -42,6 +42,7 @@ Domain/Application не зависят от Avalonia, SSH/HTTP реализац�
 
 ### Исполнение, журнал и владение (M3)
 
+- [Read-only наблюдение Compose-проекта](../adr/0027-compose-project-observation.md) и [протокол](../verification/reports/2026-11-01-compose-project-observation.md): сеть и контейнер свои только по меткам проекта `hhw-<ID>`, сервиса и каталога; ничего не запускается и не присваивается по имени.
 - [Локальный файловый журнал](../adr/0011-local-file-journal.md) и [проба перезапуска процессов](../verification/reports/2026-10-18-file-journal.md); remote lock/ownership остаются отдельной работой.
 - [Маркер владения установкой](../adr/0017-installation-ownership-marker.md) и [протокол](../verification/reports/2026-10-19-ownership-marker.md): своя установка определяется только точным совпадением маркера.
 - [Создание маркера владения](../adr/0018-ownership-marker-creation.md) и [протокол](../verification/reports/2026-10-19-ownership-marker-creation.md): первая мутация NAS через журнал намерений, пока только на стенде.
