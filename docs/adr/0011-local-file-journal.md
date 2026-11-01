@@ -32,6 +32,6 @@
 
 Локальный session GUID не доказывает владение NAS. `IOperationOwnership` по-прежнему требует свежего remote marker/instance/profile evidence. Удалённая блокировка, host/preflight, перенос старых клиентских intent, полный граф/recovery, SSH/Docker вертикаль #101 и UI подключения журнала ещё не реализованы. Desktop demo использует искусственный сценарий. Инкремент зависит от PR #109 и не закрывает #51/M3.
 
-Доказательства и команды: [протокол](../testing/2026-10-18-file-journal.md).
+Доказательства и команды: [протокол](../verification/reports/2026-10-18-file-journal.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

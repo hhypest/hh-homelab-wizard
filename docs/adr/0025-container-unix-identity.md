@@ -35,6 +35,6 @@ Read-only `nas-paths-request:v3` / `nas-paths:v3` добавляют обяза�
 
 Протоколы журналов/ownership marker и research/image pins не меняются. Прежние датированные протоколы описывают исторические версии path-протокола; текущее поведение определяют этот ADR и STATUS.
 
-Доказательства: [протокол](../testing/2026-10-19-container-unix-identity.md).
+Доказательства: [протокол](../verification/reports/2026-10-19-container-unix-identity.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

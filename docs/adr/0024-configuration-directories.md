@@ -36,6 +36,6 @@
 - Удаление и компенсация не реализованы. Каталоги монтирования qBittorrent включены в граф ADR 0023.
 - DSM ACL и `mkdir -m` на DSM не проверены.
 
-Доказательства: [протокол](../testing/2026-10-19-configuration-directories.md).
+Доказательства: [протокол](../verification/reports/2026-10-19-configuration-directories.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.
