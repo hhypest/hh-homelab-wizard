@@ -16,6 +16,7 @@
     <Project Path="tools/HhHomelab.Wizard.HaProfileProbe/HhHomelab.Wizard.HaProfileProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.ArrDockerProbe/HhHomelab.Wizard.ArrDockerProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.DesktopProbe/HhHomelab.Wizard.DesktopProbe.csproj" />
+    <Project Path="tools/HhHomelab.Wizard.DocsCheck/HhHomelab.Wizard.DocsCheck.csproj" />
     <Project Path="tools/HhHomelab.Wizard.HaDockerProbe/HhHomelab.Wizard.HaDockerProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.MediaDockerProbe/HhHomelab.Wizard.MediaDockerProbe.csproj" />
     <Project Path="tools/HhHomelab.Wizard.ProbeSupport/HhHomelab.Wizard.ProbeSupport.csproj" />

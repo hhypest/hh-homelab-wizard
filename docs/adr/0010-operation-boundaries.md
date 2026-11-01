@@ -2,7 +2,7 @@
 
 - Дата: 2026-10-18.
 - Статус: принято для #99 по [ADR 0008](0008-audit-development-sequence.md).
-- Основа: [транспорт](../m0/SHARED_HTTP_REPORT.md), [снимок профиля](0009-pinned-runtime-profile.md), [журнал и секреты](0002-journal-and-secrets.md).
+- Основа: [транспорт](../verification/reports/2026-10-18-shared-http-transport.md), [снимок профиля](0009-pinned-runtime-profile.md), [журнал и секреты](0002-journal-and-secrets.md).
 
 ## Модели и границы
 

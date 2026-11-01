@@ -187,6 +187,9 @@
           "HhHomelab.Wizard.Domain": "[1.0.0, )"
         }
       },
+      "hhhomelab.wizard.docscheck": {
+        "type": "Project"
+      },
       "hhhomelab.wizard.domain": {
         "type": "Project"
       },

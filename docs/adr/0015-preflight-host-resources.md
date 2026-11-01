@@ -35,6 +35,6 @@ Passed для портов означает только отсутствие TC
 
 Аппаратного подтверждения DS725+ нет: путь `synoinfo.conf`, наличие `/volume1` и представление docker-proxy в `/proc/net/tcp` проверяются отдельно (#39/#48). Полные #48, M2 и #101 не закрываются.
 
-Доказательства: [протокол](../testing/2026-10-19-preflight-resources.md).
+Доказательства: [протокол](../verification/reports/2026-10-19-preflight-resources.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

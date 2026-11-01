@@ -50,6 +50,6 @@ ID операций и ресурсов — именованные GUID верс
 - Публичного пути запуска графа и экрана #50/#55 нет; реальная DSM не затрагивается.
 - Удалённая блокировка для графа (`RemoteLockedPlanJournal`) подключается вызывающим так же, как в ADR 0020.
 
-Доказательства: [протокол](../testing/2026-10-19-qbittorrent-configuration-graph.md).
+Доказательства: [протокол](../verification/reports/2026-10-19-qbittorrent-configuration-graph.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

@@ -34,6 +34,6 @@ Host/port канонизируются в endpoint fingerprint. Host key сод�
 
 Следующий результат #46/#101: одноразовый SSH-сервер со своим ключом и синтетическими аккаунтами, password/key auth и отказ неправильных credentials, key rotation, SFTP, потеря связи/отмена. Затем — read-only preflight #48, безопасные пути #49, конкретный план #50 и минимальные remote ownership/lock/durability механизмы M3. Полные критерии #46 сохраняются открытыми.
 
-Повторение и доказательства: [протокол](../testing/2026-10-18-ssh-probe.md).
+Повторение и доказательства: [протокол](../verification/reports/2026-10-18-ssh-probe.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

@@ -9,6 +9,7 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <ProjectReference Include="../../src/HhHomelab.Wizard.Infrastructure/HhHomelab.Wizard.Infrastructure.csproj" />
+    <ProjectReference Include="../../tools/HhHomelab.Wizard.DocsCheck/HhHomelab.Wizard.DocsCheck.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None
