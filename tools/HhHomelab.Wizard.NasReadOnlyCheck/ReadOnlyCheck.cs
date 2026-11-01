@@ -5,7 +5,8 @@ using HhHomelab.Wizard.Infrastructure;
 namespace HhHomelab.Wizard.NasReadOnlyCheck;
 
 /// <summary>Runs the production read-only probes against one NAS in a fixed order and collects a report
-/// without secrets, host names, user names or container IDs. Every probe only reads: the SSH identity, sudo
+/// without secrets, host names, user names or container IDs. The endpoint fingerprint is left out as well:
+/// it is an unsalted hash of the address and port and would reveal a private address. Every probe only reads: the SSH identity, sudo
 /// listing and SFTP attributes of the home directory, the host preflight, the chosen paths with the
 /// ownership marker, the exact Docker network name and the Compose project of a new installation.</summary>
 public sealed class ReadOnlyCheck(CheckOptions options, SshProbeCredentials credentials, TextWriter output)
@@ -20,13 +21,12 @@ public sealed class ReadOnlyCheck(CheckOptions options, SshProbeCredentials cred
     public async Task<int> RunAsync(CancellationToken token)
     {
         report["schema"] = 1;
-        report["endpoint"] = options.Target.EndpointFingerprint;
         report["profile"] = PinnedRuntimeProfile.Fingerprint;
         report["started"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
-        var pin = await ConnectAsync(token);
+        var (pin, approvalRequired) = await ConnectAsync(token);
         if (pin is null)
-            return options.ApprovedKey is null ? HostKeyApprovalRequired : 1;
+            return approvalRequired ? HostKeyApprovalRequired : 1;
 
         var preflight = await PreflightAsync(pin, token);
         if (!preflight)
@@ -43,7 +43,9 @@ public sealed class ReadOnlyCheck(CheckOptions options, SshProbeCredentials cred
         return network && compose ? 0 : 1;
     }
 
-    private async Task<SshHostKey?> ConnectAsync(CancellationToken token)
+    /// <summary>The approved key when the connection is ready; otherwise null and whether the only obstacle is
+    /// a server key that still has to be compared. A transport or authentication failure is not that.</summary>
+    private async Task<(SshHostKey? Pin, bool ApprovalRequired)> ConnectAsync(CancellationToken token)
     {
         var result = await new SshConnectionProbe(options.Target, credentials).ProbeAsync(options.ApprovedKey, token);
         report["ssh"] = result.Status.ToString();
@@ -53,13 +55,13 @@ public sealed class ReadOnlyCheck(CheckOptions options, SshProbeCredentials cred
             output.WriteLine("ssh.host-key: " + offered.Algorithm + " " + offered.Sha256Fingerprint);
             output.WriteLine("Compare it with the key on the NAS, then run again with --host-key \"" + offered.Algorithm + " "
                 + offered.Sha256Fingerprint + "\".");
-            return null;
+            return (null, true);
         }
 
         var connected = result.Status is SshProbeStatus.Ready or SshProbeStatus.SftpUnavailable;
         output.WriteLine("ssh: " + result.Status);
         if (!connected)
-            return null;
+            return (null, false);
 
         // SFTP may be switched off in DSM; the remaining checks use SSH commands only.
         if (result.Capabilities is { } capabilities)
@@ -70,7 +72,7 @@ public sealed class ReadOnlyCheck(CheckOptions options, SshProbeCredentials cred
             output.WriteLine("ssh.sudo-list-without-prompt: " + capabilities.CanListSudoWithoutPrompt);
         }
 
-        return options.ApprovedKey;
+        return (options.ApprovedKey, false);
     }
 
     private async Task<bool> PreflightAsync(SshHostKey pin, CancellationToken token)
@@ -175,8 +177,16 @@ public sealed class ReadOnlyCheck(CheckOptions options, SshProbeCredentials cred
     /// the chosen network or container name is reported as Foreign, never as this wizard's own.</summary>
     private async Task<bool> ComposeAsync(MediaPathLayout layout, string networkName, SshHostKey pin, CancellationToken token)
     {
+        var directory = layout.ConfigurationRoot + "/media";
+        if (!MediaPathLayout.IsVolumePath(directory))
+        {
+            report["compose"] = SshProbeStatus.InvalidInput.ToString();
+            output.WriteLine("compose: " + SshProbeStatus.InvalidInput);
+            return false;
+        }
+
         var identity = new ComposeProjectIdentity("hhw-" + Guid.NewGuid().ToString("N"), QbittorrentConfigurationRenderer.NetworkKey,
-            networkName, "qbittorrent", "qbittorrent", layout.ConfigurationRoot + "/media");
+            networkName, "qbittorrent", "qbittorrent", directory);
         var result = await new NasComposeProjectProbe(options.Target, credentials).InspectAsync(identity, pin, token);
         report["compose"] = result.Status.ToString();
         output.WriteLine("compose: " + result.Status);

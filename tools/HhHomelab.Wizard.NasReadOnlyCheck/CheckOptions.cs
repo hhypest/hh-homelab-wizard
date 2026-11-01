@@ -1,3 +1,4 @@
+using System.Globalization;
 using HhHomelab.Wizard.Domain;
 
 namespace HhHomelab.Wizard.NasReadOnlyCheck;
@@ -64,7 +65,7 @@ public sealed record CheckOptions(
     private static (CheckOptions? Options, string? Error) Build(Dictionary<string, string?> values)
     {
         var port = 22;
-        if (values.TryGetValue("--port", out var portText) && !int.TryParse(portText, out port))
+        if (values.TryGetValue("--port", out var portText) && !int.TryParse(portText, NumberStyles.None, CultureInfo.InvariantCulture, out port))
             return (null, "arguments.port");
 
         var target = new SshConnectionTarget(Value(values, "--host") ?? "", port, Value(values, "--user") ?? "");

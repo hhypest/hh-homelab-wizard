@@ -1,3 +1,4 @@
+using HhHomelab.Wizard.Infrastructure;
 using HhHomelab.Wizard.NasReadOnlyCheck;
 using Xunit;
 
@@ -53,6 +54,35 @@ public sealed class NasReadOnlyCheckTests
 
         Assert.Null(options);
         Assert.Equal(expected, error);
+    }
+
+    [Theory]
+    [InlineData("+22")]
+    [InlineData(" 22")]
+    [InlineData("0")]
+    [InlineData("65536")]
+    public void PortIsPlainDecimalInRange(string port)
+    {
+        var (options, error) = CheckOptions.Parse(["--host", "192.168.3.53", "--port", port, "--user", "wizard", "--password"]);
+
+        Assert.Null(options);
+        Assert.True(error is "arguments.port" or "arguments.target");
+    }
+
+    [Fact]
+    public async Task UnreachableHostIsNotReportedAsKeyApproval()
+    {
+        var (options, _) = CheckOptions.Parse(["--host", "127.0.0.1", "--port", "1", "--user", "wizard", "--password"]);
+        using var credentials = SshProbeCredentials.Password("not-a-real-password");
+        using var output = new StringWriter();
+        var check = new ReadOnlyCheck(options!, credentials, output);
+
+        var exitCode = await check.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, exitCode);
+        Assert.DoesNotContain("ssh.host-key", output.ToString(), StringComparison.Ordinal);
+        Assert.False(check.Report.ContainsKey("endpoint"));
+        Assert.DoesNotContain("not-a-real-password", output.ToString(), StringComparison.Ordinal);
     }
 
     [Fact]
