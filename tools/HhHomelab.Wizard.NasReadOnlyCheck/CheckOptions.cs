@@ -52,7 +52,9 @@ public sealed record CheckOptions(
                 continue;
             }
 
-            if (index + 1 >= arguments.Count)
+            // A value that looks like the next option means the value was left out: "--user --password"
+            // must not run as the user "--password".
+            if (index + 1 >= arguments.Count || arguments[index + 1].StartsWith("--", StringComparison.Ordinal))
                 return (null, "arguments.value-missing");
 
             index++;

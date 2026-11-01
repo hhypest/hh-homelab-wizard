@@ -48,6 +48,7 @@ public sealed class NasReadOnlyCheckTests
         "--config-root", "/volume1/c", "--network", "media\"x")]
     [InlineData("arguments.duplicate", "--host", "192.168.3.53", "--host", "192.168.3.54", "--user", "wizard", "--password")]
     [InlineData("arguments.value-missing", "--host", "192.168.3.53", "--user")]
+    [InlineData("arguments.value-missing", "--host", "192.168.3.53", "--user", "--password", "--key", "nas")]
     public void InvalidCommandLinesAreRefusedBeforeConnecting(string expected, params string[] arguments)
     {
         var (options, error) = CheckOptions.Parse(arguments);
