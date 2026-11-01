@@ -26,7 +26,7 @@ Fixtures, Docker-стенд, CI native GUI, обычный клиентский 
 | Задание | Среда | Что проверяет |
 | --- | --- | --- |
 | `core` | Windows, Ubuntu 24.04 | Политика повторов pull, выбор образов профиля, locked restore, build, тесты, DocsCheck, JournalProbe и ProfileCheck |
-| `desktop` | Windows, Ubuntu 24.04 | Self-contained публикация, native probe Win32/X11/Wayland, пробный пакет с лицензиями и `DEMO.md` |
+| `desktop` | Windows, Ubuntu 24.04 | Self-contained публикация, native probe Win32/X11/Wayland, пробный пакет с лицензиями и `DEMO.md`, сборка NasReadOnlyCheck |
 | `ssh-runtime` (`ssh`, `docker`) | Ubuntu 24.04 | SshDockerProbe дважды на свежих контейнерах; вариант `docker` — preflight, имя сети и наблюдение Compose-проекта на настоящем Docker через SSH |
 | `qb-runtime` | Ubuntu 24.04 | QbDockerProbe дважды |
 | `arr-runtime` | Ubuntu 24.04 | ArrDockerProbe дважды |

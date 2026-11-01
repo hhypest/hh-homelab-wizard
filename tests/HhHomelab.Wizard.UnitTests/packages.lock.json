@@ -201,6 +201,12 @@
           "SSH.NET": "[2026.0.0, )"
         }
       },
+      "hhhomelab.wizard.nasreadonlycheck": {
+        "type": "Project",
+        "dependencies": {
+          "HhHomelab.Wizard.Infrastructure": "[1.0.0, )"
+        }
+      },
       "SSH.NET": {
         "type": "CentralTransitive",
         "requested": "[2026.0.0, )",
