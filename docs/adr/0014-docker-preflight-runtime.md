@@ -20,7 +20,7 @@ CI использует `ubuntu-24.04`, без self-hosted runner. Внутрь 
 
 ## Закреплённый fixture
 
-Остаётся прежняя digest-pinned Alpine 3.24.2/amd64 и OpenSSH 10.3_p1-r1. Multistage Dockerfile имеет явные targets `ssh-only` (без Docker, default) и `ssh-docker`. Последний устанавливает `docker-engine=29.8.2-r1`, `docker-cli=29.8.2-r1`, `docker-cli-compose=5.1.4-r2` из подписанного Alpine v3.24 community repository. Пины сверены с официальным APKINDEX; Compose plugin path дополнительно сверяется при сборке.
+Остаётся прежняя digest-pinned Alpine 3.24.2/amd64 и OpenSSH 10.3_p1-r1. Multistage Dockerfile имеет явные targets `ssh-only` (без Docker, default) и `ssh-docker`. Последний устанавливает `docker-engine=29.9.2-r0`, `docker-cli=29.9.2-r0`, `docker-cli-compose=5.6.1-r0` из подписанного Alpine v3.24 community repository. Пины сверены с официальным APKINDEX; Compose plugin path дополнительно сверяется при сборке. Обновлено 01.11.2026: прежние `29.8.2-r1`/`5.1.4-r2` удалены из индекса Alpine, и сборка стенда перестала разрешать пакеты; протоколы до этой даты относятся к прежним версиям.
 
 Это версии тестового окружения, не новая матрица совместимости DSM и не обновление сервисов hh-homelab. Транзитивный APK snapshot не закреплён полностью, побитовая повторяемость сборки не заявляется. Контекст состоит из embedded публичных файлов; definition hash, target и реальные версии записываются в очищенный результат. Сборка не получает credentials.
 

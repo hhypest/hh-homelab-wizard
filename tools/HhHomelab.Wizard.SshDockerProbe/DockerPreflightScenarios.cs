@@ -150,8 +150,8 @@ internal static class DockerPreflightScenarios
     private static void Available(NasPreflightSnapshot snapshot, IEnumerable<string> ids)
     {
         var facts = snapshot.Facts;
-        Require(facts.DockerServer == new PreflightVersion(PreflightFactStatus.Available, "29.8.2"), "docker-version");
-        Require(facts.Compose == new PreflightVersion(PreflightFactStatus.Available, "5.1.4"), "compose-version");
+        Require(facts.DockerServer == new PreflightVersion(PreflightFactStatus.Available, "29.9.2"), "docker-version");
+        Require(facts.Compose == new PreflightVersion(PreflightFactStatus.Available, "5.6.1"), "compose-version");
         Require(facts.ContainerInventoryStatus == PreflightFactStatus.Available, "inventory-status");
         Require(facts.ContainerIds.SequenceEqual(ids.Order(StringComparer.Ordinal)), "inventory-ids");
         Require(facts.Dsm.Status == PreflightFactStatus.Missing, "non-dsm");

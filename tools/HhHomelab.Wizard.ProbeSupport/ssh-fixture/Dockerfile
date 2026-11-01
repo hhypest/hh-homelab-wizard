@@ -13,7 +13,7 @@ RUN chmod 755 /fixture/entrypoint.sh /fixture/dispatch.sh /fixture/docker-contro
 ENTRYPOINT ["/fixture/entrypoint.sh"]
 
 FROM ssh-base AS ssh-docker
-RUN apk add --no-cache docker-engine=29.8.2-r1 docker-cli=29.8.2-r1 docker-cli-compose=5.1.4-r2 \
+RUN apk add --no-cache docker-engine=29.9.2-r0 docker-cli=29.9.2-r0 docker-cli-compose=5.6.1-r0 \
     && (grep -q '^docker:' /etc/group || addgroup -S docker) \
     && addgroup wizard docker \
     && test -x /usr/libexec/docker/cli-plugins/docker-compose

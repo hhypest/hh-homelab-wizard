@@ -35,7 +35,7 @@ public sealed partial class OwnedDockerBench
             throw new InvalidOperationException("bench.ssh.docker.daemon-isolation.failed");
         var docker = (await InnerDockerAsync(["version", "--format", "{{.Server.Version}}"], token)).Trim();
         var compose = (await InnerDockerAsync(["compose", "version", "--short"], token)).Trim().TrimStart('v');
-        if (docker != "29.8.2" || compose != "5.1.4")
+        if (docker != "29.9.2" || compose != "5.6.1")
             throw new InvalidOperationException("bench.ssh.docker.version.failed");
         Console.WriteLine("ssh-docker.daemon-isolation: passed");
         Console.WriteLine("ssh-docker.versions: engine=" + docker + "; compose=" + compose);
