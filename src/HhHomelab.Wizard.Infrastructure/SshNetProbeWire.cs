@@ -6,7 +6,7 @@ using Renci.SshNet.Common;
 
 namespace HhHomelab.Wizard.Infrastructure;
 
-internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire, INasPreflightWire, INasPathWire, INasDirectoryWire, INasDockerNetworkWire
+internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCredentials credentials, TimeSpan timeout) : ISshProbeWire, INasPreflightWire, INasPathWire, INasDirectoryWire, INasDockerNetworkWire, INasComposeWire
 {
     internal const string IdentityCommand = "printf 'hh-homelab-wizard:ssh-probe:v1\\n'; uname -s; id -u";
 
@@ -48,6 +48,13 @@ internal sealed class SshNetProbeWire(SshConnectionTarget target, SshProbeCreden
         var request = NasDockerNetworkProtocol.Request(networkName);
         var result = await ExecuteAsync(NasDockerNetworkProtocol.Command, retainOutput: true, token, request).ConfigureAwait(false);
         return NasDockerNetworkProtocol.Parse(result.ExitCode, result.Output);
+    }
+
+    public async Task<ComposeProjectFacts> ReadComposeProjectAsync(ComposeProjectIdentity identity, CancellationToken token)
+    {
+        var request = NasComposeProjectProtocol.Request(identity);
+        var result = await ExecuteAsync(NasComposeProjectProtocol.Command, retainOutput: true, token, request).ConfigureAwait(false);
+        return NasComposeProjectProtocol.Parse(result.ExitCode, result.Output);
     }
 
     public async Task<MarkerWriteOutcome> WriteOwnershipMarkerAsync(OwnershipMarkerRequest request, Action sending, CancellationToken token)

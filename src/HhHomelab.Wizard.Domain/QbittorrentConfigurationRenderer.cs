@@ -40,6 +40,9 @@ public static class QbittorrentConfigurationRenderer
 
     public const int EnvironmentMode = 0x180;
 
+    /// <summary>Key of the single network under `networks:`; Compose labels the network with it.</summary>
+    public const string NetworkKey = "media";
+
     public static IReadOnlyList<RenderedConfigurationFile> Render(QbittorrentInstallationPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
@@ -108,7 +111,7 @@ public static class QbittorrentConfigurationRenderer
         text.Append("      - \"${BIND_ADDR}:${QBITTORRENT_TORRENT_PORT}:${QBITTORRENT_TORRENT_PORT}\"\n");
         text.Append("      - \"${BIND_ADDR}:${QBITTORRENT_TORRENT_PORT}:${QBITTORRENT_TORRENT_PORT}/udp\"\n");
         text.Append("    networks:\n");
-        text.Append("      - media\n");
+        text.Append("      - ").Append(NetworkKey).Append('\n');
         text.Append("    logging:\n");
         text.Append("      driver: json-file\n");
         text.Append("      options:\n");
@@ -116,7 +119,7 @@ public static class QbittorrentConfigurationRenderer
         text.Append("        max-file: \"3\"\n");
         text.Append('\n');
         text.Append("networks:\n");
-        text.Append("  media:\n");
+        text.Append("  ").Append(NetworkKey).Append(":\n");
         text.Append("    name: ${MEDIA_NETWORK:?см. .env}\n");
         text.Append("    driver: bridge\n");
         return text.ToString();
@@ -148,6 +151,18 @@ public static class QbittorrentConfigurationRenderer
     }
 
     private static string ProjectName(Guid installation) => "hhw-" + installation.ToString("N");
+
+    /// <summary>The labels Compose would put on the network and the container of the rendered project: its own
+    /// project name, the network key and chosen name, the service/container and the project directory below
+    /// the configuration root. Used only to recognise resources; it starts nothing.</summary>
+    public static ComposeProjectIdentity ProjectIdentity(QbittorrentInstallationRequest request, QbittorrentPlanProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(profile);
+        var directory = request.Layout.ConfigurationRoot + "/" + DirectoryOf(profile.ComposePath);
+        return new(ProjectName(request.InstallationId), NetworkKey, request.NetworkName, profile.ContainerName,
+            profile.ContainerName, directory);
+    }
 
     private static string DirectoryOf(string relativePath)
     {

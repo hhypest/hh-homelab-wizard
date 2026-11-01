@@ -111,6 +111,69 @@ public sealed partial class OwnedDockerBench
         return id;
     }
 
+    /// <summary>Fixture setup only: an internal network carrying the given Compose labels, as Compose would
+    /// create it. No Compose run, no attachment and no address outside the nested daemon.</summary>
+    public async Task<string> CreateSshDockerLabelledNetworkAsync(string name, IReadOnlyDictionary<string, string> labels,
+        CancellationToken token)
+    {
+        if (!ComposeProjectIdentity.IsDockerName(name))
+            throw new InvalidOperationException("bench.ssh.docker.resource.invalid");
+
+        var arguments = new List<string> { "network", "create", "--driver", "bridge", "--internal", "--label", Label + "=" + session };
+        arguments.AddRange(LabelArguments(labels));
+        arguments.Add(name);
+        var id = (await InnerDockerAsync(arguments.ToArray(), token)).Trim();
+        if (!ResourceIdentity.IsFingerprint(id))
+            throw new InvalidOperationException("bench.ssh.docker.resource.invalid");
+
+        return id;
+    }
+
+    /// <summary>Fixture setup only: a created, never started container of the imported rootfs carrying the given
+    /// Compose labels.</summary>
+    public async Task<string> CreateSshDockerLabelledContainerAsync(string name, IReadOnlyDictionary<string, string> labels,
+        CancellationToken token)
+    {
+        if (!ComposeProjectIdentity.IsDockerName(name))
+            throw new InvalidOperationException("bench.ssh.docker.resource.invalid");
+
+        var arguments = new List<string> { "container", "create", "--network", "none", "--label", Label + "=" + session };
+        arguments.AddRange(LabelArguments(labels));
+        arguments.AddRange(["--name", name, InnerImage]);
+        var id = (await InnerDockerAsync(arguments.ToArray(), token)).Trim();
+        if (!ResourceIdentity.IsFingerprint(id))
+            throw new InvalidOperationException("bench.ssh.docker.resource.invalid");
+
+        return id;
+    }
+
+    /// <summary>Removes only a fixture resource this session labelled; anything else is refused.</summary>
+    public async Task RemoveSshDockerLabelledResourceAsync(string kind, string id, CancellationToken token)
+    {
+        if (kind is not ("network" or "container") || !ResourceIdentity.IsFingerprint(id))
+            throw new InvalidOperationException("bench.ssh.docker.resource.invalid");
+
+        var labelsPath = kind == "network" ? ".Labels" : ".Config.Labels";
+        var owner = (await InnerDockerAsync([kind, "inspect", "--format", "{{index " + labelsPath + " \"" + Label + "\"}}", id], token)).Trim();
+        if (owner != session)
+            throw new InvalidOperationException("bench.ssh.docker.resource.foreign");
+
+        _ = await InnerDockerAsync([kind, "rm", id], token);
+    }
+
+    private static IEnumerable<string> LabelArguments(IReadOnlyDictionary<string, string> labels)
+    {
+        foreach (var (key, value) in labels)
+        {
+            var composeKey = key.StartsWith("com.docker.compose.", StringComparison.Ordinal);
+            if (!composeKey || value.Contains('\n', StringComparison.Ordinal))
+                throw new InvalidOperationException("bench.ssh.docker.label.invalid");
+
+            yield return "--label";
+            yield return key + "=" + value;
+        }
+    }
+
     /// <summary>Hash logical resource IDs and states; never return container configuration/logs.</summary>
     public async Task<string> ObserveSshDockerResourcesAsync(CancellationToken token)
     {

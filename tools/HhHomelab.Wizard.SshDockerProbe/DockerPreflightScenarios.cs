@@ -33,6 +33,8 @@ internal static class DockerPreflightScenarios
         await VerifyDaemonRestartAsync(bench, credentials, pin, expected, token);
         await UnchangedAsync(bench, resources, token);
         Console.WriteLine("ssh-docker.read-only-resource-state: passed");
+
+        await ComposeProjectScenarios.RunAsync(bench, credentials, pin, token);
     }
 
     private static async Task<NasPreflightSnapshot> VerifyResourceDriftAsync(OwnedDockerBench bench,
