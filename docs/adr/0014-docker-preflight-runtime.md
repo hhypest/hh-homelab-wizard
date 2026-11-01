@@ -32,6 +32,6 @@ CI использует `ubuntu-24.04`, без self-hosted runner. Внутрь 
 
 Cleanup удаляет собственный внешний контейнер и сеть с проверкой session identity; его nested state исчезает вместе с writable layer. Кэш публичного build image может остаться, credentials в нём нет. Провал cleanup делает probe неуспешным. CI отдельно запускает каждый режим дважды на свежих контейнерах.
 
-Доказательства: [протокол](../testing/2026-10-19-docker-preflight.md). Остаток #48: DSM/Container Manager hardware, model, space, ports, volumes/databases/conflicts; #49/#50 — paths/plan, #51–#53 — ownership/lock/recovery. Этапы и полные Issues не закрываются.
+Доказательства: [протокол](../verification/reports/2026-10-19-docker-preflight.md). Остаток #48: DSM/Container Manager hardware, model, space, ports, volumes/databases/conflicts; #49/#50 — paths/plan, #51–#53 — ownership/lock/recovery. Этапы и полные Issues не закрываются.
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

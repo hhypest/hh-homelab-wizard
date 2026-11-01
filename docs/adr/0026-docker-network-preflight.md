@@ -31,6 +31,6 @@ Docker вызывается только на `unix:///var/run/docker.sock`; amb
 
 Ни Passed, ни свежесть не являются lease/ownership или разрешением установки. Между наблюдением и записью среда может измениться; перед будущим созданием сети нужны отдельные Observe/intent/Apply/Verify, собственные labels, fresh baseline и защита чужих ресурсов. Не проверены driver/IPAM/subnet/DNS, namespace mapping, DSM compatibility, доступ контейнера и реальный NAS. Остальные Unverified/NotChecked сохраняются, `CanApply` не появляется. Полные #48/#50/#101/M2/M3 не закрываются.
 
-Доказательства: [протокол](../testing/2026-10-19-docker-network-preflight.md).
+Доказательства: [протокол](../verification/reports/2026-10-19-docker-network-preflight.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

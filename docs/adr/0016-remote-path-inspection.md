@@ -39,6 +39,6 @@
 
 Текущая версия протокола — v3 с обязательной numeric SSH identity по [ADR 0025](0025-container-unix-identity.md); выше сохранено описание исходного инкремента.
 
-Доказательства: [протокол](../testing/2026-10-19-remote-paths.md).
+Доказательства: [протокол](../verification/reports/2026-10-19-remote-paths.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

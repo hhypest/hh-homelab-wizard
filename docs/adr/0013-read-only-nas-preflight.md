@@ -32,6 +32,6 @@ Docker вызывается с явным `--host unix:///var/run/docker.sock`; 
 
 Модель NAS, слушающие порты и место томов добавлены протоколом v2 в [ADR 0015](0015-preflight-host-resources.md); описанное выше NotChecked для них относится к v1.
 
-Доказательства и воспроизведение: [протокол](../testing/2026-10-19-nas-preflight.md).
+Доказательства и воспроизведение: [протокол](../verification/reports/2026-10-19-nas-preflight.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.

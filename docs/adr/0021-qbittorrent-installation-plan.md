@@ -19,7 +19,7 @@
 - volume mappings `/data`, `/config`, `/watch`, TCP WebUI и TCP/UDP torrent;
 - отдельные адреса компьютер → NAS, HA host network → публикация хоста и Compose → `qbittorrent:<выбранный порт>`.
 
-Выбранный WebUI port одновременно задаёт внутренний `WEBUI_PORT`, host/container publication и Compose-адрес. Защищённый WebUI qBittorrent 5.2.4 отвергает несовпадающий Host port — это уже проверено [M0 runtime-пробой](../m0/README.md#повторяемая-проба-qbittorrent); Host validation не отключается. Политика `host-and-container` закреплена в шаблоне, другой режим отклоняется. Для BIND_ADDR=конкретный NAS адрес HA также использует NAS, а не неработающий loopback. При bind на `127.0.0.1` адрес с компьютера отсутствует и остаётся блокировка `plan.computer-access.proxy-required`; несуществующий туннель не предполагается.
+Выбранный WebUI port одновременно задаёт внутренний `WEBUI_PORT`, host/container publication и Compose-адрес. Защищённый WebUI qBittorrent 5.2.4 отвергает несовпадающий Host port — это уже проверено [M0 runtime-пробой](../engineering/developer-probes.md#qbdockerprobe-повторяемая-проба-qbittorrent); Host validation не отключается. Политика `host-and-container` закреплена в шаблоне, другой режим отклоняется. Для BIND_ADDR=конкретный NAS адрес HA также использует NAS, а не неработающий loopback. При bind на `127.0.0.1` адрес с компьютера отсутствует и остаётся блокировка `plan.computer-access.proxy-required`; несуществующий туннель не предполагается.
 
 Свободное место оценивается относительно явных бюджетов. На одном томе бюджеты данных и конфигурации складываются, на разных оцениваются отдельно. Это не бюджет Docker image storage: он явно `NotChecked`. TCP listeners проверяются существующей оценкой; UDP не выдаётся за проверенный TCP.
 
@@ -33,6 +33,6 @@
 
 Это первый конкретный preview одного сервиса, ещё не полный v1 compiler и не `ConfigurationOperationPlan`. Он не записывается в исполняемый журнал, не выдаёт разрешение установки и не вызывает мутации. Доставка/рендер файлов #53, связь с графом #52, secrets #47, настоящие VM/экран #103/#50, полный стек и аппаратные проверки остаются открытыми. Публичного пользовательского пути запуска compiler пока нет; демонстрационный UI прежний. Полные #50/#101/M2 не закрываются.
 
-Доказательства: [протокол](../testing/2026-10-19-qbittorrent-plan.md).
+Доказательства: [протокол](../verification/reports/2026-10-19-qbittorrent-plan.md).
 
 Документ: [CC BY 4.0](../../LICENSES/CC-BY-4.0.txt), © 2026 hhypest.
